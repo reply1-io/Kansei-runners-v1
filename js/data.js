@@ -88,10 +88,10 @@ export const COLORS = ['#e8e8e8', '#d63031', '#0984e3', '#2d3436', '#fdcb6e', '#
 export const RACES = [
   { id: 'pass', course: 'pass', name: 'Kansei Pass', style: 'Ultra-winding downhill',
     desc: 'Hairpin after hairpin, sharp esses and square 90s, almost no straight road. Line is everything, and passing is hard.',
-    levels: { easy: { commit: 0.84, brake: 0.66 }, medium: { commit: 0.865, brake: 0.68 }, hard: { commit: 1.1, brake: 1.2 }, impossible: { commit: 1.2, brake: 1.4 } } },
+    levels: { easy: { commit: 1.16, brake: 1.35 }, medium: { commit: 1.33, brake: 1.6 }, hard: { commit: 1.47, brake: 1.85 }, impossible: { commit: 1.66, brake: 2.1 } } },
   { id: 'ladder', course: 'ladder', name: 'Switchback Ladder', style: 'Straight, hairpin, repeat',
     desc: 'Flat out down a straight, stand on the brakes, swing it around a hairpin, do it again. Nine times. Braking points win this one.',
-    levels: { easy: { commit: 0.88, brake: 0.64 }, medium: { commit: 1.0, brake: 0.64 }, hard: { commit: 1.0, brake: 0.8 }, impossible: { commit: 1.02, brake: 1.06 } } },
+    levels: { easy: { commit: 1.07, brake: 1.3 }, medium: { commit: 1.33, brake: 1.9 }, hard: { commit: 1.62, brake: 2.7 }, impossible: { commit: 2.0, brake: 3.6 } } },
 ];
 
 export const DIFFICULTIES = {
