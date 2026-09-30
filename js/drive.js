@@ -24,10 +24,12 @@ function rivalColors(mine) {
 }
 const HB_RADIUS = 15; // rivals pull the handbrake where their line is tighter than this
 
-// Chase camera: raised up and behind the car, looking down the road so you can see well ahead.
-// The car sits low in the frame (just above the pedals) so it never blocks the road in front.
-// `lag` is how quickly the camera swings round to follow the car's heading.
-const CAM = { height: 5.2, back: 9.5, ahead: 8, fov: 70, fovLandscape: 55, lag: 5 };
+// Chase camera: high up behind the car, looking down over the treetops. It aims at the road
+// `look` meters ahead (more at speed), so it turns into a corner before you get there and you can
+// see where the road goes. The car sits low in the frame, just above the pedals.
+// aim: how much it favors the road ahead over the car's heading; maxSwing caps that (radians);
+// lag: how quickly it swings round.
+const CAM = { height: 12.5, back: 10, ahead: 5, fov: 72, fovLandscape: 56, look: 24, lookPerMps: 0.7, aim: 0.8, maxSwing: 1.05, lag: 3.2 };
 
 let retro = null, world = null, camera = null;
 
@@ -316,6 +318,7 @@ export function startDrive({ canvas, hud, car, perf, rivalBase, mode, event, dif
     const eTarget = inYard ? 0 : onBranch ? w2.e : sampleAtS(w2.m.s).e;
     P.e += (eTarget - P.e) * (P.eSet ? Math.min(1, dt * 12) : 1); // snaps to the road on the first step
     P.eSet = true;
+    P.onMain = !onBranch && !inYard; // the camera follows the main road ahead only while you're on it
     const gAlong = inYard ? 0 : rs.grade * (fx * rs.tx + fz * rs.tz);
     P.pitch += (Math.atan(gAlong) - P.pitch) * Math.min(1, dt * 6);
     P.roll += (clamp(-vl * 0.012 - P.steer * speed * 0.0015, -0.08, 0.08) - P.roll) * Math.min(1, dt * 5);
@@ -450,10 +453,19 @@ export function startDrive({ canvas, hud, car, perf, rivalBase, mode, event, dif
     }
     if (world.fire) world.fire.light.intensity = 26 + Math.sin(time * 13) * 6 + Math.sin(time * 7.7) * 4;
 
-    // Chase camera: swings smoothly after the car's heading (and snaps on big jumps like a reset).
-    if (camH === null) camH = P.h;
-    let dh = P.h - camH; dh = Math.atan2(Math.sin(dh), Math.cos(dh));
-    camH = Math.abs(dh) > 1.2 ? P.h : camH + dh * Math.min(1, CAM.lag * frameDt);
+    // Chase camera: swings smoothly toward the road ahead (and snaps on big jumps like a reset).
+    const wrapA = (a) => Math.atan2(Math.sin(a), Math.cos(a));
+    let aimH = P.h;
+    if (P.onMain) {
+      const here = sampleAtS(P.sAbs);
+      const dir = Math.cos(P.h - Math.atan2(here.tz, here.tx)) >= 0 ? 1 : -1;
+      const T = sampleAtS(P.sAbs + dir * (CAM.look + Math.hypot(P.vx, P.vz) * CAM.lookPerMps));
+      const dev = clamp(wrapA(Math.atan2(T.z - P.z, T.x - P.x) - P.h), -CAM.maxSwing, CAM.maxSwing);
+      aimH = P.h + dev * CAM.aim;
+    }
+    if (camH === null) camH = aimH;
+    let dh = wrapA(aimH - camH);
+    camH = Math.abs(dh) > 2 ? aimH : camH + dh * Math.min(1, CAM.lag * frameDt);
     const cx = Math.cos(camH), cz = Math.sin(camH);
     camera.position.set(P.x - cx * CAM.back, P.e + CAM.height, P.z - cz * CAM.back);
     camera.lookAt(P.x + cx * CAM.ahead, P.e, P.z + cz * CAM.ahead);

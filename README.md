@@ -14,7 +14,7 @@ It's styled after **Gran Turismo 2** on the original PlayStation:
 You start at **your cabin, deep in the forest**, shown top-down. It has a carport tent for one car, a gravel driveway in front of it for 2 more, and a mountain road out front. That's 3 parking spots, so you can own up to 3 cars.
 
 **On the map:**
-- **Select** (the yellow button next to each car) puts you in that car. The chase camera sits up and behind the car, looking down the road so you can see the next corners coming. The car sits low in the frame, just above the pedals, so it never blocks your view. Drive down the lane onto the road and go anywhere, including the side roads. Tap **🏠 Park** to go home.
+- **Select** (the yellow button next to each car) puts you in that car. The chase camera sits high up behind the car and aims at the road 25–45 m ahead (further the faster you go), so it swings into a corner before you reach it and you can see the whole hairpin and its exit. Trees near the road are kept short so they do not hide the next bend. Drive down the lane onto the road and go anywhere, including the side roads. Tap **🏠 Park** to go home.
 - **Tap a parked car** to open it in the Garage.
 - **Tap an empty spot** to open the Marketplace.
 - **Tap the cabin** to sleep until tomorrow, which brings new listings.

@@ -212,6 +212,7 @@ function buildWorld(net) {
   const lights = { hemi, sun, sky, fog: scene.fog };
 
   // Forest: instanced cones on a jittered grid, kept off the roads and out of the clearing.
+  // Trees near the road are shorter, so the chase camera can see over them into the next corner.
   const trees = [];
   const trnd = seeded(99);
   const TS = 8.5;
@@ -219,7 +220,7 @@ function buildWorld(net) {
     const tx = x + (trnd() - 0.5) * TS * 0.9, tz = z + (trnd() - 0.5) * TS * 0.9;
     const t = terrainAt(tx, tz);
     if (t.dRoad < ROAD_HALF + 4 + trnd() * 3 || t.clearing < 1.12) continue;
-    trees.push({ x: tx, z: tz, y: t.h, hgt: 9 + trnd() * 10, r: 2.2 + trnd() * 1.6, shade: 0.75 + trnd() * 0.4 });
+    trees.push({ x: tx, z: tz, y: t.h, hgt: Math.min(9 + trnd() * 10, 2.5 + (t.dRoad - ROAD_HALF) * 0.8), r: 2.2 + trnd() * 1.6, shade: 0.75 + trnd() * 0.4 });
   }
   // Crossed-quad sprite trees, the classic late-90s way.
   const quad = (rot) => { const p = new THREE.PlaneGeometry(1, 1); p.translate(0, 0.5, 0); p.rotateY(rot); return p; };
