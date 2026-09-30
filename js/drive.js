@@ -132,9 +132,10 @@ export function startDrive({ canvas, hud, car, perf, rivalBase, mode, event, dif
   if (race) {
     const rs = carSpec(rivalBase || perf);
     (window.__krNoRivals ? [] : difficulty.rivals).forEach((name, i) => { // test hook: solo time trial
-      // The second rival is a touch less sharp than the first.
-      const q = Math.max(0, difficulty.line - i * 0.05);
-      const jitter = (i ? 0.985 : 1) * (0.995 + Math.random() * 0.01);
+      // The second rival is a touch less sharp than the first (except when both are flawless: `equalPair`).
+      const weaker = i && !difficulty.equalPair;
+      const q = Math.max(0, difficulty.line - (weaker ? 0.05 : 0));
+      const jitter = (weaker ? 0.985 : 1) * (0.995 + Math.random() * 0.01);
       const commit = difficulty.commit * jitter, brakeCommit = difficulty.brake * jitter;
       const line = getLine(road, net.id, q);
       const palette = rivalColors(car.color);

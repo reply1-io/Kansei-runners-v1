@@ -88,15 +88,15 @@ export const COLORS = ['#e8e8e8', '#d63031', '#0984e3', '#2d3436', '#fdcb6e', '#
 export const RACES = [
   { id: 'pass', course: 'pass', name: 'Kansei Pass', style: 'Ultra-winding downhill',
     desc: 'Hairpin after hairpin, sharp esses and square 90s, almost no straight road. Line is everything, and passing is hard.',
-    levels: { easy: { commit: 0.84, brake: 0.66 }, medium: { commit: 0.865, brake: 0.68 }, hard: { commit: 0.885, brake: 0.75 }, impossible: { commit: 0.925, brake: 0.83 } } },
+    levels: { easy: { commit: 0.84, brake: 0.66 }, medium: { commit: 0.865, brake: 0.68 }, hard: { commit: 0.95, brake: 0.9 }, impossible: { commit: 1.0, brake: 1.0 } } },
   { id: 'ladder', course: 'ladder', name: 'Switchback Ladder', style: 'Straight, hairpin, repeat',
     desc: 'Flat out down a straight, stand on the brakes, swing it around a hairpin, do it again. Nine times. Braking points win this one.',
-    levels: { easy: { commit: 0.88, brake: 0.64 }, medium: { commit: 1.0, brake: 0.64 }, hard: { commit: 1.0, brake: 0.78 }, impossible: { commit: 1.0, brake: 0.815 } } },
+    levels: { easy: { commit: 0.88, brake: 0.64 }, medium: { commit: 1.0, brake: 0.64 }, hard: { commit: 1.0, brake: 0.775 }, impossible: { commit: 1.0, brake: 1.0 } } },
 ];
 
 export const DIFFICULTIES = {
   easy:       { label: 'Easy',       line: 0.65, mistakeEvery: 24, rivals: ['Kenta', 'Itsuki'],    entry: 50,   purse: [500, 100] },
   medium:     { label: 'Medium',     line: 0.8,  mistakeEvery: 36, rivals: ['Iketani', 'Kenji'],   entry: 150,  purse: [1200, 250] },
-  hard:       { label: 'Hard',       line: 0.93, mistakeEvery: 52, rivals: ['Ryo', 'Keisuke'],     entry: 400,  purse: [3500, 700] },
-  impossible: { label: 'Impossible', line: 1.0,  mistakeEvery: 80, rivals: ['The Ghost', 'Bunta'], entry: 1000, purse: [12000, 2000] },
+  hard:       { label: 'Hard',       line: 0.97, mistakeEvery: 90, rivals: ['Ryo', 'Keisuke'],     entry: 400,  purse: [3500, 700] },
+  impossible: { label: 'Impossible', line: 1.0,  mistakeEvery: 1e9, equalPair: true, rivals: ['The Ghost', 'Bunta'], entry: 1000, purse: [12000, 2000] },
 };
