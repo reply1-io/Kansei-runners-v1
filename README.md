@@ -35,6 +35,7 @@ You start at **your cabin, deep in the forest**, shown top-down. It has a carpor
    - **Easy** rivals mostly keep to their lane, brake early and make mistakes, so the other lane is open to pass.
    - Each level up drives a cleaner racing line, which uses the whole road and closes the doors. They also commit harder in corners, brake later, and run wide less often.
    - **Impossible** runs the ideal line and almost never slips. It's beatable, but you need near-perfect lines and a clean pass.
+   - Every level is tuned so the lead rival finishes only half as far behind a perfect drive as they used to (Kansei Pass: about 16 s, 12 s, 9 s and 6 s off perfect from Easy to Impossible; Switchback Ladder: about 10 s, 7 s, 5 s and 3 s).
    - You start behind two rivals and have to get past. They pull the handbrake through the tightest hairpins, give you racing room when you're alongside, and go for gaps themselves.
 6. **Drive:**
    - **◀ ▶** steer

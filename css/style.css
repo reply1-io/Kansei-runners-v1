@@ -231,27 +231,30 @@ button { font: inherit; color: inherit; cursor: pointer; }
 .no-fullscreen [data-fullscreen] { display: none; }
 .hud-exit {
   pointer-events: auto; background: var(--chrome); color: #0b1330; border: 1px solid #1f2b4f; border-radius: var(--radius);
-  padding: 6px 10px; font-size: 12px; font-weight: 800; font-style: italic; text-transform: uppercase; box-shadow: inset 0 1px 0 #fff, 0 2px 0 #000;
+  padding: 10px 14px; min-height: 44px; min-width: 44px; font-size: 15px; font-weight: 800; font-style: italic; text-transform: uppercase; box-shadow: inset 0 1px 0 #fff, 0 2px 0 #000;
 }
 #hud.cruise .race-only { display: none; }
-.minimap { position: absolute; top: calc(50px + var(--safe-top)); right: 10px; width: 104px; height: 120px; background: rgba(5,11,34,0.65); border: 1px solid var(--line); border-radius: var(--radius); }
-.hud-togo { position: absolute; top: calc(176px + var(--safe-top)); right: 10px; width: 104px; text-align: center; font-size: 12px; font-weight: 800; font-style: italic; color: #fff; text-shadow: 1px 1px 0 #000; }
+.minimap { position: absolute; top: calc(66px + var(--safe-top)); right: 10px; width: 104px; height: 120px; background: rgba(5,11,34,0.65); border: 1px solid var(--line); border-radius: var(--radius); }
+.hud-togo { position: absolute; top: calc(192px + var(--safe-top)); right: 10px; width: 104px; text-align: center; font-size: 12px; font-weight: 800; font-style: italic; color: #fff; text-shadow: 1px 1px 0 #000; }
 .hud-msg { position: absolute; top: 28%; left: 0; right: 0; text-align: center; font-family: var(--display); font-style: italic; font-weight: 900; font-size: 26px; color: #fff; text-shadow: 3px 3px 0 #000, -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000; }
 .hud-msg.big { font-size: 64px; color: var(--accent); }
 .hud-warn { position: absolute; top: calc(110px + var(--safe-top)); left: 12px; color: var(--bad); font-weight: 800; font-style: italic; font-size: 13px; text-shadow: 1px 1px 0 #000; }
-.tach { position: absolute; right: 4px; bottom: calc(150px + var(--safe-bottom)); width: 150px; height: 112px; }
-.controls { position: absolute; left: 0; right: 0; bottom: calc(12px + var(--safe-bottom)); display: flex; justify-content: space-between; padding: 0 10px; }
-.ctl-group { display: flex; gap: 8px; }
+.tach { position: absolute; right: 4px; bottom: calc(var(--ctl-h) + 30px + var(--safe-bottom)); width: 150px; height: 112px; }
+/* Controls scale with the screen: they share the full width (left, right, brake, handbrake/gas) and grow
+   taller on bigger or full-screen displays. */
+#race { --ctl-h: clamp(120px, 21vh, 200px); --ctl-w: calc((100vw - 58px) / 4); }
+.controls { position: absolute; left: 0; right: 0; bottom: calc(12px + var(--safe-bottom)); display: flex; justify-content: space-between; gap: 10px; padding: 0 10px; }
+.ctl-group { display: flex; gap: 10px; }
 .ctl {
-  pointer-events: auto; touch-action: none; width: 76px; height: 112px; border-radius: var(--radius);
+  pointer-events: auto; touch-action: none; width: min(calc(var(--ctl-w) * 0.95), 150px); height: var(--ctl-h); border-radius: var(--radius);
   background: linear-gradient(rgba(220,228,245,0.28), rgba(120,135,170,0.22)); border: 1px solid rgba(220,228,245,0.55);
-  font-size: 28px; font-weight: 900; font-style: italic; color: #fff; text-shadow: 1px 1px 0 #000;
+  font-size: clamp(28px, 4.5vh, 44px); font-weight: 900; font-style: italic; color: #fff; text-shadow: 1px 1px 0 #000;
 }
-/* Brake: a big pedal. Handbrake sits right above the gas. */
-.ctl.brake { width: 96px; height: 112px; font-size: 16px; background: linear-gradient(rgba(255,77,61,0.4), rgba(150,30,20,0.32)); border-color: rgba(255,77,61,0.85); }
-.ctl-stack { display: flex; flex-direction: column; gap: 6px; }
-.ctl.hb { width: 84px; height: 40px; font-size: 11px; letter-spacing: 0.5px; background: linear-gradient(rgba(255,163,26,0.4), rgba(160,90,0,0.32)); border-color: rgba(255,163,26,0.85); }
-.ctl.gas { width: 84px; height: 66px; font-size: 18px; background: linear-gradient(rgba(92,240,122,0.4), rgba(30,140,60,0.32)); border-color: rgba(92,240,122,0.85); }
+/* Brake: the biggest pedal. Handbrake sits right above the gas. */
+.ctl.brake { width: min(calc(var(--ctl-w) * 1.1), 170px); font-size: clamp(16px, 2.6vh, 24px); background: linear-gradient(rgba(255,77,61,0.4), rgba(150,30,20,0.32)); border-color: rgba(255,77,61,0.85); }
+.ctl-stack { display: flex; flex-direction: column; gap: 8px; height: var(--ctl-h); }
+.ctl.hb { width: min(var(--ctl-w), 160px); height: auto; flex: 0 0 38%; font-size: min(1.6vh, 3.2vw, 16px); letter-spacing: 0; padding: 0 2px; white-space: nowrap; background: linear-gradient(rgba(255,163,26,0.4), rgba(160,90,0,0.32)); border-color: rgba(255,163,26,0.85); }
+.ctl.gas { width: min(var(--ctl-w), 160px); height: auto; flex: 1 1 auto; font-size: clamp(18px, 3vh, 28px); background: linear-gradient(rgba(92,240,122,0.4), rgba(30,140,60,0.32)); border-color: rgba(92,240,122,0.85); }
 .ctl.on { transform: scale(0.94); filter: brightness(1.6); }
 
 /* ---------- Modal + toast ---------- */
