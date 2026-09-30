@@ -26,9 +26,13 @@ const CARS = {
               rubY: 0.52, mirrorBack: 0.26, paintMirrors: true, tailY: 0.7, tailZ: 0.55, plateY: 0.69, lampZ: [0.43, 0.61],
               front: 'kidney', lights: 'quad', tails: 'rect', bumper: 'us', rim: 'mesh', plate: 'us', chromeTrim: true, rubStrip: true, exhausts: 2, extras: ['sunroof', 'antenna', 'markers', 'rocker', 'lamppanel'] },
   // 1980 Volvo 242: 4785 x 1710 x 1435, wb 2640, track 1420/1360, 185/70R14
-  volvo242: { L: 4.785, W: 1.71, H: 1.435, wb: 2.64, fo: 0.96, track: 1.39, tireR: 0.308, tireW: 0.185, sill: 0.22,
-              ws0: 0.52, ws1: 1.1, rf1: 2.42, rw0: 2.86, sg: 2.5, nose: 0.82, cowl: 0.96, beltR: 0.98, tail: 0.98, tumble: 0.17, taper: 0.05, doors: 2,
-              front: 'volvo', lights: 'rect', tails: 'tall', bumper: 'big', rim: 'turbine', plate: 'us', chromeTrim: true, extras: ['gutters', 'antenna', 'mudflaps', 'markers'] },
+  // Profile measured off side/front/rear photos: tall, square body; upright glass with a thin C-pillar;
+  // high flat hood and trunk; black 5-mph bumpers 14 cm proud; chrome side strip; round lamps in square
+  // black housings either side of the diagonal-bar grille.
+  volvo242: { L: 4.785, W: 1.71, H: 1.435, wb: 2.64, fo: 0.88, track: 1.39, tireR: 0.308, tireW: 0.185, sill: 0.27, bumperOut: 0.14, arch: 0.36,
+              ws0: 0.64, ws1: 1.04, rf1: 2.46, rw0: 2.82, sg: 2.62, nose: 0.85, cowl: 0.98, beltR: 1.0, tail: 0.99, tumble: 0.22, taper: 0.05, doors: 2,
+              bumperYs: [0.475, 0.475, 0.16], chromeLine: 0.79, markerY: 0.71, fuelBack: 0.46, tailY: 0.64, tailZ: 0.63, plateY: 0.64, mirrorBack: 0.12,
+              front: 'volvo', lights: 'volvo', tails: 'volvo', bumper: 'us', rim: 'turbine', plate: 'us', chromeTrim: true, extras: ['gutters', 'antenna', 'mudflaps', 'markers'] },
   // Mercedes-Benz 190E (W201): 4420 x 1678 x 1390, wb 2665, track 1445/1430, 185/65R15
   mb190e:   { L: 4.42, W: 1.678, H: 1.39, wb: 2.665, fo: 0.78, track: 1.44, tireR: 0.311, tireW: 0.185, sill: 0.21,
               ws0: 0.4, ws1: 1.2, rf1: 2.26, rw0: 2.86, sg: 2.48, nose: 0.72, cowl: 0.9, beltR: 0.98, tail: 1.0, tumble: 0.2, taper: 0.1, doors: 4,
@@ -221,14 +225,16 @@ export function makeCarMesh(color, modelId) {
       sideSeam(rearDoorEnd, s);
       box(0.13, 0.03, 0.02, chrome, rearDoorEnd + 0.18, b.belt - 0.09, s * (hw(0) + 0.008));
     }
+    if (b.chromeLine) box(xF - xR - 0.1, 0.03, 0.02, chrome, (xF + xR) / 2, b.chromeLine, s * (hw(0) + 0.008));
     if (b.rubStrip) box(axF - axR - 2 * ARCH_R - 0.1, 0.045, 0.02, black, (axF + axR) / 2, b.rubY || 0.64, s * (hw(0) + 0.008));
     if (b.extras?.includes('rocker')) box(axF - axR - 2 * ARCH_R - 0.04, 0.12, 0.03, black, (axF + axR) / 2, b.sill + 0.065, s * (hw(0) - 0.012));
     if (b.extras?.includes('markers')) {
-      const mfx = b.markerF ? axF - b.markerF : xF - 0.28, mfy = b.markerF ? 0.6 : 0.5;
+      const mfx = b.markerF ? axF - b.markerF : b.markerY ? xF - 0.1 : xF - 0.28, mfy = b.markerY ?? (b.markerF ? 0.6 : 0.5);
+      const mrx = b.markerY ? xR + 0.1 : xR + 0.28;
       box(0.1, 0.04, 0.012, amber, mfx, mfy, s * (hw(mfx) + 0.004));
-      box(0.1, 0.04, 0.012, redLens, xR + 0.28, 0.52, s * (hw(xR + 0.28) + 0.004));
+      box(0.1, 0.04, 0.012, redLens, mrx, b.markerY ?? 0.52, s * (hw(mrx) + 0.004));
     }
-    if (s > 0) box(0.1, 0.1, 0.012, black, axR - 0.05, b.beltR - 0.14, hw(axR) + 0.005);                                       // fuel door (right side)
+    if (s > 0) { const fdx = axR - (b.fuelBack ?? 0.05); box(0.1, 0.1, 0.012, black, fdx, b.beltR - (b.fuelBack ? 0.28 : 0.14), hw(fdx) + 0.005); }                                       // fuel door (right side)
   }
 
   // ---- bumpers ----
@@ -237,13 +243,14 @@ export function makeCarMesh(color, modelId) {
   } else if (b.bumper === 'us') {
     // US 5-mph "diving board" bumpers: black, standing proud of the body, wrapping round to the arches,
     // with a thin bright strip along the top.
-    for (const [x0, s, y] of [[xF, 1, 0.485], [xR, -1, 0.435]]) {
+    const [byF, byR, bh] = b.bumperYs || [0.485, 0.435, 0.13];
+    for (const [x0, s, y] of [[xF, 1, byF], [xR, -1, byR]]) {
       const d = bo + 0.03, cx = x0 + s * (d / 2 - 0.03);
-      box(d, 0.13, W + 0.02, plastic, cx, y, 0);
-      box(d + 0.005, 0.012, W + 0.025, chrome, cx, y + 0.055, 0);
-      for (const z of [-1, 1]) box(0.34, 0.13, 0.05, plastic, x0 - s * 0.17, y, z * (W / 2 - 0.005));
+      box(d, bh, W + 0.02, plastic, cx, y, 0);
+      box(d + 0.005, 0.012, W + 0.025, chrome, cx, y + bh / 2 - 0.01, 0);
+      for (const z of [-1, 1]) box(0.34, bh, 0.05, plastic, x0 - s * 0.17, y, z * (W / 2 - 0.005));
     }
-    for (const z of [-1, 1]) face(0.13, 0.05, amber, xF + bo + 0.005, 0.485, z * (W / 2 - 0.13));        // indicators
+    if (b.lights !== 'volvo') for (const z of [-1, 1]) face(0.13, 0.05, amber, xF + bo + 0.005, byF, z * (W / 2 - 0.13)); // indicators
   } else if (b.bumper === 'cladding') {
     for (const x of [xF + 0.02, xR - 0.02]) box(0.14, 0.2, W - 0.06, alu, x, 0.44, 0);
     for (const s of [-1, 1]) box(b.wb - 0.8, 0.16, 0.04, alu, 0, 0.42, s * (hw(0) + 0.01));
@@ -261,13 +268,20 @@ export function makeCarMesh(color, modelId) {
   const fy = (0.46 + b.nose) / 2 + 0.03;
   const fx = xF + 0.012;
   if (b.front === 'kidney') face(0.3, 0.15, decal('kidney', kidneyTex()), fx, fy, 0);
-  if (b.front === 'volvo') face(0.62, 0.22, decal('volvo', volvoGrilleTex()), fx, fy, 0);
+  if (b.front === 'volvo') face(0.86, 0.25, decal('volvo', volvoGrilleTex()), fx, fy, 0);
   if (b.front === 'mercedes') face(0.34, 0.26, decal('merc', mercGrilleTex()), fx, fy + 0.02, 0);
   if (b.front === 'nissan') face(0.5, 0.1, decal('nissan', blackGrilleTex()), fx, fy, 0);
   if (b.front === 'honda') { const [gw, gh, gy] = b.grille || [0.44, 0.07, fy + 0.03]; face(gw, gh, decal('nissan', blackGrilleTex()), fx, gy, 0); }
   if (b.front === 'slot') face(0.6, 0.06, decal('slot', grilleTex()), xF + 0.03, 0.4, 0);
   if (b.extras?.includes('lamppanel')) face(W - 2 * b.taper - 0.06, 0.2, black, xF + 0.008, fy, 0);
   if (b.lights === 'quad') { const [a, c] = b.lampZ || [0.36, 0.54]; for (const z of [-c, -a, a, c]) face(0.155, 0.155, decal('lamp', roundLampTex()), fx, fy, z); }
+  if (b.lights === 'volvo') for (const s of [-1, 1]) {
+    // Round sealed-beam lamps in square black housings, clear-over-amber indicators outboard.
+    face(0.27, 0.25, black, fx - 0.002, fy, s * 0.57);
+    face(0.19, 0.19, decal('lamp', roundLampTex()), fx, fy, s * 0.57);
+    face(0.09, 0.12, amber, fx, fy - 0.06, s * 0.77);
+    face(0.09, 0.12, decal('lamprect', rectLampTex()), fx, fy + 0.06, s * 0.77);
+  }
   if (b.lights === 'rect') for (const s of [-1, 1]) face(0.34, 0.16, decal('lamprect', rectLampTex()), fx, fy, s * (W / 2 - 0.3));
   if (b.lights === 'swept') { const [lw, lh] = b.lampSize || [0.42, 0.13]; for (const s of [-1, 1]) face(lw, lh, decal('lampslim', headlightTex()), fx - 0.02, b.lampY ?? fy + 0.02, s * (b.lampZ ?? W / 2 - 0.26)); }
   if (b.lights === 'slim') for (const s of [-1, 1]) face(0.4, 0.09, decal('lampslim', headlightTex()), fx, fy + 0.02, s * (W / 2 - 0.3));
@@ -281,13 +295,14 @@ export function makeCarMesh(color, modelId) {
     }
   }
   if (b.extras?.includes('fogs')) for (const s of [-1, 1]) face(0.1, 0.1, decal('lamp', roundLampTex()), xF + bumperX + 0.02, 0.4, s * (W / 2 - 0.42));
-  if (b.frontPlate !== false) face(0.34, 0.12, decal(`plate-${b.plate}`, plateTex(b.plate)), xF + bumperX + 0.025, b.bumper === 'us' ? 0.485 : 0.42, 0);
+  if (b.frontPlate !== false) face(0.34, 0.12, decal(`plate-${b.plate}`, plateTex(b.plate)), xF + bumperX + 0.025, b.bumper === 'us' ? (b.bumperYs?.[0] ?? 0.485) : 0.42, 0);
 
   // ---- rear: taillights, plate, exhausts, spoiler ----
   const ty = b.tailY ?? b.tail - 0.14, bx = xR - 0.012;
   const tail = new THREE.MeshBasicMaterial({ map: taillightTex(), color: '#8a5a5a', transparent: true, alphaTest: 0.4 });
   const tailWith = (t) => { tail.map = t; return tail; };
   if (b.tails === 'rect') for (const s of [-1, 1]) face(0.46, 0.15, tailWith(taillightTex()), bx, ty, s * (b.tailZ ?? W / 2 - 0.3), 'back');
+  if (b.tails === 'volvo') for (const s of [-1, 1]) face(0.33, 0.16, tailWith(taillightTex()), bx, ty, s * b.tailZ, 'back');
   if (b.tails === 'tall') for (const s of [-1, 1]) face(0.26, 0.26, tailWith(ribbedTailTex()), bx, ty - 0.04, s * (W / 2 - 0.2), 'back');
   if (b.tails === 'ribbed') for (const s of [-1, 1]) face(0.5, 0.2, tailWith(ribbedTailTex()), bx, ty, s * (W / 2 - 0.3), 'back');
   if (b.tails === 'bar') face(W - 2 * b.taper - 0.05, 0.12, tailWith(tailBarTex()), bx, ty, 0, 'back');
