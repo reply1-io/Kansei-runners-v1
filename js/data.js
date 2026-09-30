@@ -8,19 +8,19 @@ export const MARKET_PRICE_CAP = 5000; // every Marketplace listing is under this
 // what a clean one is worth in-game, so the pricier ones only show up in your budget as project cars.
 // The 3D model for each is in js/carmodel.js (by id). `colors` are period-correct paint colors.
 export const MODELS = [
-  { id: 'volvo242', name: 'Volvo 242',                 years: [1980, 1980], hp: 107, weight: 1250, drive: 'RWD', price: 4200,  parts: 0.6,
+  { id: 'volvo242', name: 'Volvo 242',                 years: [1980, 1980], hp: 107, weight: 1250, drive: 'RWD', cyl: 4, price: 4200,  parts: 0.6,
     colors: ['#c9b58a', '#2f4a36', '#8fa9c4', '#8c1f1c', '#e8e4d8', '#3a3a3a'] },
-  { id: 'civic',    name: 'Honda Civic Si Hatch',      years: [1999, 1999], hp: 160, weight: 1120, drive: 'FWD', price: 6000,  parts: 0.7,
+  { id: 'civic',    name: 'Honda Civic Si Hatch',      years: [1999, 1999], hp: 160, weight: 1120, drive: 'FWD', cyl: 4, price: 6000,  parts: 0.7,
     colors: ['#1f4fa0', '#efefe9', '#b0161c', '#141414', '#b6b9bd', '#c9a21a'] },
-  { id: 'mb190e',   name: 'Mercedes-Benz 190E 2.3',    years: [1985, 1990], hp: 130, weight: 1200, drive: 'RWD', price: 5500,  parts: 0.8,
+  { id: 'mb190e',   name: 'Mercedes-Benz 190E 2.3',    years: [1985, 1990], hp: 130, weight: 1200, drive: 'RWD', cyl: 4, price: 5500,  parts: 0.8,
     colors: ['#b9bcc0', '#1c2433', '#e9e6dc', '#5a1d22', '#6f7f86', '#161616'] },
-  { id: 'e30',      name: 'BMW 325i',                  years: [1987, 1987], hp: 168, weight: 1230, drive: 'RWD', price: 7000,  parts: 0.8,
+  { id: 'e30',      name: 'BMW 325i',                  years: [1987, 1987], hp: 168, weight: 1230, drive: 'RWD', cyl: 6, price: 7000,  parts: 0.8,
     colors: ['#f2f2ee', '#b3231e', '#141414', '#1d3a6b', '#9aa3a8', '#2c4a3b'] },
-  { id: 'supra',    name: 'Toyota Supra Turbo (Mk3)',  years: [1987, 1992], hp: 230, weight: 1600, drive: 'RWD', price: 8000,  parts: 1.1,
+  { id: 'supra',    name: 'Toyota Supra Turbo (Mk3)',  years: [1987, 1992], hp: 230, weight: 1600, drive: 'RWD', cyl: 6, price: 8000,  parts: 1.1,
     colors: ['#f0f0ec', '#b4161b', '#141414', '#27427a', '#8f959b'] },
-  { id: 's180sx',   name: 'Nissan 180SX',              years: [1991, 1994], hp: 202, weight: 1220, drive: 'RWD', price: 9000,  parts: 0.9,
+  { id: 's180sx',   name: 'Nissan 180SX',              years: [1991, 1994], hp: 202, weight: 1220, drive: 'RWD', cyl: 4, price: 9000,  parts: 0.9,
     colors: ['#f2f2ee', '#a81a1e', '#141414', '#3c4a8a', '#b8bcc2'] },
-  { id: 'r32',      name: 'Nissan Skyline GTS-t (R32)', years: [1989, 1993], hp: 212, weight: 1340, drive: 'RWD', price: 11000, parts: 1.0,
+  { id: 'r32',      name: 'Nissan Skyline GTS-t (R32)', years: [1989, 1993], hp: 212, weight: 1340, drive: 'RWD', cyl: 6, price: 11000, parts: 1.0,
     colors: ['#5e6267', '#f2f2ee', '#141414', '#7a1418', '#2b3d63'] },
 ];
 

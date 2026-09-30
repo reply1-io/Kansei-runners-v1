@@ -73,7 +73,7 @@ python3 -m http.server 8000
 | `js/turntable.js` | The garage turntable | |
 | `js/map.js` | Home layout (`HOME`) and parking spots (`PARKING`) | Move things at the cabin, more parking |
 | `js/main.js` | Phone UI and every app, plus the flow between home, phone and driving | New apps or screens |
-| `js/audio.js` | Synthesized engine, tire and impact sounds, plus the gearbox model | Sounds |
+| `js/audio.js` | Synthesized engine (lumpy engine tone, exhaust pulses at the firing rate, intake; 4- or 6-cylinder per car), tire and impact sounds, plus the gearbox model | Sounds |
 | `lib/three.module.min.js` | [three.js](https://threejs.org) r160 (MIT), vendored | |
 
 To add a car, add a line to `MODELS` in `js/data.js` (real hp, weight, drive layout, a clean-car price and paint colors), and give it a shape in `CARS` in `js/carmodel.js` (real length, width, height, wheelbase, front overhang, track and tire size; the side profile as distances behind the front axle; and which grille, lights, taillights, bumpers and wheels it uses). It then shows up in the Marketplace whenever one is cheap enough to list under $5k.

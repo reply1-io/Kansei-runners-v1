@@ -5,7 +5,7 @@
 import * as THREE from '../lib/three.module.min.js';
 import { ROAD_HALF, RAIL_OFFSET, HOME_NET, COURSES, lineVariant } from './road.js';
 import { getWorld, makeCarMesh, inHome } from './world3d.js';
-import { PROBLEM_THRESHOLD } from './data.js';
+import { PROBLEM_THRESHOLD, MODELS } from './data.js';
 import { clamp } from './state.js';
 import { carSound, unlockAudio, isMuted, setMuted, gearFor } from './audio.js';
 import { getRetro } from './ps1.js';
@@ -163,7 +163,7 @@ export function startDrive({ canvas, hud, car, perf, rivalBase, mode, event, dif
   let message = '', messageT = 0, noPowerT = 0, engineBlown = false, blownT = 0, hitCool = 0, place = 0;
   const flash = (msg, t = 1.5) => { message = msg; messageT = t; };
   if (!race) flash('Drive down the lane to the road', 2.5);
-  const sound = carSound();
+  const sound = carSound({ cyl: MODELS.find((m) => m.id === car.modelId)?.cyl });
 
   // ---- input ----
   const keyMap = { arrowleft: 'left', a: 'left', arrowright: 'right', d: 'right', arrowup: 'gas', w: 'gas', arrowdown: 'brake', s: 'brake', ' ': 'hb', shift: 'hb' };
