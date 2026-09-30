@@ -22,7 +22,7 @@ const CARS = {
   // side/front/rear photos: cabin set well back, long flat roof, low trunk, "diving board" bumpers
   // standing 10 cm proud of the body, black rocker trim, quad lamps in a full-width black panel.
   e30:      { L: 4.325, W: 1.645, H: 1.355, wb: 2.57, fo: 0.73, track: 1.41, tireR: 0.3, tireW: 0.195, sill: 0.18, bumperOut: 0.1, arch: 0.35,
-              ws0: 0.55, ws1: 1.07, rf1: 2.46, rw0: 2.9, sg: 2.64, nose: 0.79, cowl: 0.91, beltR: 0.9, tail: 0.89, tumble: 0.2, taper: 0.08, doors: 2,
+              ws0: 0.55, ws1: 1.07, rf1: 2.46, rw0: 2.9, sg: 2.64, nose: 0.79, cowl: 0.91, beltR: 0.9, tail: 0.89, tumble: 0.2, taper: 0.12, doors: 2, beltIn: 0.15, tuck: 0.1, bumperW: 1.61, smallMirrors: true,
               rubY: 0.52, mirrorBack: 0.26, paintMirrors: true, tailY: 0.7, tailZ: 0.55, plateY: 0.69, lampZ: [0.43, 0.61],
               front: 'kidney', lights: 'quad', tails: 'rect', bumper: 'us', rim: 'mesh', plate: 'us', chromeTrim: true, rubStrip: true, exhausts: 2, extras: ['sunroof', 'antenna', 'markers', 'rocker', 'lamppanel'] },
   // 1980 Volvo 242: 4785 x 1710 x 1435, wb 2640, track 1420/1360, 185/70R14
@@ -155,7 +155,8 @@ export function makeCarMesh(color, modelId) {
   };
   const hw = (x) => { const u = Math.max(0, Math.min(1, (Math.abs(x) - (b.L / 2 - 0.55)) / 0.55)); return W / 2 - b.taper * u * u; };
   const roofLine = piecewise([[rwBase, b.beltR], [roofR, b.roof], [roofF, b.roof], [wsBase, b.cowl]]);
-  const beltW = (x) => hw(x) - 0.07, roofW = (x) => hw(x) - b.tumble;
+  // beltIn: how far the glass sits in from the body sides at the window line (the shoulder).
+  const beltW = (x) => hw(x) - (b.beltIn ?? 0.07), roofW = (x) => hw(x) - b.tumble;
 
   // Stations: evenly spaced plus the key points, so edges land where they should.
   const xs = [];
@@ -167,7 +168,8 @@ export function makeCarMesh(color, modelId) {
   // ---- body shell: rounded section, sides leaning in slightly, soft shoulders, crowned top ----
   const bodyRing = (x) => {
     const h = hw(x), t = top(x), bt = bottom(x), mid = Math.min(bt + 0.14, t - 0.13);
-    const half = [[h - 0.05, bt], [h, mid], [h, t - 0.13], [h - 0.05, t - 0.035], [h - 0.17, t]];
+    const tuck = b.tuck ?? 0.05; // how far the lower sides curve in under the car
+    const half = [[h - tuck, bt], [h, mid], [h, t - 0.13], [h - 0.05, t - 0.035], [h - 0.17, t]];
     return [...half.map(([z, y]) => [-z, y]), [0, t + 0.015], ...half.reverse().map(([z, y]) => [z, y])];
   };
   add(loft(stations, bodyRing, { capStart: true, capEnd: true }), paint);
@@ -246,9 +248,10 @@ export function makeCarMesh(color, modelId) {
     const [byF, byR, bh] = b.bumperYs || [0.485, 0.435, 0.13];
     for (const [x0, s, y] of [[xF, 1, byF], [xR, -1, byR]]) {
       const d = bo + 0.03, cx = x0 + s * (d / 2 - 0.03);
-      box(d, bh, W + 0.02, plastic, cx, y, 0);
-      box(d + 0.005, 0.012, W + 0.025, chrome, cx, y + bh / 2 - 0.01, 0);
-      for (const z of [-1, 1]) box(0.34, bh, 0.05, plastic, x0 - s * 0.17, y, z * (W / 2 - 0.005));
+      const bw = b.bumperW ?? W + 0.02;
+      box(d, bh, bw, plastic, cx, y, 0);
+      box(d + 0.005, 0.012, bw + 0.005, chrome, cx, y + bh / 2 - 0.01, 0);
+      for (const z of [-1, 1]) box(0.34, bh, 0.04, plastic, x0 - s * 0.17, y, z * (Math.min(bw / 2, hw(x0 - s * 0.17)) - 0.005));
     }
     if (b.lights !== 'volvo') for (const z of [-1, 1]) face(0.13, 0.05, amber, xF + bo + 0.005, byF, z * (W / 2 - 0.13)); // indicators
   } else if (b.bumper === 'cladding') {
@@ -334,8 +337,15 @@ export function makeCarMesh(color, modelId) {
   // ---- mirrors ----
   for (const s of [-1, 1]) {
     const mx = wsBase - (b.mirrorBack || 0.12);
-    box(0.1, 0.03, 0.08, black, mx, b.belt + 0.04, s * (hw(mx) + 0.02));
-    box(0.14, 0.1, 0.1, b.chromeTrim && !b.paintMirrors ? black : paint, mx - 0.02, b.belt + 0.1, s * (hw(mx) + 0.07));
+    const mMat = b.chromeTrim && !b.paintMirrors ? black : paint;
+    if (b.smallMirrors) {
+      // Small mirrors on short stalks at the glass line, standing just proud of the door.
+      box(0.06, 0.03, hw(mx) - beltW(mx) + 0.02, black, mx, b.belt + 0.03, s * ((hw(mx) + beltW(mx)) / 2 + 0.01));
+      box(0.1, 0.075, 0.07, mMat, mx - 0.02, b.belt + 0.08, s * (hw(mx) + 0.04));
+    } else {
+      box(0.1, 0.03, 0.08, black, mx, b.belt + 0.04, s * (hw(mx) + 0.02));
+      box(0.14, 0.1, 0.1, mMat, mx - 0.02, b.belt + 0.1, s * (hw(mx) + 0.07));
+    }
   }
 
   // ---- wheels: tire, brake disc, textured wheel face ----
