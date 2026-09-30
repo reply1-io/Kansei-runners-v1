@@ -38,7 +38,7 @@ You start at **your cabin, deep in the forest**, shown top-down. It has a carpor
    - You start behind two rivals and have to get past. They pull the handbrake through the tightest hairpins, give you racing room when you're alongside, and go for gaps themselves.
 6. **Drive:**
    - **◀ ▶** steer
-   - **GAS**, **BRAKE** and **HANDBRAKE**. Pull the handbrake while steering to pivot the car into a hairpin: it turns in much tighter than steering alone and scrubs off speed. Dirt shoulders are only slightly looser than the road.
+   - **GAS**, **BRAKE** and **HANDBRAKE**. The handbrake works like a hydraulic one: it locks the rear wheels, so the rear steps out and the car rotates into the turn (quicker the faster you go) while the fronts keep steering. The rotation carries on for a moment after you let go, so catch the slide with steering and throttle. It only costs a little speed. Dirt shoulders are only slightly looser than the road.
    - On a keyboard, use arrows/WASD, with space for the handbrake.
    - 🔊 toggles sound (engine, tire squeal, impacts).
 7. Every drive wears the car. Throttle wears the engine and transmission, sliding wears tires, brakes wear on downhills, and hitting the trees or other cars damages the body. Bumping another car doesn't slow either of you down. A worn engine can blow. Spend your winnings on repairs and mods, or sell and move up.

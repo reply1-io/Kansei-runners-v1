@@ -105,7 +105,7 @@ export function startDrive({ canvas, hud, car, perf, rivalBase, mode, event, dif
   const addMesh = (o) => { scene.add(o); added.push(o); return o; };
 
   // ---- player ----
-  const P = { x: 0, z: 0, h: 0, vx: 0, vz: 0, steer: 0, hint: -1, e: 0, pitch: 0, roll: 0, drifting: false, sAbs: 0, lastL: null, lastR: null, slip: 0 };
+  const P = { yr: 0, x: 0, z: 0, h: 0, vx: 0, vz: 0, steer: 0, hint: -1, e: 0, pitch: 0, roll: 0, drifting: false, sAbs: 0, lastL: null, lastR: null, slip: 0 };
   if (race) {
     // You start behind the rivals and have to get past.
     const st = sampleAtS(route.from - 11);
@@ -237,21 +237,30 @@ export function startDrive({ canvas, hud, car, perf, rivalBase, mode, event, dif
     let vf = P.vx * fx + P.vz * fz;
     const speed = Math.hypot(P.vx, P.vz);
     const hb = input.hb && time > 0;
-    // Handbrake: the rear locks and the car pivots, so it turns in much tighter than steering alone
-    // and keeps to that tighter line (the sideways speed is scrubbed off, not carried wide).
-    const latCap = spec.lat * surf.grip * (hb ? 3.2 : 1);
+    // Hydraulic handbrake: it locks only the rear wheels. The rear steps out and the car rotates
+    // (spins up quicker the faster you're going) while the front tires keep steering, so you don't
+    // get thrown wide. The rotation has momentum: it builds while you hold it and carries on briefly
+    // after you let go, so you catch the slide with steering and throttle like a real drift.
+    const latCap = spec.lat * surf.grip * (hb ? 1.2 : 1);
 
-    // Kinematic yaw from steering, capped by what the tires can hold. On power (RWD) the rear lets go
-    // a little; with the handbrake the car pivots much further than grip alone allows.
-    const maxAngle = (hb ? 0.85 : 0.6) / (1 + speed / 16);
-    let yaw = (vf / WHEELBASE) * Math.tan(P.steer * maxAngle) * (hb ? 2.2 : 1);
+    // Kinematic yaw from steering, capped by what the tires can hold. On power (RWD) the rear lets go a little.
+    const maxAngle = 0.6 / (1 + speed / 16);
+    let yaw = (vf / WHEELBASE) * Math.tan(P.steer * maxAngle);
     let k = 1.25;
     if (input.gas && spec.drive === 'RWD') k = 1.6;
     if (input.gas && spec.drive === 'FWD') k = 1.05;
-    if (hb) k = 3.8;
     const yawCap = (spec.lat * surf.grip * k) / Math.max(Math.abs(vf), 4);
     yaw = clamp(yaw, -yawCap, yawCap);
-    P.h += yaw * dt;
+    if (hb && vf > 3) {
+      // Spin into the turn: the way you're steering, or else the way the car is already rotating.
+      const dir = Math.sign(P.steer) || Math.sign(P.yr) || 0;
+      const spin = dir * Math.min(2.8, 0.55 + vf * 0.085);
+      P.yr += (yaw * 1.3 + spin - P.yr) * Math.min(1, dt * 7);
+    } else {
+      // Grip returns: the car's rotation settles back to what the steering asks for.
+      P.yr += (yaw - P.yr) * Math.min(1, dt * (Math.abs(P.yr) > Math.abs(yaw) + 0.3 ? 3.5 : 25));
+    }
+    P.h += P.yr * dt;
 
     fx = Math.cos(P.h); fz = Math.sin(P.h);
     const rx = -fz, rz = fx;
@@ -268,7 +277,7 @@ export function startDrive({ canvas, hud, car, perf, rivalBase, mode, event, dif
       if (vf > 0.5) { vf = Math.max(0, vf - spec.brake * surf.grip * dt); if (speed > 8) wear.brakes += dt * 0.4; }
       else vf = Math.max(-5, vf - 3 * dt);
     }
-    if (hb && vf > 0) vf = Math.max(0, vf - 5.5 * dt);
+    if (hb && vf > 0) vf = Math.max(0, vf - 2.2 * dt); // locked rears drag a little
     // Gravity along the slope: uphill slows you, downhill pulls you.
     if (!atHome || w0.asphalt) vf -= G * rs.grade * (fx * rs.tx + fz * rs.tz) * dt;
     vf -= vf * (0.012 + (input.gas ? 0 : 0.06) + surf.drag) * dt;
@@ -277,10 +286,7 @@ export function startDrive({ canvas, hud, car, perf, rivalBase, mode, event, dif
     // Lateral grip: what the tires can't cancel becomes a slide.
     const cap = latCap * dt;
     P.drifting = (Math.abs(vl) > 1.3 && speed > 5) || (hb && speed > 4);
-    const vlBefore = Math.abs(vl);
     if (Math.abs(vl) <= cap) vl = 0; else vl -= Math.sign(vl) * cap;
-    // Pivoting on the handbrake costs speed: some of the scrubbed sideways speed comes off forward speed too.
-    if (hb && vf > 0) vf = Math.max(0, vf - (vlBefore - Math.abs(vl)) * 0.35);
     if (P.drifting) { vf -= vf * 0.1 * dt; wear.tires += (Math.abs(vl) + (hb ? 2 : 0)) * dt * 0.02; }
     wear.tires += speed * dt * 0.0004;
     if (!w0.asphalt && !atHome && w0.kind !== 'branch' && speed > 3) wear.susp += dt * 0.6;
