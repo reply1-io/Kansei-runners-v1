@@ -18,10 +18,13 @@ import {
 // tail (rear edge top). tumble: how far the roof sits in from the body sides.
 // front/lights/tails/bumper/rim: detail styles. plate: 'us' or 'jp'. extras: optional details.
 const CARS = {
-  // 1987 BMW 325i coupe (US): 4325 x 1645 x 1380, wb 2570, track 1407/1415, 195/65R14
-  e30:      { L: 4.325, W: 1.645, H: 1.38, wb: 2.57, fo: 0.8, track: 1.41, tireR: 0.305, tireW: 0.195, sill: 0.2,
-              ws0: 0.4, ws1: 1.12, rf1: 2.2, rw0: 2.78, sg: 2.36, nose: 0.8, cowl: 0.93, beltR: 0.95, tail: 0.95, tumble: 0.2, taper: 0.1, doors: 2,
-              front: 'kidney', lights: 'quad', tails: 'rect', bumper: 'chrome', rim: 'mesh', plate: 'us', chromeTrim: true, rubStrip: true, extras: ['sunroof', 'antenna', 'markers'] },
+  // 1987 BMW 325i coupe (US): 4325 x 1645 x 1380, wb 2570, track 1407/1415, 195/65R14. Profile measured off
+  // side/front/rear photos: cabin set well back, long flat roof, low trunk, "diving board" bumpers
+  // standing 10 cm proud of the body, black rocker trim, quad lamps in a full-width black panel.
+  e30:      { L: 4.325, W: 1.645, H: 1.355, wb: 2.57, fo: 0.73, track: 1.41, tireR: 0.3, tireW: 0.195, sill: 0.18, bumperOut: 0.1, arch: 0.35,
+              ws0: 0.55, ws1: 1.07, rf1: 2.46, rw0: 2.9, sg: 2.64, nose: 0.79, cowl: 0.91, beltR: 0.9, tail: 0.89, tumble: 0.2, taper: 0.08, doors: 2,
+              rubY: 0.52, mirrorBack: 0.26, paintMirrors: true, tailY: 0.7, tailZ: 0.55, plateY: 0.69, lampZ: [0.43, 0.61],
+              front: 'kidney', lights: 'quad', tails: 'rect', bumper: 'us', rim: 'mesh', plate: 'us', chromeTrim: true, rubStrip: true, exhausts: 2, extras: ['sunroof', 'antenna', 'markers', 'rocker', 'lamppanel'] },
   // 1980 Volvo 242: 4785 x 1710 x 1435, wb 2640, track 1420/1360, 185/70R14
   volvo242: { L: 4.785, W: 1.71, H: 1.435, wb: 2.64, fo: 0.96, track: 1.39, tireR: 0.308, tireW: 0.185, sill: 0.22,
               ws0: 0.52, ws1: 1.1, rf1: 2.42, rw0: 2.86, sg: 2.5, nose: 0.82, cowl: 0.96, beltR: 0.98, tail: 0.98, tumble: 0.17, taper: 0.05, doors: 2,
@@ -123,9 +126,10 @@ export function makeCarMesh(color, modelId) {
     return m;
   };
 
-  const xF = b.L / 2, xR = -b.L / 2, W = b.W;
-  const WHEEL_R = b.tireR, ARCH_R = b.tireR + 0.07;
-  const axF = xF - b.fo, axR = axF - b.wb, axles = [axF, axR];
+  // Body extents; bumpers that stand proud of the body (bumperOut) reach the full length.
+  const bo = b.bumperOut || 0, xF = b.L / 2 - bo, xR = -b.L / 2 + bo, W = b.W;
+  const WHEEL_R = b.tireR, ARCH_R = b.arch || b.tireR + 0.07;
+  const axF = b.L / 2 - b.fo, axR = axF - b.wb, axles = [axF, axR];
   const at = (d) => axF - d; // a distance behind the front axle -> x
   const wsBase = at(b.ws0), roofF = at(b.ws1), roofR = at(b.rf1), rwBase = Math.max(at(b.rw0), xR + 0.1);
   const liftback = rwBase < xR + 0.4;
@@ -147,7 +151,7 @@ export function makeCarMesh(color, modelId) {
 
   // Stations: evenly spaced plus the key points, so edges land where they should.
   const xs = [];
-  for (let i = 0; i <= 30; i++) xs.push(xR + (b.L * i) / 30);
+  for (let i = 0; i <= 30; i++) xs.push(xR + ((xF - xR) * i) / 30);
   for (const ax of axles) xs.push(ax - ARCH_R, ax + ARCH_R, ax - ARCH_R * 0.7, ax + ARCH_R * 0.7);
   xs.push(wsBase, rwBase, xF - 0.14, xR + 0.12);
   const stations = [...new Set(xs.map((x) => +x.toFixed(4)))].sort((p, q) => p - q);
@@ -213,7 +217,8 @@ export function makeCarMesh(color, modelId) {
       sideSeam(rearDoorEnd, s);
       box(0.13, 0.03, 0.02, chrome, rearDoorEnd + 0.18, b.belt - 0.09, s * (hw(0) + 0.008));
     }
-    if (b.rubStrip) box(b.L - 0.6, 0.045, 0.02, black, 0, 0.64, s * (hw(0) + 0.008));
+    if (b.rubStrip) box(axF - axR - 2 * ARCH_R - 0.1, 0.045, 0.02, black, (axF + axR) / 2, b.rubY || 0.64, s * (hw(0) + 0.008));
+    if (b.extras?.includes('rocker')) box(axF - axR - 2 * ARCH_R - 0.04, 0.12, 0.03, black, (axF + axR) / 2, b.sill + 0.065, s * (hw(0) - 0.012));
     if (b.extras?.includes('markers')) {
       box(0.1, 0.04, 0.012, amber, xF - 0.28, 0.5, s * (hw(xF - 0.28) + 0.004));
       box(0.1, 0.04, 0.012, redLens, xR + 0.28, 0.52, s * (hw(xR + 0.28) + 0.004));
@@ -224,8 +229,16 @@ export function makeCarMesh(color, modelId) {
   // ---- bumpers ----
   if (b.bumper === 'big') {
     for (const [x, s] of [[xF + 0.1, 1], [xR - 0.1, -1]]) { box(0.22, 0.16, W + 0.04, alu, x, 0.48, 0); box(0.23, 0.05, W + 0.05, black, x + s * 0.005, 0.48, 0); }
-  } else if (b.bumper === 'chrome') {
-    for (const x of [xF + 0.02, xR - 0.02]) { box(0.12, 0.14, W - 0.04, plastic, x, 0.45, 0); box(0.13, 0.03, W - 0.03, chrome, x, 0.53, 0); }
+  } else if (b.bumper === 'us') {
+    // US 5-mph "diving board" bumpers: black, standing proud of the body, wrapping round to the arches,
+    // with a thin bright strip along the top.
+    for (const [x0, s, y] of [[xF, 1, 0.485], [xR, -1, 0.435]]) {
+      const d = bo + 0.03, cx = x0 + s * (d / 2 - 0.03);
+      box(d, 0.13, W + 0.02, plastic, cx, y, 0);
+      box(d + 0.005, 0.012, W + 0.025, chrome, cx, y + 0.055, 0);
+      for (const z of [-1, 1]) box(0.34, 0.13, 0.05, plastic, x0 - s * 0.17, y, z * (W / 2 - 0.005));
+    }
+    for (const z of [-1, 1]) face(0.13, 0.05, amber, xF + bo + 0.005, 0.485, z * (W / 2 - 0.13));        // indicators
   } else if (b.bumper === 'cladding') {
     for (const x of [xF + 0.02, xR - 0.02]) box(0.14, 0.2, W - 0.06, alu, x, 0.44, 0);
     for (const s of [-1, 1]) box(b.wb - 0.8, 0.16, 0.04, alu, 0, 0.42, s * (hw(0) + 0.01));
@@ -233,7 +246,7 @@ export function makeCarMesh(color, modelId) {
     for (const x of [xF + 0.01, xR - 0.01]) box(0.12, 0.2, W - 2 * b.taper, paint, x, 0.44, 0);
     box(0.1, 0.05, W - 0.3, black, xF + 0.02, 0.34, 0);
   }
-  const bumperX = b.bumper === 'big' ? 0.22 : 0.09;
+  const bumperX = b.bumper === 'big' ? 0.22 : b.bumper === 'us' ? bo + 0.01 : 0.09;
   if (b.extras?.includes('mudflaps')) for (const ax of axles) for (const s of [-1, 1]) box(0.02, 0.22, 0.2, black, ax - ARCH_R - 0.02, 0.26, s * b.track / 2);
 
   // ---- front: grille, headlights, fogs, plate ----
@@ -245,7 +258,8 @@ export function makeCarMesh(color, modelId) {
   if (b.front === 'nissan') face(0.5, 0.1, decal('nissan', blackGrilleTex()), fx, fy, 0);
   if (b.front === 'honda') face(0.44, 0.07, decal('nissan', blackGrilleTex()), fx, fy + 0.03, 0);
   if (b.front === 'slot') face(0.6, 0.06, decal('slot', grilleTex()), xF + 0.03, 0.4, 0);
-  if (b.lights === 'quad') for (const z of [-0.54, -0.36, 0.36, 0.54]) face(0.15, 0.15, decal('lamp', roundLampTex()), fx, fy, z);
+  if (b.extras?.includes('lamppanel')) face(W - 2 * b.taper - 0.06, 0.2, black, xF + 0.008, fy, 0);
+  if (b.lights === 'quad') { const [a, c] = b.lampZ || [0.36, 0.54]; for (const z of [-c, -a, a, c]) face(0.155, 0.155, decal('lamp', roundLampTex()), fx, fy, z); }
   if (b.lights === 'rect') for (const s of [-1, 1]) face(0.34, 0.16, decal('lamprect', rectLampTex()), fx, fy, s * (W / 2 - 0.3));
   if (b.lights === 'swept') for (const s of [-1, 1]) face(0.42, 0.13, decal('lampslim', headlightTex()), fx - 0.03, fy + 0.02, s * (W / 2 - 0.26));
   if (b.lights === 'slim') for (const s of [-1, 1]) face(0.4, 0.09, decal('lampslim', headlightTex()), fx, fy + 0.02, s * (W / 2 - 0.3));
@@ -259,13 +273,13 @@ export function makeCarMesh(color, modelId) {
     }
   }
   if (b.extras?.includes('fogs')) for (const s of [-1, 1]) face(0.1, 0.1, decal('lamp', roundLampTex()), xF + bumperX + 0.02, 0.4, s * (W / 2 - 0.42));
-  face(0.34, 0.12, decal(`plate-${b.plate}`, plateTex(b.plate)), xF + bumperX + 0.025, 0.42, 0);
+  face(0.34, 0.12, decal(`plate-${b.plate}`, plateTex(b.plate)), xF + bumperX + 0.025, b.bumper === 'us' ? 0.485 : 0.42, 0);
 
   // ---- rear: taillights, plate, exhausts, spoiler ----
-  const ty = b.tail - 0.14, bx = xR - 0.012;
+  const ty = b.tailY ?? b.tail - 0.14, bx = xR - 0.012;
   const tail = new THREE.MeshBasicMaterial({ map: taillightTex(), color: '#8a5a5a', transparent: true, alphaTest: 0.4 });
   const tailWith = (t) => { tail.map = t; return tail; };
-  if (b.tails === 'rect') for (const s of [-1, 1]) face(0.46, 0.14, tailWith(taillightTex()), bx, ty, s * (W / 2 - 0.3), 'back');
+  if (b.tails === 'rect') for (const s of [-1, 1]) face(0.46, 0.15, tailWith(taillightTex()), bx, ty, s * (b.tailZ ?? W / 2 - 0.3), 'back');
   if (b.tails === 'tall') for (const s of [-1, 1]) face(0.26, 0.26, tailWith(ribbedTailTex()), bx, ty - 0.04, s * (W / 2 - 0.2), 'back');
   if (b.tails === 'ribbed') for (const s of [-1, 1]) face(0.5, 0.2, tailWith(ribbedTailTex()), bx, ty, s * (W / 2 - 0.3), 'back');
   if (b.tails === 'bar') face(W - 2 * b.taper - 0.05, 0.12, tailWith(tailBarTex()), bx, ty, 0, 'back');
@@ -274,9 +288,9 @@ export function makeCarMesh(color, modelId) {
     face(0.34, 0.08, tailWith(tailBarTex()), bx, b.tail - 0.16, s * 0.2, 'back');
   }
   if (b.tails === 'quadround') for (const z of [-0.6, -0.4, 0.4, 0.6]) face(0.17, 0.17, tailWith(roundTailTex()), bx, ty, z, 'back');
-  face(0.34, 0.14, decal(`plate-${b.plate}`, plateTex(b.plate)), bx - 0.001, Math.min(ty - 0.16, 0.66), 0, 'back');
+  face(0.34, 0.14, decal(`plate-${b.plate}`, plateTex(b.plate)), bx - 0.001, b.plateY ?? Math.min(ty - 0.16, 0.66), 0, 'back');
   const pipe = once('pipe', () => { const c = new THREE.CylinderGeometry(0.04, 0.04, 0.18, 8); c.rotateZ(Math.PI / 2); return c; });
-  for (let i = 0; i < (b.exhausts || 1); i++) add(pipe, chrome, xR - 0.04, 0.3, (b.exhausts === 2 ? -0.42 - i * 0.1 : -0.45));
+  for (let i = 0; i < (b.exhausts || 1); i++) add(pipe, chrome, xR - 0.04 - bo * 0.7, 0.3, (b.exhausts === 2 ? -0.42 - i * 0.1 : -0.45));
   if (b.spoiler === 'lip') box(0.16, 0.05, W - 0.4, paint, xR + 0.12, b.tail + 0.01, 0);
   if (b.spoiler === 'roof') box(0.3, 0.04, 2 * roofW(roofR) - 0.02, paint, roofR - 0.08, b.roof + 0.01, 0);
   if (b.spoiler === 'small') {
@@ -287,8 +301,9 @@ export function makeCarMesh(color, modelId) {
 
   // ---- mirrors ----
   for (const s of [-1, 1]) {
-    box(0.1, 0.03, 0.08, black, wsBase - 0.12, b.belt + 0.04, s * (hw(wsBase) + 0.02));
-    box(0.14, 0.1, 0.1, b.chromeTrim ? black : paint, wsBase - 0.14, b.belt + 0.11, s * (hw(wsBase) + 0.08));
+    const mx = wsBase - (b.mirrorBack || 0.12);
+    box(0.1, 0.03, 0.08, black, mx, b.belt + 0.04, s * (hw(mx) + 0.02));
+    box(0.14, 0.1, 0.1, b.chromeTrim && !b.paintMirrors ? black : paint, mx - 0.02, b.belt + 0.1, s * (hw(mx) + 0.07));
   }
 
   // ---- wheels: tire, brake disc, textured wheel face ----

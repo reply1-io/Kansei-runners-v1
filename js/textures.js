@@ -190,8 +190,8 @@ export const ribbedTailTex = () => tex('tail-ribbed', 16, 8, (g) => {
 }, { repeat: false });
 export const rimStyleTex = (style) => tex(`rim-${style}`, 16, 16, (g) => {
   g.fillStyle = '#141414'; g.fillRect(0, 0, 16, 16);
-  g.fillStyle = style === 'mesh' ? '#c7a960' : '#c8ccd2'; g.beginPath(); g.arc(8, 8, 6.5, 0, 7); g.fill();
-  if (style === 'mesh') { g.fillStyle = '#7d6a3a'; for (let i = 3; i < 14; i += 2) { g.fillRect(i, 3, 1, 10); g.fillRect(3, i, 10, 1); } }
+  g.fillStyle = style === 'mesh' ? '#d4d7dc' : '#c8ccd2'; g.beginPath(); g.arc(8, 8, 6.5, 0, 7); g.fill();
+  if (style === 'mesh') { g.fillStyle = '#6c7078'; for (let i = 3; i < 14; i += 2) { g.fillRect(i, 3, 1, 10); g.fillRect(3, i, 10, 1); } }
   if (style === 'holes') { g.fillStyle = '#5d6168'; for (let i = 0; i < 12; i++) { const a = (i / 12) * Math.PI * 2; g.fillRect(Math.round(8 + Math.cos(a) * 4.5), Math.round(8 + Math.sin(a) * 4.5), 1, 1); } }
   if (style === 'turbine') { g.strokeStyle = '#6d7178'; g.lineWidth = 1; for (let i = 0; i < 8; i++) { const a = (i / 8) * Math.PI * 2; g.beginPath(); g.moveTo(8, 8); g.lineTo(8 + Math.cos(a + 0.5) * 6, 8 + Math.sin(a + 0.5) * 6); g.stroke(); } }
   if (style === '5spoke') { g.fillStyle = '#4d5158'; for (let i = 0; i < 5; i++) { const a = (i / 5) * Math.PI * 2 + 0.6; g.fillRect(Math.round(8 + Math.cos(a) * 4) - 1, Math.round(8 + Math.sin(a) * 4) - 1, 2, 2); } }
@@ -216,7 +216,7 @@ export const wheelTex = (style) => tex(`wheel-${style}`, 32, 32, (g) => {
   g.fillStyle = '#18181a'; g.beginPath(); g.arc(16, 16, 15.5, 0, 7); g.fill();
   g.fillStyle = '#2a2a2e'; g.beginPath(); g.arc(16, 16, 14, 0, 7); g.fill();          // sidewall
   g.fillStyle = '#1c1c1f'; g.beginPath(); g.arc(16, 16, 12, 0, 7); g.fill();
-  const face = style === 'mesh' ? '#c9ab62' : '#c8ccd2', dark = style === 'mesh' ? '#6f5c30' : '#4a4e56';
+  const face = style === 'mesh' ? '#d6d9de' : '#c8ccd2', dark = style === 'mesh' ? '#5d626a' : '#4a4e56';
   g.fillStyle = '#e6e9ee'; g.beginPath(); g.arc(16, 16, 11, 0, 7); g.fill();          // polished lip
   g.fillStyle = dark; g.beginPath(); g.arc(16, 16, 10, 0, 7); g.fill();
   g.fillStyle = face;
