@@ -26,6 +26,7 @@ export function newState() {
     inventory: [], // parts bought but not yet installed: { id, carId, kind: 'repair'|'mod', target, price }
     log: [],
     stats: { races: 0, wins: 0, earned: 0, spent: 0 },
+    records: {}, // best times per race+difficulty, e.g. { 'pass:hard': 118.4 }
   };
 }
 

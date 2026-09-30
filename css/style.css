@@ -244,3 +244,11 @@ button { font: inherit; color: inherit; cursor: pointer; }
 .ctl-stack { display: flex; flex-direction: column; gap: 8px; }
 .ctl-stack .ctl { height: 51px; width: 80px; }
 .ctl.hb { background: rgba(243,156,18,0.3); border-color: rgba(243,156,18,0.75); font-size: 11px; line-height: 1.1; }
+.diffs { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 12px; }
+.diff { border: 1px solid var(--line); border-radius: 12px; padding: 10px; text-align: left; background: var(--panel-2); display: flex; flex-direction: column; gap: 2px; }
+.diff b { font-size: 15px; }
+.diff span { font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.diff small { font-size: 11px; color: var(--good); font-variant-numeric: tabular-nums; }
+.diff:disabled { opacity: 0.4; }
+.diff-easy b { color: #2ecc71; } .diff-medium b { color: #f1c40f; } .diff-hard b { color: #e67e22; } .diff-impossible b { color: #e74c3c; }
+.diff-impossible { border-color: rgba(231,76,60,0.5); }

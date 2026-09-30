@@ -1,6 +1,6 @@
 // Phone UI: home screen + apps (Marketplace, Parts, Garage, Touge, Bank, Messages), and the flow
 // between the cabin map, the phone, and driving.
-import { COMPONENTS, UPGRADES, EVENTS, INSPECTION_COST, PROBLEM_THRESHOLD } from './data.js';
+import { COMPONENTS, UPGRADES, RACES, DIFFICULTIES, INSPECTION_COST, PROBLEM_THRESHOLD } from './data.js';
 import {
   state, load, save, resetGame, refreshListings, addLog, carName, modelOf, carValue,
   repairCost, upgradeCost, repair, performance, factorySpecs, canRun, applyWear, activeCar,
@@ -8,7 +8,7 @@ import {
 } from './state.js';
 import { startDrive, fmtTime } from './drive.js';
 import { createMap, PARKING, parkingAssignments } from './map.js';
-import { U, ROUTES, ROAD } from './road.js';
+import { U, COURSES } from './road.js';
 import { unlockAudio } from './audio.js';
 
 const screen = document.getElementById('screen');
@@ -247,20 +247,18 @@ function renderGarage() {
 function renderRaces() {
   const car = activeCar();
   const perf = car && performance(car);
-  const cards = EVENTS.map((ev) => {
-    const stars = Math.round(clamp((ev.skill - 0.82) / 0.03, 1, 5));
-    const r = ROUTES[ev.route];
-    const route = `${ev.route === 'up' ? '⬆️' : ev.route === 'down' ? '⬇️' : '🔁'} ${r.name} · ${r.desc} · ${((r.to - r.from) / 1000).toFixed(1)} km${ev.night ? ' · 🌙 night' : ''}`;
+  const cards = RACES.map((race) => {
+    const c = COURSES[race.course];
+    const diffs = Object.entries(DIFFICULTIES).map(([key, d]) => {
+      const best = state.records[`${race.id}:${key}`];
+      return `<button class="diff diff-${key}" data-action="race" data-arg="${race.id}:${key}" ${!car || d.entry > state.money ? 'disabled' : ''}>
+        <b>${d.label}</b><span>${money(d.entry)} → ${money(d.purse[0])}</span><small>${best ? `🏁 ${fmtTime(best)}` : '&nbsp;'}</small></button>`;
+    }).join('');
     return `<div class="card">
-      <div class="row between"><h2>${ev.name}</h2><span>${'★'.repeat(stars)}<span class="muted">${'★'.repeat(5 - stars)}</span></span></div>
-      <div class="small muted">${route} · vs ${ev.rivals.map(esc).join(' & ')}</div>
-      <div class="notes">${ev.desc}</div>
-      <div class="stats">
-        <div class="stat"><b>${money(ev.entry)}</b><small>Entry</small></div>
-        <div class="stat"><b style="color:var(--good)">${money(ev.purse[0])}</b><small>Win</small></div>
-        <div class="stat"><b>${ev.purse[1] ? money(ev.purse[1]) : '—'}</b><small>2nd</small></div>
-      </div>
-      <div class="btns"><button class="btn primary" data-action="race" data-arg="${ev.id}" ${!car || ev.entry > state.money ? 'disabled' : ''}>Accept challenge</button></div>
+      <div class="row between"><h2>${race.name}</h2><span class="small muted">${(c.road.length / 1000).toFixed(1)} km · ${c.hairpins} hairpins</span></div>
+      <div class="small muted">${race.style}</div>
+      <div class="notes">${race.desc}</div>
+      <div class="diffs">${diffs}</div>
     </div>`;
   }).join('');
   const carInfo = car
@@ -268,7 +266,7 @@ function renderRaces() {
         ${canRun(car) ? `<div class="small" style="color:var(--bad);margin-top:6px">🚫 ${canRun(car)}</div>` : ''}</div>`
     : '<div class="hint">You need a car to race.</div>';
   return `<div class="app">${header('Touge')}
-    <div class="hint">Every race runs on the mountain loop in front of your cabin (${(ROAD.length / 1000).toFixed(1)} km, 7 hairpins). Rivals get a car with the same power-to-weight as yours, so it comes down to driving, tires and brakes. Use the handbrake in the hairpins. Entry fees are non-refundable.</div>
+    <div class="hint">Rivals always drive a car with <b>exactly your car's numbers</b>, so it's always fair. Harder levels drive cleaner racing lines and commit harder. You start behind two of them; get past and stay there. Impossible needs near-perfect lines.</div>
     ${carInfo}${cards}</div>`;
 }
 
@@ -299,11 +297,11 @@ function renderMsgs() {
     ['Kenji', 'Check Marketplace. Cheap cars are cheap for a reason — pay for an inspection if the seller is being shady.'],
     ['Kenji', 'Buy parts for anything marked ⚠️ in the Parts Shop, then install them in the Garage before you run it hard. A bad engine WILL let go.'],
     ['Kenji', 'Tap Select next to a car to get in and take it up the mountain. Learn the hairpins before you race anyone.'],
-    ['Kenji', 'Kenta from down the road races uphill for cash. Beat him, then mod your car or flip it for something faster.'],
+    ['Kenji', 'Two roads to race: Kansei Pass (all corners) and the Switchback Ladder (straights and hairpins). Everyone runs the same numbers as you, so start on Easy and learn the lines.'],
   ];
   if (car && Object.keys(car.problems).length) msgs.push(['Kenji', `That ${modelOf(car).name}... you gonna fix it or just pray?`]);
-  if (state.stats.wins >= 3) msgs.push(['Ryo', 'People are talking about you. Night loop, all the way around your mountain. Prove it.']);
-  if (state.stats.wins >= 6) msgs.push(['???', 'Summit. Midnight. Downhill. Don\'t embarrass yourself.']);
+  if (state.stats.wins >= 3) msgs.push(['Ryo', 'People are talking about you. Try Hard on the Pass. Prove it.']);
+  if (state.stats.wins >= 6) msgs.push(['The Ghost', 'Impossible. Kansei Pass. Don\'t embarrass yourself.']);
   return `<div class="app">${header('Messages')}${msgs.map(([from, m]) => `<div class="msg-bubble"><small>${from}</small>${esc(m)}</div>`).join('')}</div>`;
 }
 
@@ -488,8 +486,10 @@ const ACTIONS = {
     save(); render.keepScroll = true; render();
   },
 
-  race: async (evId) => {
-    const ev = EVENTS.find((e) => e.id === evId);
+  race: async (arg) => {
+    const [raceId, diffKey] = arg.split(':');
+    const race = RACES.find((r) => r.id === raceId), diff = { ...DIFFICULTIES[diffKey], ...race.levels[diffKey] };
+    const ev = { ...race, key: `${raceId}:${diffKey}`, diffLabel: diff.label, entry: diff.entry, purse: diff.purse, rivals: diff.rivals };
     const car = activeCar();
     if (!car) return;
     const dead = canRun(car);
@@ -497,12 +497,11 @@ const ACTIONS = {
     if (ev.entry > state.money) return toast('Can\'t cover the entry fee.');
     const nProb = Object.keys(car.problems).length;
     const risky = nProb ? `<p class="small" style="color:var(--warn)">⚠️ Your car has ${nProb} major problem${nProb > 1 ? 's' : ''}. Things might break.</p>` : '';
-    const route = `${ROUTES[ev.route].name}: ${ROUTES[ev.route].desc}${ev.night ? ', at night' : ''}`;
-    const ok = await confirmBox(`<h2>${ev.name}</h2><p>${route} vs ${ev.rivals.map(esc).join(' & ')}. Entry fee <b>${money(ev.entry)}</b>.</p>${risky}
+    const ok = await confirmBox(`<h2>${ev.name} · ${diff.label}</h2><p>${ev.style} vs ${ev.rivals.map(esc).join(' & ')}, same car numbers as yours. You start behind them. Entry fee <b>${money(ev.entry)}</b>, win <b>${money(ev.purse[0])}</b>.</p>${risky}
       <p class="small muted">Controls: ◀ ▶ steer, GAS, BRAKE, HANDBRAKE. Keyboard: arrows/WASD, space = handbrake.</p>`, 'Race!');
     if (!ok) return;
     spend(ev.entry);
-    runDrive('race', car, ev);
+    runDrive('race', car, ev, diff);
   },
 
   reset: async () => {
@@ -551,7 +550,7 @@ function parkedInMeters() {
     .map(({ spot, car }) => ({ car, x: spot.x * U, z: spot.y * U }));
 }
 
-function runDrive(mode, car, ev) {
+function runDrive(mode, car, ev, difficulty) {
   const all = parkedInMeters();
   const mine = all.find((p) => p.car.id === car.id);
   phoneWrap.hidden = true;
@@ -562,8 +561,8 @@ function runDrive(mode, car, ev) {
     startDrive({
       canvas: document.getElementById('race-canvas'),
       hud: document.getElementById('hud'),
-      car, perf: performance(car), mode, event: ev,
-      // Rivals match your car's power-to-weight as if it were healthy (a sick engine is still your problem).
+      car, perf: performance(car), mode, event: ev, difficulty,
+      // Rivals get your car's numbers as if it were healthy (a sick engine is still your problem).
       rivalBase: performance({ ...car, cond: { ...car.cond, engine: 100, trans: 100 } }),
       parked: all.filter((p) => p !== mine),
       spot: mine,
@@ -629,13 +628,16 @@ async function finishRace(car, ev, res) {
     title = ['', '🥇 1st', '🥈 2nd', '🥉 3rd'][res.place];
     if (res.place === 1) state.stats.wins += 1;
   }
+  const prevBest = state.records[ev.key];
+  const newBest = !res.dnf && (!prevBest || res.time < prevBest);
+  if (newBest) state.records[ev.key] = res.time;
   if (payout) earn(payout);
-  addLog(`${ev.name}: ${res.dnf ? 'DNF' : `P${res.place}`}${payout ? ` (+${money(payout)})` : ''}`);
+  addLog(`${ev.name} (${ev.diffLabel}): ${res.dnf ? 'DNF' : `P${res.place}`}${payout ? ` (+${money(payout)})` : ''}`);
   nextDay();
   save();
 
   await modal(`<div class="result-place">${title}</div>
-    <p style="text-align:center" class="muted">${ev.name}${res.dnf ? '' : ` · ${fmtTime(res.time)}`}</p>
+    <p style="text-align:center" class="muted">${ev.name} · ${ev.diffLabel}${res.dnf ? '' : ` · ${fmtTime(res.time)}${newBest ? ' · 🏁 new best' : ''}`}</p>
     <div class="stats"><div class="stat"><b>${money(-ev.entry)}</b><small>Entry</small></div>
       <div class="stat"><b style="color:var(--good)">${money(payout)}</b><small>Prize</small></div>
       <div class="stat"><b>${money(payout - ev.entry)}</b><small>Net</small></div></div>

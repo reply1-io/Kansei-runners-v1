@@ -13,31 +13,27 @@ You start at **your cabin, deep in the forest**, shown top-down. It has a carpor
 - **Tap the cabin** to sleep until tomorrow, which brings new listings.
 - **📱 Phone** pulls out your phone. **▾ Put away** puts it back.
 
-**The road** is a 2.7 km touge loop around the mountain, with no straights:
-- From the cabin it climbs the west face through 4 switchback hairpins (the tightest is 9.5 m radius) and sweeps up to the ridge.
-- It runs the ridge over the summit (about 60 m up), drops down the east face through 3 more hairpins, and comes back through the valley past your cabin.
-- Guardrails line the mountain sections. Gravity is simulated, so uphill slows you and downhill pulls you into the hairpins.
-- **Side roads** branch off at the summit (lookout), the east face (old logging road) and the valley (road to town). They're drivable gravel for now and end at a "Road closed" barrier, ready to be opened up later.
+**The home road** is a 2.7 km touge loop around the mountain in front of the cabin, for free driving. It has 7 hairpins, a ridge over the summit and guardrails on the mountain sections, with side roads that end at "Road closed" barriers for now.
+
+**Race courses** (from the phone's Touge app). Each takes about 2 minutes:
+- **Kansei Pass:** ultra-winding downhill. It's 1.7 km of hairpins, sharp esses and square 90s with almost no straight road, and the corners are tight enough that passing is hard.
+- **Switchback Ladder:** straight, hairpin, repeat. Nine straights joined by eight hairpins stacked down the mountain, so braking points win it.
 
 **The loop:**
 1. **Marketplace:** 6–10 used cars under $5k each day, with a price, factory specs (hp, handling, weight) and condition. Striped `??` bars are hidden problems, so tap **Inspect ($80)** before you buy.
 2. **Parts Shop:** buy parts for anything marked ⚠️, plus performance mods. They go in your trunk.
 3. **Garage:** tap **Install** / **Install all**.
-4. **Touge app:** street races on your loop against 1–2 rivals:
-   - **Kenta:** uphill, cabin → summit
-   - **Iketani:** downhill, summit → east face → cabin
-   - **Ryo & Shingo:** the full loop at night
-   - **The Ghost:** downhill at midnight
-5. **Rivals race hard.** They always get **the same power-to-weight as your car**, so you can't buy your way past them with power:
-   - They drive a computed racing line (wide, apex, wide) and pull the handbrake through the tightest hairpins.
-   - They follow closely and try to go around you.
-   - Later rivals are better drivers on stickier tires with stronger brakes, so tires, coilovers and brakes are the mods that matter.
-   - Expect to need a few tries.
+4. **Touge app:** pick a course and a difficulty: **Easy, Medium, Hard or Impossible**. Your best time for each shows on its button.
+5. **Rivals are always fair.** They drive a car with **exactly your car's numbers** (power-to-weight, grip, brakes). Difficulty only changes how well they drive:
+   - **Easy** rivals mostly keep to their lane, brake early and make mistakes, so the other lane is open to pass.
+   - Each level up drives a cleaner racing line, which uses the whole road and closes the doors. They also commit harder in corners, brake later, and run wide less often.
+   - **Impossible** runs the ideal line and almost never slips. It's beatable, but you need near-perfect lines and a clean pass.
+   - You start behind two rivals and have to get past. They pull the handbrake through the tightest hairpins, give you racing room when you're alongside, and go for gaps themselves.
 6. **Drive:**
    - **◀ ▶** steer
    - **GAS**, **BRAKE** and **HAND BRAKE**; pull the handbrake to swing the rear around hairpins.
    - On a keyboard, use arrows/WASD, with space for the handbrake.
-   - 🔊 toggles sound (engine, tire squeal, impacts). Night races are lit by headlights.
+   - 🔊 toggles sound (engine, tire squeal, impacts).
 7. Every drive wears the car. Throttle wears the engine and transmission, sliding wears tires, brakes wear on downhills, and guardrails and contact damage the body. A worn engine can blow. Spend your winnings on repairs and mods, or sell and move up.
 
 Progress saves automatically in the browser (localStorage).
@@ -58,12 +54,12 @@ python3 -m http.server 8000
 
 | File | What's in it | Add… |
 |---|---|---|
-| `js/data.js` | Content and balance numbers | **Cars** → `MODELS`, **repair parts** → `COMPONENTS`, **mods** → `UPGRADES`, **touge races** → `EVENTS` (route, night, rivals, rival skill/tires/brakes, entry, purse) |
-| `js/road.js` | The road network: the loop (`LOOP`, a list of arcs with a grade each), side roads (`BRANCH_DEFS`), race routes (`ROUTES`), and the racing line the rivals drive | Reshape the loop or add side roads. The map, 3D world, races and AI all follow automatically |
+| `js/data.js` | Content and balance numbers | **Cars** → `MODELS`, **repair parts** → `COMPONENTS`, **mods** → `UPGRADES`, **races** → `RACES` (per-course rival calibration) and `DIFFICULTIES` (line quality, mistakes, rivals, entry, purse) |
+| `js/road.js` | Road networks: the home loop (`LOOP`, arcs with a grade each) and side roads (`BRANCH_DEFS`), the race courses (`COURSES`: Kansei Pass is generated from corner blocks with a fixed seed; Switchback Ladder is a list of straights and hairpins), and racing lines (`lineVariant`) | Reshape roads or add a course. The 3D world, races and AI follow automatically |
 | `js/state.js` | Game state, save/load, car generation, pricing, performance math (condition + mods → hp/grip/brakes) | New stats or economy rules |
-| `js/drive.js` | Driving in 3D: car physics (grip, drift, handbrake, slope gravity), rival AI on the racing line, locked camera, HUD, controls, wear/failures | Race and driving mechanics |
+| `js/drive.js` | Driving in 3D on any road network: car physics (grip, drift, handbrake, slope gravity), rival AI (racing line, commitment, mistakes, racing room, passing), locked camera, HUD, controls, wear/failures | Race and driving mechanics |
 | `js/audio.js` | Synthesized engine, tire squeal and impact sounds (Web Audio, no sound files) | Sounds |
-| `js/world3d.js` | The 3D scene: terrain shaped around the roads, road surfaces, guardrails, barriers, forest, cabin/tent/driveway, day/night lighting, skid marks, car model with headlights | Scenery and props |
+| `js/world3d.js` | One 3D scene per road network, built on first use: terrain shaped around the roads, road surfaces, guardrails, barriers, forest, cabin/tent/driveway, day/night lighting, skid marks, car model with headlights | Scenery and props |
 | `js/map.js` | Top-down home map: layout (`HOME`), parking spots (`PARKING`), Select buttons, traffic, tap targets | Home layout, more parking spots |
 | `js/main.js` | Phone UI and every app, plus the flow between the map, phone and driving | New apps or screens |
 | `js/draw.js` | Shared 2D canvas helpers | |

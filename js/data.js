@@ -70,17 +70,29 @@ export const SELLER_NOTES = [
 
 export const COLORS = ['#e8e8e8', '#d63031', '#0984e3', '#2d3436', '#fdcb6e', '#00b894', '#6c5ce7', '#e17055', '#b2bec3', '#fab1a0'];
 
-// Touge races, all on the loop in front of the cabin (see js/road.js).
-// route: 'up' (cabin -> summit), 'down' (summit -> cabin via the east side), 'loop' (all the way around).
-// Rivals always match YOUR car's power-to-weight. What changes is how well they drive (skill: share of
-// the grip they dare to use), and their tires/brakes (grip, brakes), so handling mods still matter.
-export const EVENTS = [
-  { id: 'kid-up', name: 'Local Kid', route: 'up', rivals: ['Kenta'], skill: 0.9, grip: 0.97, brakes: 0.97,
-    entry: 50, purse: [650, 0], desc: 'The kid from down the road bets you can\'t beat him to the summit.' },
-  { id: 'iketani-down', name: 'Downhill Dare', route: 'down', rivals: ['Iketani'], skill: 0.93, grip: 1.04, brakes: 1.04,
-    entry: 200, purse: [1800, 0], desc: 'Summit to your driveway, three hairpins on the east face. Brakes and nerve.' },
-  { id: 'ryo-loop', name: 'Night Loop', route: 'loop', night: true, rivals: ['Ryo', 'Shingo'], skill: 0.95, grip: 1.12, brakes: 1.12,
-    entry: 800, purse: [6000, 1500], desc: 'All the way around the mountain in the dark. Two of the valley\'s best.' },
-  { id: 'ghost-down', name: 'Kansei Downhill King', route: 'down', night: true, rivals: ['The Ghost'], skill: 0.98, grip: 1.22, brakes: 1.2,
-    entry: 3000, purse: [30000, 0], desc: 'Nobody has seen his face. Beat him down the mountain at midnight.' },
+// Two race courses (geometry in js/road.js), each ~2 minutes, each at four difficulties.
+// Rivals ALWAYS drive a car with exactly your car's numbers (power-to-weight, grip, brakes), so it's
+// always fair. Difficulty only changes how well they drive:
+//   line:    how close to the ideal racing line they drive (0 = keeps to one lane, 1 = perfect line
+//            using the whole road, which also leaves you the least room to pass)
+//   commit:  how much of the car's grip they dare to use in corners
+//   brake:   how late and hard they brake
+//   mistakeEvery: roughly how often (seconds) one of them runs wide or brakes early, opening a door
+// commit/brake are per course, calibrated against a test driver: rivals ride their line perfectly,
+// so these land lower than 1.0 to put each level where a human driver actually is.
+// You start behind two of them and have to get past.
+export const RACES = [
+  { id: 'pass', course: 'pass', name: 'Kansei Pass', style: 'Ultra-winding downhill',
+    desc: 'Hairpin after hairpin, sharp esses and square 90s, almost no straight road. Line is everything, and passing is hard.',
+    levels: { easy: { commit: 0.72, brake: 0.38 }, medium: { commit: 0.75, brake: 0.4 }, hard: { commit: 0.75, brake: 0.46 }, impossible: { commit: 0.8, brake: 0.55 } } },
+  { id: 'ladder', course: 'ladder', name: 'Switchback Ladder', style: 'Straight, hairpin, repeat',
+    desc: 'Flat out down a straight, stand on the brakes, swing it around a hairpin, do it again. Nine times. Braking points win this one.',
+    levels: { easy: { commit: 0.84, brake: 0.37 }, medium: { commit: 1.0, brake: 0.41 }, hard: { commit: 1.0, brake: 0.51 }, impossible: { commit: 1.0, brake: 0.63 } } },
 ];
+
+export const DIFFICULTIES = {
+  easy:       { label: 'Easy',       line: 0.3,  mistakeEvery: 12, rivals: ['Kenta', 'Itsuki'],    entry: 50,   purse: [500, 100] },
+  medium:     { label: 'Medium',     line: 0.6,  mistakeEvery: 18, rivals: ['Iketani', 'Kenji'],   entry: 150,  purse: [1200, 250] },
+  hard:       { label: 'Hard',       line: 0.85, mistakeEvery: 26, rivals: ['Ryo', 'Keisuke'],     entry: 400,  purse: [3500, 700] },
+  impossible: { label: 'Impossible', line: 1.0,  mistakeEvery: 40, rivals: ['The Ghost', 'Bunta'], entry: 1000, purse: [12000, 2000] },
+};

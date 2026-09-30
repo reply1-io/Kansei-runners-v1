@@ -1,17 +1,12 @@
-// 3D world for driving: terrain shaped around the touge, the road itself, guardrails, forest,
-// and the cabin/tent/driveway. Built once and reused for every drive.
+// 3D worlds for driving, one per road network (the cabin loop, each race course): terrain shaped
+// around the roads, road surfaces, guardrails, barriers, forest, and (at home) the cabin/tent/driveway.
+// Each world is built the first time it's needed and then reused.
 import * as THREE from '../lib/three.module.min.js';
-import { ROAD, ROAD_HALF, RAIL_OFFSET, U, BRANCHES, BRANCH_HALF } from './road.js';
+import { ROAD_HALF, RAIL_OFFSET, U } from './road.js';
 import { HOME } from './map.js';
 import { seeded } from './draw.js';
 
-const S = ROAD.samples;
-const ALL = [...S, ...BRANCHES.flatMap((b) => b.samples)]; // every road sample, for shaping terrain
 const m = (v) => v * U; // map units -> meters
-
-// Guardrails line the mountain, with gaps where side roads leave. The valley near the cabin is open.
-const gapAt = (s, side) => BRANCHES.some((b) => b.side === side && Math.abs(s - b.junctionS) < 9);
-export const isRailed = (s, side = 0) => ROAD.railed(s) && !(side && gapAt(s, side));
 
 // Drivable areas at the cabin, in meters (car center limits). They overlap so you can drive between them.
 export const HOME_ZONES = [
@@ -22,43 +17,47 @@ export const HOME_ZONES = [
 export const inHome = (x, z) => HOME_ZONES.some((r) => x > r.x0 && x < r.x1 && z > r.z0 && z < r.z1);
 
 // ---------- terrain height ----------
-const CELL = 12;
-const grid = new Map();
-for (const p of ALL) {
-  const k = `${Math.floor(p.x / CELL)},${Math.floor(p.z / CELL)}`;
-  if (!grid.has(k)) grid.set(k, []);
-  grid.get(k).push(p);
-}
-const coarse = ALL.filter((_, i) => i % 7 === 0);
 const noise = (x, z) => Math.sin(x * 0.045) * Math.cos(z * 0.039) * 2.2 + Math.sin(x * 0.13 + z * 0.07) * 0.9 + Math.cos(z * 0.21 - x * 0.05) * 0.4;
 const smooth = (a, b, v) => { const t = Math.max(0, Math.min(1, (v - a) / (b - a))); return t * t * (3 - 2 * t); };
-const CL = { x: m(HOME.clearing.x), z: m(HOME.clearing.y), rx: m(HOME.clearing.rx), rz: m(HOME.clearing.ry) };
 
-export function terrainAt(x, z) {
-  // Nearest fine sample (for flattening right next to the road).
-  const cx = Math.floor(x / CELL), cz = Math.floor(z / CELL);
-  let nd = Infinity, ne = 0;
-  for (let i = -1; i <= 1; i++) for (let j = -1; j <= 1; j++) {
-    const list = grid.get(`${cx + i},${cz + j}`);
-    if (!list) continue;
-    for (const p of list) { const d = (p.x - x) ** 2 + (p.z - z) ** 2; if (d < nd) { nd = d; ne = p.e; } }
+// Returns terrainAt(x, z) for a network: flattened next to its roads, slopes blended between road
+// legs at different heights, rising hills farther away, and (at home) the flat cabin clearing.
+function makeTerrain(net) {
+  const ALL = [...net.road.samples, ...net.branches.flatMap((b) => b.samples)];
+  const CELL = 12, grid = new Map();
+  for (const p of ALL) {
+    const k = `${Math.floor(p.x / CELL)},${Math.floor(p.z / CELL)}`;
+    if (!grid.has(k)) grid.set(k, []);
+    grid.get(k).push(p);
   }
-  // Smooth blend of road elevations nearby: gives natural slopes between switchback legs.
-  let ws = 0, es = 0, cmin = Infinity;
-  for (const p of coarse) {
-    const d2 = (p.x - x) ** 2 + (p.z - z) ** 2;
-    if (d2 < cmin) cmin = d2;
-    const w = 1 / Math.pow(d2 + 60, 1.6);
-    ws += w; es += w * p.e;
-  }
-  const dc = Math.sqrt(cmin);
-  const dn = Math.min(Math.sqrt(nd), dc);
-  const far = es / ws + noise(x, z) * smooth(8, 40, dc) + 0.22 * Math.max(0, dc - 18);
-  let h = nd < Infinity && dn < 30 ? ne + (far - ne) * smooth(ROAD_HALF + 1.2, ROAD_HALF + 16, dn) - 0.3 * (1 - smooth(ROAD_HALF, ROAD_HALF + 3, dn)) : far;
-  // Flatten the cabin clearing to the cabin's elevation (0).
-  const r = Math.hypot((x - CL.x) / CL.rx, (z - CL.z) / CL.rz);
-  h = -0.05 + (h + 0.05) * smooth(1.0, 1.5, r);
-  return { h, dRoad: dn, clearing: r };
+  const coarse = ALL.filter((_, i) => i % 7 === 0);
+  const CL = net.home ? { x: m(HOME.clearing.x), z: m(HOME.clearing.y), rx: m(HOME.clearing.rx), rz: m(HOME.clearing.ry) } : null;
+  return function terrainAt(x, z) {
+    const cx = Math.floor(x / CELL), cz = Math.floor(z / CELL);
+    let nd = Infinity, ne = 0;
+    for (let i = -1; i <= 1; i++) for (let j = -1; j <= 1; j++) {
+      const list = grid.get(`${cx + i},${cz + j}`);
+      if (!list) continue;
+      for (const p of list) { const d = (p.x - x) ** 2 + (p.z - z) ** 2; if (d < nd) { nd = d; ne = p.e; } }
+    }
+    let ws = 0, es = 0, cmin = Infinity;
+    for (const p of coarse) {
+      const d2 = (p.x - x) ** 2 + (p.z - z) ** 2;
+      if (d2 < cmin) cmin = d2;
+      const w = 1 / Math.pow(d2 + 60, 1.6);
+      ws += w; es += w * p.e;
+    }
+    const dc = Math.sqrt(cmin);
+    const dn = Math.min(Math.sqrt(nd), dc);
+    const far = es / ws + noise(x, z) * smooth(8, 40, dc) + 0.22 * Math.max(0, dc - 18);
+    let h = nd < Infinity && dn < 30 ? ne + (far - ne) * smooth(ROAD_HALF + 1.2, ROAD_HALF + 16, dn) - 0.3 * (1 - smooth(ROAD_HALF, ROAD_HALF + 3, dn)) : far;
+    let r = 9;
+    if (CL) {
+      r = Math.hypot((x - CL.x) / CL.rx, (z - CL.z) / CL.rz);
+      h = -0.05 + (h + 0.05) * smooth(1.0, 1.5, r);
+    }
+    return { h, dRoad: dn, clearing: r };
+  };
 }
 
 // ---------- materials / helpers ----------
@@ -78,10 +77,10 @@ function roadTexture() {
   return t;
 }
 
-function ribbon(offsetA, offsetB, yA, yB, every = 1, withUV = false, samples = S, closed = true) {
+function ribbon(samples, offsetA, offsetB, yA, yB, { every = 1, withUV = false, closed = false, length = 0 } = {}) {
   const pos = [], uv = [], idx = [];
   const pts = samples.filter((_, i) => i % every === 0 || i === samples.length - 1);
-  if (closed) pts.push({ ...pts[0], s: ROAD.length });
+  if (closed) pts.push({ ...pts[0], s: length });
   pts.forEach((p, i) => {
     pos.push(p.x + p.nx * offsetA, p.e + yA, p.z + p.nz * offsetA);
     pos.push(p.x + p.nx * offsetB, p.e + yB, p.z + p.nz * offsetB);
@@ -97,12 +96,14 @@ function ribbon(offsetA, offsetB, yA, yB, every = 1, withUV = false, samples = S
 }
 
 // Guardrail strip on one side, only where railed.
-function railGeometry(side) {
+function railGeometry(net, side) {
+  const S = net.road.samples, loop = net.road.loop;
   const pos = [], idx = [];
   let n = 0, prevOk = false;
-  for (let i = 0; i <= S.length; i += 2) {
-    const p = S[i % S.length];
-    const ok = isRailed(p.s, side);
+  const end = loop ? S.length : S.length - 1;
+  for (let i = 0; i <= end; i += 2) {
+    const p = S[Math.min(i, S.length - 1) % S.length];
+    const ok = net.isRailed(p.s, side);
     if (!ok) { prevOk = false; continue; }
     const o = side * (ROAD_HALF + RAIL_OFFSET);
     pos.push(p.x + p.nx * o, p.e + 0.45, p.z + p.nz * o, p.x + p.nx * o, p.e + 0.8, p.z + p.nz * o);
@@ -117,7 +118,15 @@ function railGeometry(side) {
 }
 
 // ---------- world ----------
-export function buildWorld() {
+const worlds = new Map();
+export function getWorld(net) {
+  if (!worlds.has(net.id)) worlds.set(net.id, buildWorld(net));
+  return worlds.get(net.id);
+}
+
+function buildWorld(net) {
+  const S = net.road.samples;
+  const terrainAt = makeTerrain(net);
   const scene = new THREE.Scene();
   const sky = new THREE.Color('#7d8fa8');
   scene.background = sky;
@@ -128,10 +137,10 @@ export function buildWorld() {
   sun.position.set(-120, 160, 60);
   scene.add(sun);
 
-  // Terrain grid covering the road plus a margin.
+  // Terrain grid covering the roads plus a margin.
   let minX = Infinity, maxX = -Infinity, minZ = Infinity, maxZ = -Infinity;
-  for (const p of ALL) { minX = Math.min(minX, p.x); maxX = Math.max(maxX, p.x); minZ = Math.min(minZ, p.z); maxZ = Math.max(maxZ, p.z); }
-  minX -= 150; maxX += 150; minZ -= 150; maxZ += 150;
+  for (const p of [...S, ...net.branches.flatMap((b) => b.samples)]) { minX = Math.min(minX, p.x); maxX = Math.max(maxX, p.x); minZ = Math.min(minZ, p.z); maxZ = Math.max(maxZ, p.z); }
+  minX -= 130; maxX += 130; minZ -= 130; maxZ += 130;
   const STEPT = 5;
   const nx = Math.ceil((maxX - minX) / STEPT) + 1, nz = Math.ceil((maxZ - minZ) / STEPT) + 1;
   const pos = new Float32Array(nx * nz * 3), col = new Float32Array(nx * nz * 3);
@@ -161,13 +170,14 @@ export function buildWorld() {
   scene.add(new THREE.Mesh(tg, new THREE.MeshLambertMaterial({ vertexColors: true })));
 
   // Road, shoulder, guardrails and posts.
-  scene.add(new THREE.Mesh(ribbon(-ROAD_HALF - 1.1, ROAD_HALF + 1.1, -0.02, -0.02, 2), new THREE.MeshLambertMaterial({ color: '#6d6353' })));
-  scene.add(new THREE.Mesh(ribbon(-ROAD_HALF, ROAD_HALF, 0.03, 0.03, 1, true), new THREE.MeshLambertMaterial({ map: roadTexture() })));
+  const closed = net.road.loop, length = net.road.length;
+  scene.add(new THREE.Mesh(ribbon(S, -ROAD_HALF - 1.1, ROAD_HALF + 1.1, -0.02, -0.02, { every: 2, closed, length }), new THREE.MeshLambertMaterial({ color: '#6d6353' })));
+  scene.add(new THREE.Mesh(ribbon(S, -ROAD_HALF, ROAD_HALF, 0.03, 0.03, { withUV: true, closed, length }), new THREE.MeshLambertMaterial({ map: roadTexture() })));
   const railMat = new THREE.MeshLambertMaterial({ color: '#b9bec6', side: THREE.DoubleSide });
-  for (const side of [-1, 1]) scene.add(new THREE.Mesh(railGeometry(side), railMat));
+  for (const side of [-1, 1]) scene.add(new THREE.Mesh(railGeometry(net, side), railMat));
   const postGeo = new THREE.BoxGeometry(0.14, 0.85, 0.14);
   const posts = [];
-  for (let i = 0; i < S.length; i += 4) for (const side of [-1, 1]) if (isRailed(S[i].s, side)) posts.push([S[i], side]);
+  for (let i = 0; i < S.length; i += 4) for (const side of [-1, 1]) if (net.isRailed(S[i].s, side)) posts.push([S[i], side]);
   const postMesh = new THREE.InstancedMesh(postGeo, new THREE.MeshLambertMaterial({ color: '#8a8f96' }), posts.length);
   const mtx = new THREE.Matrix4();
   posts.forEach(([p, side], i) => {
@@ -179,17 +189,22 @@ export function buildWorld() {
 
   // Side roads: narrower gravel with a "Road closed" barrier at the end.
   const branchMat = new THREE.MeshLambertMaterial({ color: '#7d7466' });
-  for (const b of BRANCHES) {
-    scene.add(new THREE.Mesh(ribbon(-b.half, b.half, 0.0, 0.0, 1, false, b.samples.slice(3), false), branchMat));
+  for (const b of net.branches) {
+    scene.add(new THREE.Mesh(ribbon(b.samples.slice(3), -b.half, b.half, 0.0, 0.0), branchMat));
     scene.add(barrier(b.samples[b.samples.length - 1], b.half));
+  }
+  // Open roads (race courses) are closed off at both ends.
+  if (!closed) {
+    scene.add(barrier(S[S.length - 1], ROAD_HALF + 1));
+    scene.add(barrier(S[0], ROAD_HALF + 1));
   }
 
   // Start/finish lines (checkered strips across the road).
-  for (const s of [ROAD.startLineS, ROAD.summitS]) scene.add(checkerLine(s));
+  for (const s of net.lines) scene.add(checkerLine(net.road, s));
 
   const lights = { hemi, sun, sky, fog: scene.fog };
 
-  // Forest: instanced cones on a jittered grid, kept off the road and out of the clearing.
+  // Forest: instanced cones on a jittered grid, kept off the roads and out of the clearing.
   const trees = [];
   const trnd = seeded(99);
   const TS = 8.5;
@@ -212,7 +227,7 @@ export function buildWorld() {
   });
   scene.add(treeMesh);
 
-  const fire = buildHome(scene);
+  const fire = net.home ? buildHome(scene) : null;
   const skids = makeSkids(scene);
   return { scene, fire, skids, setNight: (on) => setNight(lights, on) };
 }
@@ -272,8 +287,8 @@ function makeSkids(scene) {
   };
 }
 
-function checkerLine(s) {
-  const p = S.find((q) => q.s >= s) || S[S.length - 1];
+function checkerLine(road, s) {
+  const p = road.samples.find((q) => q.s >= s) || road.samples[road.samples.length - 1];
   const c = document.createElement('canvas');
   c.width = 64; c.height = 8;
   const g = c.getContext('2d');

@@ -1,12 +1,10 @@
-// Driving on the touge loop with a locked, near-top-down camera. Two modes:
-//   cruise: get in a car at the cabin and drive anywhere (including the side roads), park when done
-//   race:   touge battle vs 1-2 rivals on a route (uphill, downhill, or the full loop)
+// Driving with a locked, near-top-down camera. Two modes:
+//   cruise: get in a car at the cabin and drive the home loop (and its side roads), park when done
+//   race:   touge battle on a race course vs rivals in cars with exactly your car's numbers;
+//           difficulty only changes how good their racing line is and how hard they commit to it
 import * as THREE from '../lib/three.module.min.js';
-import {
-  ROAD, ROAD_HALF, RAIL_OFFSET, BRANCHES, RACING_LINE, ROUTES,
-  sampleAtS, nearestOnRoad, nearestOnBranch,
-} from './road.js';
-import { buildWorld, makeCarMesh, inHome, isRailed } from './world3d.js';
+import { ROAD_HALF, RAIL_OFFSET, HOME_NET, COURSES, lineVariant } from './road.js';
+import { getWorld, makeCarMesh, inHome } from './world3d.js';
 import { PROBLEM_THRESHOLD } from './data.js';
 import { clamp } from './state.js';
 import { carSound, unlockAudio, isMuted, setMuted } from './audio.js';
@@ -16,7 +14,13 @@ const WHEELBASE = 2.5;
 const CAR_HALF_W = 0.95;
 const CAR_LEN = 4.4;
 const MPH = 2.237;
-const RIVAL_COLORS = ['#f5f6fa', '#e84118', '#9c88ff'];
+const RIVAL_COLORS = ['#f5f6fa', '#e84118', '#9c88ff', '#fbc531', '#00a8ff', '#4cd137'];
+// Rivals get colors clearly different from yours so you can always tell who's who.
+function rivalColors(mine) {
+  const rgb = (h) => [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16));
+  const m = rgb(mine);
+  return RIVAL_COLORS.filter((c) => { const r = rgb(c); return Math.hypot(r[0] - m[0], r[1] - m[1], r[2] - m[2]) > 120; });
+}
 const HB_RADIUS = 15; // rivals pull the handbrake where their line is tighter than this
 
 // Locked camera: rigidly behind the car, tilted just enough off vertical to see its rear.
@@ -24,12 +28,12 @@ const CAM = { height: 34, back: 8.5, ahead: 7.5 };
 
 let renderer = null, world = null, camera = null;
 
-function ensure3D(canvas) {
+function ensure3D(canvas, net) {
   if (!renderer) {
     renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
     camera = new THREE.PerspectiveCamera(62, 1, 1, 700);
   }
-  if (!world) world = buildWorld();
+  world = getWorld(net);
 }
 
 // Convert game stats (from state.performance) to SI units for this sim.
@@ -43,49 +47,56 @@ export function carSpec(perf) {
   };
 }
 
-// ---------- racing line helpers ----------
-const LP = RACING_LINE.pts, LN = LP.length, LLEN = RACING_LINE.length;
-const S = ROAD.samples, SN = S.length;
-
-function lineIndexAt(d) {
-  d = ((d % LLEN) + LLEN) % LLEN;
-  let lo = 0, hi = LN - 1;
-  while (lo < hi) { const m = (lo + hi + 1) >> 1; if (LP[m].d <= d) lo = m; else hi = m - 1; }
-  return { i: lo, t: LP[lo].seg > 0 ? (d - LP[lo].d) / LP[lo].seg : 0 };
+// Rival lines are cached per course and line quality.
+const lineCache = new Map();
+function getLine(road, key, q) {
+  const k = `${key}:${q}`;
+  if (!lineCache.has(k)) lineCache.set(k, lineVariant(road, q));
+  return lineCache.get(k);
 }
 
-// Line distance for a given centerline s (they share sample indices).
-function lineDAtS(s) {
-  const p = sampleAtS(s);
-  const segS = ((S[(p.i + 1) % SN].s - S[p.i].s) + ROAD.length) % ROAD.length || 1;
-  const frac = (((s - S[p.i].s) % ROAD.length) + ROAD.length) % ROAD.length / segS;
-  return LP[p.i].d + frac * LP[p.i].seg;
-}
-
-// Speed a rival can carry at each line sample: cornering limit plus braking zones (grade-aware).
-function speedProfile(spec, skill) {
-  const lat = spec.lat * skill, top = spec.top;
-  const v = LP.map((p) => Math.min(top, Math.sqrt(lat / Math.max(p.k, 1e-4))));
-  for (let pass = 0; pass < 2; pass++) {
-    for (let j = 2 * LN - 1; j >= 0; j--) {
-      const i = j % LN, n = (i + 1) % LN;
-      const dec = Math.max(2.5, spec.brake * skill + G * S[i].grade);
-      v[i] = Math.min(v[i], Math.sqrt(v[n] * v[n] + 2 * dec * LP[i].seg));
-    }
-  }
-  return v;
-}
-
-const wrapDelta = (d) => { const L = ROAD.length; d = ((d % L) + L) % L; return d > L / 2 ? d - L : d; };
-
-export function startDrive({ canvas, hud, car, perf, rivalBase, mode, event, parked = [], spot, onExit }) {
+export function startDrive({ canvas, hud, car, perf, rivalBase, mode, event, difficulty, parked = [], spot, onExit }) {
   unlockAudio();
-  ensure3D(canvas);
+  const race = mode === 'race';
+  const net = race ? COURSES[event.course] : HOME_NET;
+  ensure3D(canvas, net);
   const scene = world.scene;
   const spec = carSpec(perf);
-  const race = mode === 'race';
-  const route = race ? ROUTES[event.route] : null;
+  const road = net.road, S = road.samples, SN = S.length;
+  const sampleAtS = (v) => road.sampleAtS(v);
+  const route = race ? { from: net.startS, to: net.finishS } : null;
   const night = !!(race && event.night);
+
+  // ---- racing line helpers (for the rivals) ----
+  function lineIndexAt(line, d) {
+    const LP = line.pts, LN = LP.length;
+    d = road.loop ? ((d % line.length) + line.length) % line.length : Math.max(0, Math.min(line.length - 0.001, d));
+    let lo = 0, hi = LN - 1;
+    while (lo < hi) { const mm = (lo + hi + 1) >> 1; if (LP[mm].d <= d) lo = mm; else hi = mm - 1; }
+    return { i: lo, t: LP[lo].seg > 0 ? Math.min(1, (d - LP[lo].d) / LP[lo].seg) : 0 };
+  }
+  function lineDAtS(line, v) {
+    const p = sampleAtS(v);
+    const next = S[Math.min(p.i + 1, SN - 1)];
+    const segS = next.s - S[p.i].s || 1;
+    return line.pts[p.i].d + Math.max(0, Math.min(1, (v - S[p.i].s) / segS)) * line.pts[p.i].seg;
+  }
+  // Speed a rival can carry at each point of its line: cornering limit (how much of the grip it
+  // commits to) plus braking zones, which account for the slope.
+  function speedProfile(line, rs, commit, brakeCommit = commit) {
+    const LP = line.pts, LN = LP.length;
+    const lat = rs.lat * commit, top = rs.top;
+    const v = LP.map((p) => Math.min(top, Math.sqrt(lat / Math.max(p.k, 1e-4))));
+    const passes = road.loop ? 2 : 1;
+    for (let pass = 0; pass < passes; pass++) {
+      for (let j = (road.loop ? 2 * LN : LN - 1) - 1; j >= 0; j--) {
+        const i = j % LN, n = road.loop ? (i + 1) % LN : Math.min(i + 1, LN - 1);
+        const dec = Math.max(2.5, rs.brake * brakeCommit + G * S[i].grade);
+        v[i] = Math.min(v[i], Math.sqrt(v[n] * v[n] + 2 * dec * LP[i].seg));
+      }
+    }
+    return v;
+  }
   world.setNight(night);
   world.skids.clear();
   const added = [];
@@ -94,14 +105,15 @@ export function startDrive({ canvas, hud, car, perf, rivalBase, mode, event, par
   // ---- player ----
   const P = { x: 0, z: 0, h: 0, vx: 0, vz: 0, steer: 0, hint: -1, e: 0, pitch: 0, roll: 0, drifting: false, sAbs: 0, lastL: null, lastR: null, slip: 0 };
   if (race) {
-    const st = sampleAtS(route.from - 7);
-    P.x = st.x + st.nx * -2.1; P.z = st.z + st.nz * -2.1;
+    // You start behind the rivals and have to get past.
+    const st = sampleAtS(route.from - 11);
+    P.x = st.x; P.z = st.z;
     P.h = Math.atan2(st.tz, st.tx);
     P.hint = st.i;
-    P.sAbs = route.from - 7;
+    P.sAbs = route.from - 11;
   } else {
     P.x = spot.x; P.z = spot.z; P.h = Math.PI / 2; // backed in, facing the road
-    P.sAbs = nearestOnRoad(P.x, P.z).s;
+    P.sAbs = road.nearest(P.x, P.z).s;
   }
   const playerMesh = makeCarMesh(car.color);
   playerMesh.beam.intensity = night ? 400 : 0;
@@ -113,21 +125,26 @@ export function startDrive({ canvas, hud, car, perf, rivalBase, mode, event, par
     addMesh(mm.group);
   }
 
-  // ---- rivals: same power-to-weight as you; grip, brakes and skill come from the event ----
+  // ---- rivals: exactly your car (power-to-weight, grip, brakes). Difficulty = line + commitment ----
   const rivals = [];
   if (race) {
-    const base = carSpec(rivalBase || perf);
-    event.rivals.forEach((name, i) => {
-      const rs = { top: base.top, accel: base.accel, lat: 9.5 * event.grip, brake: 9.0 * event.brakes };
-      const skill = event.skill * (i ? 0.985 : 1) * (0.99 + Math.random() * 0.02);
-      const mesh = makeCarMesh(RIVAL_COLORS[i % RIVAL_COLORS.length]);
+    const rs = carSpec(rivalBase || perf);
+    (window.__krNoRivals ? [] : difficulty.rivals).forEach((name, i) => { // test hook: solo time trial
+      // The second rival is a touch less sharp than the first.
+      const q = Math.max(0, difficulty.line - i * 0.05);
+      const jitter = (i ? 0.985 : 1) * (0.995 + Math.random() * 0.01);
+      const commit = difficulty.commit * jitter, brakeCommit = difficulty.brake * jitter;
+      const line = getLine(road, net.id, q);
+      const palette = rivalColors(car.color);
+      const mesh = makeCarMesh(palette[i % palette.length]);
       mesh.beam.intensity = night ? 400 : 0;
       addMesh(mesh.group);
-      const s0 = route.from - 7 - (i ? 9 : 0);
+      const s0 = route.from - 2;
       rivals.push({
-        name, spec: rs, skill, prof: speedProfile(rs, skill), mesh,
-        d: lineDAtS(s0), sAbs: s0, v: 0, pass: 0, passTarget: 0, startLat: i === 0 ? 2.1 : -2.1, curLat: 0,
+        name, spec: rs, skill: brakeCommit, line, prof: speedProfile(line, rs, commit, brakeCommit), mesh,
+        d: lineDAtS(line, s0), sAbs: s0, v: 0, pass: 0, passTarget: 0, startLat: i === 0 ? -2.1 : 2.1, curLat: 0,
         yawOff: 0, finished: false, finishT: 0, x: 0, z: 0, e: 0, h: 0, hb: false, lastL: null, lastR: null,
+        mistakeT: 0, mistakeOff: 0,
       });
     });
   }
@@ -182,13 +199,14 @@ export function startDrive({ canvas, hud, car, perf, rivalBase, mode, event, par
   window.addEventListener('resize', resize);
 
   // Which road surface is the car on, and how far can it go sideways before a rail/tree/barrier?
+  const home = (x, z) => net.home && inHome(x, z);
   function where(x, z) {
-    const m = nearestOnRoad(x, z, P.hint);
-    const mainLimit = isRailed(m.s, Math.sign(m.lat) || 1) ? ROAD_HALF + RAIL_OFFSET - CAR_HALF_W : ROAD_HALF + 4.5;
-    const mainOk = Math.abs(m.lat) <= mainLimit && m.dist < mainLimit + 2;
+    const m = road.nearest(x, z, P.hint);
+    const mainLimit = net.isRailed(m.s, Math.sign(m.lat) || 1) ? ROAD_HALF + RAIL_OFFSET - CAR_HALF_W : ROAD_HALF + 4.5;
+    const mainOk = Math.abs(m.lat) <= mainLimit && m.dist < mainLimit + 2 && !m.pastEnd;
     let best = { kind: 'main', m, lat: m.lat, dist: m.dist, limit: mainLimit, asphalt: Math.abs(m.lat) <= ROAD_HALF && m.dist < 12, valid: mainOk };
-    for (const b of BRANCHES) {
-      const nb = nearestOnBranch(b, x, z);
+    for (const b of net.branches) {
+      const nb = b.nearest(x, z, -1);
       if (nb.dist > 40) continue;
       const ok = Math.abs(nb.lat) <= b.half + 1.5 && !nb.pastEnd;
       // Prefer the side road when you're on it (or when it's the only valid place you could be).
@@ -196,7 +214,8 @@ export function startDrive({ canvas, hud, car, perf, rivalBase, mode, event, par
         best = { kind: 'branch', m, b, nb, lat: nb.lat, dist: nb.dist, limit: b.half + 1.5, asphalt: false, pastEnd: nb.pastEnd, e: nb.p.e, valid: ok };
       }
     }
-    if (inHome(x, z)) best.valid = true;
+    if (m.pastEnd && best.kind === 'main') best.pastEnd = true;
+    if (home(x, z)) best.valid = true;
     return best;
   }
 
@@ -204,8 +223,8 @@ export function startDrive({ canvas, hud, car, perf, rivalBase, mode, event, par
   function stepPlayer(dt) {
     const w0 = where(P.x, P.z);
     P.hint = w0.m.i;
-    const home = inHome(P.x, P.z);
-    const surf = w0.asphalt ? { grip: 1, drag: 0 } : home || w0.kind === 'branch' ? { grip: 0.75, drag: 0.25 } : { grip: 0.6, drag: 0.9 };
+    const atHome = home(P.x, P.z);
+    const surf = w0.asphalt ? { grip: 1, drag: 0 } : atHome || w0.kind === 'branch' ? { grip: 0.75, drag: 0.25 } : { grip: 0.6, drag: 0.9 };
     const rs = sampleAtS(w0.m.s);
 
     const target = typeof input.axis === 'number' ? clamp(input.axis, -1, 1) : (input.right ? 1 : 0) - (input.left ? 1 : 0);
@@ -245,7 +264,7 @@ export function startDrive({ canvas, hud, car, perf, rivalBase, mode, event, par
     }
     if (hb && vf > 0) vf = Math.max(0, vf - 3.5 * dt);
     // Gravity along the slope: uphill slows you, downhill pulls you.
-    if (!home || w0.asphalt) vf -= G * rs.grade * (fx * rs.tx + fz * rs.tz) * dt;
+    if (!atHome || w0.asphalt) vf -= G * rs.grade * (fx * rs.tx + fz * rs.tz) * dt;
     vf -= vf * (0.012 + (input.gas ? 0 : 0.06) + surf.drag) * dt;
     if (time <= 0) vf = 0;
 
@@ -255,7 +274,7 @@ export function startDrive({ canvas, hud, car, perf, rivalBase, mode, event, par
     if (Math.abs(vl) <= cap) vl = 0; else vl -= Math.sign(vl) * cap;
     if (P.drifting) { vf -= vf * 0.1 * dt; wear.tires += (Math.abs(vl) + (hb ? 2 : 0)) * dt * 0.02; }
     wear.tires += speed * dt * 0.0004;
-    if (!w0.asphalt && !home && w0.kind !== 'branch' && speed > 3) wear.susp += dt * 0.6;
+    if (!w0.asphalt && !atHome && w0.kind !== 'branch' && speed > 3) wear.susp += dt * 0.6;
     P.slip = clamp(Math.abs(vl) / 6 + (hb && speed > 4 ? 0.5 : 0), 0, 1);
 
     P.vx = fx * vf + rx * vl;
@@ -267,7 +286,7 @@ export function startDrive({ canvas, hud, car, perf, rivalBase, mode, event, par
     const w1 = where(P.x, P.z);
     if (!w1.valid) {
       let into = speed;
-      if (w1.kind === 'main' && !inHome(ox, oz)) {
+      if (w1.kind === 'main' && !home(ox, oz) && !w1.pastEnd) {
         const sp = w1.m.p, sg = Math.sign(w1.lat), over = Math.abs(w1.lat) - w1.limit;
         P.x -= sp.nx * over * sg; P.z -= sp.nz * over * sg;
         into = (P.vx * sp.nx + P.vz * sp.nz) * sg;
@@ -277,7 +296,7 @@ export function startDrive({ canvas, hud, car, perf, rivalBase, mode, event, par
         P.x = ox; P.z = oz; P.vx *= -0.25; P.vz *= -0.25;
       }
       if (into > 3 && hitCool <= 0) {
-        const railed = w1.kind === 'main' && isRailed(w1.m.s, Math.sign(w1.lat));
+        const railed = w1.kind === 'main' && net.isRailed(w1.m.s, Math.sign(w1.lat));
         wear.body += into * 0.5; wear.susp += into * 0.15;
         flash(w1.pastEnd ? 'ROAD CLOSED' : railed ? 'GUARDRAIL!' : 'Into the trees!', 0.8);
         sound.hit(into); hitCool = 0.5;
@@ -287,9 +306,9 @@ export function startDrive({ canvas, hud, car, perf, rivalBase, mode, event, par
     // Progress along the loop (unwrapped), elevation and body attitude.
     const w2 = where(P.x, P.z);
     P.hint = w2.m.i;
-    P.sAbs += wrapDelta(w2.m.s - P.sAbs);
+    P.sAbs += road.wrapDelta(w2.m.s - P.sAbs);
     const onBranch = w2.kind === 'branch';
-    const inYard = inHome(P.x, P.z) && Math.abs(w2.m.lat) > ROAD_HALF + 2;
+    const inYard = home(P.x, P.z) && Math.abs(w2.m.lat) > ROAD_HALF + 2;
     const eTarget = inYard ? 0 : onBranch ? w2.e : sampleAtS(w2.m.s).e;
     P.e += (eTarget - P.e) * Math.min(1, dt * 12);
     const gAlong = inYard ? 0 : rs.grade * (fx * rs.tx + fz * rs.tz);
@@ -318,16 +337,30 @@ export function startDrive({ canvas, hud, car, perf, rivalBase, mode, event, par
   // tightest hairpins, and try to go around you if you're in the way.
   function stepRivals(dt) {
     if (time <= 0) { for (const r of rivals) placeRival(r, 0); return; }
-    const playerLat = nearestOnRoad(P.x, P.z, P.hint).lat;
+    const playerLat = road.nearest(P.x, P.z, P.hint).lat;
     const playerV = Math.hypot(P.vx, P.vz);
     for (const r of rivals) {
-      const { i } = lineIndexAt(r.d);
+      const { i } = lineIndexAt(r.line, r.d);
       if (r.finished) r.v = Math.max(0, r.v - 6 * dt);
       else {
         let target = r.prof[i];
+        // Now and then a rival gets a corner wrong: runs wide and scrubs speed, opening the inside.
+        const lp = r.line.pts[i];
+        if (r.mistakeT > 0) r.mistakeT -= dt;
+        else if (time > 4 && lp.k > 1 / 35 && Math.random() < dt / difficulty.mistakeEvery) {
+          r.mistakeT = 1.6 + Math.random() * 0.8;
+          r.mistakeOff = -Math.sign(lp.kSigned) * (1.6 + Math.random());
+          if (Math.hypot(r.x - P.x, r.z - P.z) < 45) flash(`${r.name} ran wide!`, 1.2);
+        }
+        if (r.mistakeT > 0) target *= 0.82;
         // Don't drive through whoever is in front: follow, and look for a way past.
         const ahead = [{ sAbs: P.sAbs, lat: playerLat, v: playerV }, ...rivals.filter((o) => o !== r).map((o) => ({ sAbs: o.sAbs, lat: o.curLat, v: o.v }))];
         r.passTarget = 0;
+        // Racing room: if you're alongside, they hold a car's width off you instead of driving into you.
+        const side = P.sAbs - r.sAbs;
+        if (Math.abs(side) < 4.5 && Math.abs(playerLat - r.curLat) < 2.4) {
+          r.passTarget = clamp(playerLat + (r.curLat >= playerLat ? 2.4 : -2.4), -ROAD_HALF + 1, ROAD_HALF - 1) - (r.curLat - r.pass);
+        }
         for (const b of ahead) {
           const gap = b.sAbs - r.sAbs;
           if (gap > 0 && gap < 9 && Math.abs(b.lat - r.curLat) < 2.3) {
@@ -335,6 +368,7 @@ export function startDrive({ canvas, hud, car, perf, rivalBase, mode, event, par
             r.passTarget = b.lat > r.curLat ? -2.4 : 2.4; // go for the other side
           }
         }
+        if (r.mistakeT > 0) r.passTarget += r.mistakeOff;
         const a = r.spec.accel * Math.max(0, 1 - (r.v / r.spec.top) ** 2) - G * S[i].grade - 0.012 * r.v;
         if (r.v < target) r.v = Math.min(target, r.v + Math.max(a, 0.3) * dt);
         else r.v = Math.max(target, r.v - r.spec.brake * r.skill * dt);
@@ -351,7 +385,12 @@ export function startDrive({ canvas, hud, car, perf, rivalBase, mode, event, par
       const lx = dx * ch + dz * sh, lz = -dx * sh + dz * ch;
       if (Math.abs(lx) < CAR_LEN && Math.abs(lz) < 1.9) {
         const penX = CAR_LEN - Math.abs(lx), penZ = 1.9 - Math.abs(lz);
-        if (penZ < penX) { const sg = Math.sign(lz) || 1; P.x += -sh * sg * penZ; P.z += ch * sg * penZ; }
+        if (penZ < penX) {
+          // Side by side: both cars get pushed apart.
+          const sg = Math.sign(lz) || 1; P.x += -sh * sg * penZ * 0.55; P.z += ch * sg * penZ * 0.55;
+          const latSide = Math.sign(r.curLat - road.nearest(P.x, P.z, P.hint).lat) || -sg;
+          r.pass = clamp(r.pass + latSide * penZ * 0.45, -3.2, 3.2);
+        }
         else { const sg = Math.sign(lx) || 1; P.x += ch * sg * penX; P.z += sh * sg * penX; }
         P.vx *= 0.95; P.vz *= 0.95; r.v *= 0.97;
         if (hitCool <= 0) { wear.body += 0.8; hitCool = 0.5; flash('Contact!', 0.6); sound.hit(3); }
@@ -360,24 +399,26 @@ export function startDrive({ canvas, hud, car, perf, rivalBase, mode, event, par
   }
 
   function placeRival(r, dt) {
-    const { i, t } = lineIndexAt(r.d);
-    const a = LP[i], b = LP[(i + 1) % LN], c = S[i], c2 = S[(i + 1) % SN];
+    const LP = r.line.pts, LN = LP.length;
+    const { i, t } = lineIndexAt(r.line, r.d);
+    const nxt = road.loop ? (i + 1) % LN : Math.min(i + 1, LN - 1);
+    const a = LP[i], b = LP[nxt], c = S[i], c2 = S[nxt];
     // Start grid: blend from the grid slot onto the racing line over the first ~40 m.
-    const blend = clamp((r.sAbs - (route.from - 7)) / 40, 0, 1);
+    const blend = clamp((r.sAbs - (route.from - 2)) / 40, 0, 1);
     const lineLat = a.off + (b.off - a.off) * t;
     const lat = clamp((1 - blend) * r.startLat + blend * lineLat + r.pass, -ROAD_HALF + 1, ROAD_HALF - 1);
     r.curLat = lat;
     r.x = c.x + (c2.x - c.x) * t + c.nx * lat;
     r.z = c.z + (c2.z - c.z) * t + c.nz * lat;
     r.e = c.e + (c2.e - c.e) * t;
-    const path = Math.atan2(b.z - a.z, b.x - a.x);
+    const path = nxt === i ? Math.atan2(c.tz, c.tx) : Math.atan2(b.z - a.z, b.x - a.x);
     // Handbrake through the tightest hairpins: body rotates into the corner, rear lights flare.
     r.hb = !r.finished && a.k > 1 / HB_RADIUS && r.v > 5;
     const want = r.hb ? Math.sign(a.kSigned) * 0.5 : 0;
     r.yawOff += (want - r.yawOff) * Math.min(1, dt * 4);
     r.h = path + r.yawOff;
-    const sNew = c.s + t * ((((c2.s - c.s) % ROAD.length) + ROAD.length) % ROAD.length);
-    r.sAbs += wrapDelta(sNew - r.sAbs);
+    const sNew = c.s + t * (road.loop ? (((c2.s - c.s) % road.length) + road.length) % road.length : c2.s - c.s);
+    r.sAbs += road.wrapDelta(sNew - r.sAbs);
     if (r.hb && dt > 0) {
       const fx = Math.cos(r.h), fz = Math.sin(r.h), rx = -fz, rz = fx;
       const bx = r.x - fx * 1.35, bz = r.z - fz * 1.35;
@@ -399,10 +440,10 @@ export function startDrive({ canvas, hud, car, perf, rivalBase, mode, event, par
     place3D(playerMesh.group, P.x, P.e, P.z, P.h, P.pitch, P.roll);
     playerMesh.tail.color.set(input.brake || input.hb ? '#ff2a2a' : night ? '#b01818' : '#6a0c0c');
     for (const r of rivals) {
-      place3D(r.mesh.group, r.x, r.e, r.z, r.h, Math.atan(S[lineIndexAt(r.d).i].grade));
+      place3D(r.mesh.group, r.x, r.e, r.z, r.h, Math.atan(S[lineIndexAt(r.line, r.d).i].grade));
       r.mesh.tail.color.set(r.hb ? '#ff2a2a' : night ? '#b01818' : '#6a0c0c');
     }
-    world.fire.light.intensity = 26 + Math.sin(time * 13) * 6 + Math.sin(time * 7.7) * 4;
+    if (world.fire) world.fire.light.intensity = 26 + Math.sin(time * 13) * 6 + Math.sin(time * 7.7) * 4;
 
     // Locked camera: rigidly aligned with the car, high above and slightly behind.
     const cx = Math.cos(P.h), cz = Math.sin(P.h);
@@ -417,7 +458,7 @@ export function startDrive({ canvas, hud, car, perf, rivalBase, mode, event, par
   const mini = hud.querySelector('[data-minimap]');
   const mctx = mini.getContext('2d');
   let bx0 = Infinity, bx1 = -Infinity, bz0 = Infinity, bz1 = -Infinity;
-  for (const p of [...S, ...BRANCHES.flatMap((b) => b.samples)]) { bx0 = Math.min(bx0, p.x); bx1 = Math.max(bx1, p.x); bz0 = Math.min(bz0, p.z); bz1 = Math.max(bz1, p.z); }
+  for (const p of [...S, ...net.branches.flatMap((b) => b.samples)]) { bx0 = Math.min(bx0, p.x); bx1 = Math.max(bx1, p.x); bz0 = Math.min(bz0, p.z); bz1 = Math.max(bz1, p.z); }
   function drawMinimap() {
     const dpr = Math.min(window.devicePixelRatio || 1, 2);
     const W = mini.clientWidth * dpr, H = mini.clientHeight * dpr;
@@ -434,9 +475,9 @@ export function startDrive({ canvas, hud, car, perf, rivalBase, mode, event, par
       mctx.stroke();
     };
     mctx.lineWidth = 2 * dpr; mctx.strokeStyle = 'rgba(200,190,170,0.55)';
-    for (const b of BRANCHES) path(b.samples, false);
+    for (const b of net.branches) path(b.samples, false);
     mctx.lineWidth = 3 * dpr; mctx.strokeStyle = 'rgba(255,255,255,0.75)';
-    path(S, true);
+    path(S, road.loop);
     if (race) {
       mctx.strokeStyle = '#ffd32a';
       mctx.beginPath();
@@ -444,8 +485,8 @@ export function startDrive({ canvas, hud, car, perf, rivalBase, mode, event, par
       mctx.stroke();
     }
     const dot = (x, z, c, r) => { mctx.fillStyle = c; mctx.beginPath(); mctx.arc(X(x), Z(z), r * dpr, 0, 7); mctx.fill(); };
-    const home = sampleAtS(ROAD.homeS);
-    dot(home.x, home.z, '#ff9f43', 3.5);
+    if (net.home) { const hm = sampleAtS(road.homeS); dot(hm.x, hm.z, '#ff9f43', 3.5); }
+    if (race) { const f = sampleAtS(route.to); dot(f.x, f.z, '#2ecc71', 4); }
     for (const r of rivals) dot(r.x, r.z, '#ff4d4d', 3.5);
     dot(P.x, P.z, '#fff', 4.5);
   }
@@ -512,7 +553,7 @@ export function startDrive({ canvas, hud, car, perf, rivalBase, mode, event, par
   }
 
   // Test/debug hook.
-  window.__kr = { player: P, rivals, input, spec, wear, race, route, road: ROAD, line: RACING_LINE, sampleAtS, nearestOnRoad, progress, lineDAtS };
+  window.__kr = { player: P, rivals, input, spec, wear, race, route, road, net, bestLine: road.bestLine && getLine(road, net.id, 1), sampleAtS, progress };
   raf = requestAnimationFrame(loop);
 }
 
