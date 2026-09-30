@@ -38,7 +38,7 @@ You start at **your cabin, deep in the forest**, shown top-down. It has a carpor
    - You start behind two rivals and have to get past. They pull the handbrake through the tightest hairpins, give you racing room when you're alongside, and go for gaps themselves.
 6. **Drive:**
    - **◀ ▶** steer
-   - **GAS**, **BRAKE** and **HAND BRAKE**; pull the handbrake to swing the rear around hairpins.
+   - **GAS**, **BRAKE** and **HANDBRAKE**. Pull the handbrake while steering to pivot the car into a hairpin: it turns in much tighter than steering alone and scrubs off speed. Dirt shoulders are only slightly looser than the road.
    - On a keyboard, use arrows/WASD, with space for the handbrake.
    - 🔊 toggles sound (engine, tire squeal, impacts).
 7. Every drive wears the car. Throttle wears the engine and transmission, sliding wears tires, brakes wear on downhills, and hitting the trees or other cars damages the body. Bumping another car doesn't slow either of you down. A worn engine can blow. Spend your winnings on repairs and mods, or sell and move up.
@@ -73,7 +73,7 @@ python3 -m http.server 8000
 | `js/turntable.js` | The garage turntable | |
 | `js/map.js` | Home layout (`HOME`) and parking spots (`PARKING`) | Move things at the cabin, more parking |
 | `js/main.js` | Phone UI and every app, plus the flow between home, phone and driving | New apps or screens |
-| `js/audio.js` | Synthesized engine (lumpy engine tone, exhaust pulses at the firing rate, intake; 4- or 6-cylinder per car), tire and impact sounds, plus the gearbox model | Sounds |
+| `js/audio.js` | Synthesized engine (exhaust-pulse loops rendered in code at 4 rpm points and crossfaded by rpm; 4- or 6-cylinder per car), intake, tire and impact sounds, plus the gearbox model | Sounds |
 | `lib/three.module.min.js` | [three.js](https://threejs.org) r160 (MIT), vendored | |
 
 To add a car, add a line to `MODELS` in `js/data.js` (real hp, weight, drive layout, a clean-car price and paint colors), and give it a shape in `CARS` in `js/carmodel.js` (real length, width, height, wheelbase, front overhang, track and tire size; the side profile as distances behind the front axle; and which grille, lights, taillights, bumpers and wheels it uses). It then shows up in the Marketplace whenever one is cheap enough to list under $5k.

@@ -1,5 +1,5 @@
-// Synthesized car sounds with the Web Audio API (no sound files): engine (tone, exhaust pulses,
-// intake), tire squeal, impacts.
+// Synthesized car sounds with the Web Audio API (no sound files): engine (synthesized exhaust-pulse
+// loops crossfaded by rpm), intake, tire squeal, impacts.
 // Browsers only allow audio after a tap, so call unlockAudio() from any user gesture.
 
 let ctx = null, master = null;
@@ -50,27 +50,71 @@ function noise() {
   return src;
 }
 
-// The engine's tone, one wave per two firings. Full-order harmonics (the firing pulses) carry the
-// note; weaker half-order ones make it lumpy and uneven, like a real engine rather than a buzzer.
-function engineWave() {
-  const N = 40, re = new Float32Array(N), im = new Float32Array(N);
-  let seed = 7;
-  const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
-  for (let n = 1; n < N; n++) {
-    const amp = n % 2 === 0 ? 1 / (n / 2) ** 1.25 : 0.45 / (n / 2) ** 1.1;
-    const ph = rnd() * Math.PI * 2;
-    re[n] = amp * Math.cos(ph); im[n] = amp * Math.sin(ph);
+// ---- Engine: synthesized exhaust recordings ----
+// Like a racing game's engine sounds, but rendered in code instead of recorded: at a few rpm points
+// we build a short loop of the actual exhaust pulses (one pressure "thump" plus a little noise per
+// cylinder firing, each cylinder slightly different), run through the resonances of an exhaust pipe.
+// While driving, the loops play sped up or slowed down to the current rpm and crossfade between
+// neighbours, so the pipe's character stays put while the firing rate changes, as in a real car.
+const LOOP_RPMS = [1000, 2600, 4800, 7400];
+const loopCache = {};
+
+// RBJ bandpass (0 dB peak) over a whole buffer.
+function bandpass(x, sr, f, q) {
+  const w = (2 * Math.PI * f) / sr, al = Math.sin(w) / (2 * q), a0 = 1 + al;
+  const b0 = al / a0, b2 = -al / a0, a1 = (-2 * Math.cos(w)) / a0, a2 = (1 - al) / a0;
+  const y = new Float32Array(x.length);
+  let x1 = 0, x2 = 0, y1 = 0, y2 = 0;
+  for (let i = 0; i < x.length; i++) {
+    const v = b0 * x[i] + b2 * x2 - a1 * y1 - a2 * y2;
+    x2 = x1; x1 = x[i]; y2 = y1; y1 = v; y[i] = v;
   }
-  return ctx.createPeriodicWave(re, im);
+  return y;
 }
 
-// Soft clipping: rounds off the peaks for a little grit without the fizz of hard distortion.
-function softClip(k) {
-  const ws = ctx.createWaveShaper(), n = 1024, c = new Float32Array(n);
-  for (let i = 0; i < n; i++) { const x = (i / (n - 1)) * 2 - 1; c[i] = Math.tanh(k * x) / Math.tanh(k); }
-  ws.curve = c; ws.oversample = '2x';
-  return ws;
+function renderEngineLoop(cyl, rpm) {
+  const sr = ctx.sampleRate;
+  const cycle = 120 / rpm;                             // one 4-stroke cycle (two revolutions)
+  const cycles = Math.max(4, Math.round(0.5 / cycle)); // ~half a second, so the loop isn't a buzz
+  const len = Math.round(cycles * cycle * sr), fires = cycles * cyl, gap = len / fires;
+  // Each cylinder has its own strength and slightly uneven spacing: that's what makes it burble.
+  let seed = 1234 + cyl * 77;
+  const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
+  const cylAmp = [], cylOff = [];
+  for (let c = 0; c < cyl; c++) { cylAmp.push(0.78 + rnd() * 0.44); cylOff.push((rnd() - 0.5) * 0.12); }
+  const perFire = [];
+  for (let f = 0; f < fires; f++) perFire.push([0.88 + rnd() * 0.24, (rnd() - 0.5) * 0.04]);
+  // Pulses get sharper at high rpm.
+  const hard = Math.min(1, rpm / 7400);
+  const tr = 0.0004, td = 0.0032 - 0.0016 * hard, tn = 0.0018;
+  const pulseLen = Math.round(0.012 * sr);
+  const x = new Float32Array(len * 2);
+  for (let pass = 0; pass < 2; pass++) {             // render twice and keep the 2nd: a seamless loop
+    let ns = 99;
+    const nr = () => ((ns = (ns * 48271) % 2147483647) / 2147483647) * 2 - 1;
+    for (let f = 0; f < fires; f++) {
+      const c = f % cyl, [amp, jit] = perFire[f];
+      const t0 = Math.round(pass * len + (f + cylOff[c] + jit) * gap);
+      const A = cylAmp[c] * amp;
+      for (let i = 0; i < pulseLen; i++) {
+        const u = i / sr, j = t0 + i;
+        if (j >= 0 && j < x.length) x[j] += A * (Math.exp(-u / td) - Math.exp(-u / tr) + 0.35 * nr() * Math.exp(-u / tn));
+      }
+    }
+  }
+  // Exhaust pipe and muffler: a few broad resonances, plus a bit of rasp up top.
+  const bands = [[85, 1.1, 1.0], [170, 1.4, 0.7], [340, 1.8, 0.45], [620, 1.6, 0.25], [1500, 1.0, 0.08 + 0.1 * hard]];
+  const y = new Float32Array(x.length);
+  for (const [f, q, g] of bands) { const b = bandpass(x, sr, f, q); for (let i = 0; i < y.length; i++) y[i] += b[i] * g; }
+  const out = y.subarray(len, len * 2);
+  let peak = 0;
+  for (let i = 0; i < out.length; i++) peak = Math.max(peak, Math.abs(out[i]));
+  const buf = ctx.createBuffer(1, len, sr), d = buf.getChannelData(0);
+  for (let i = 0; i < len; i++) d[i] = (out[i] / (peak || 1)) * 0.9;
+  return buf;
 }
+
+const engineLoops = (cyl) => loopCache[cyl] || (loopCache[cyl] = LOOP_RPMS.map((r) => renderEngineLoop(cyl, r)));
 
 // One car's worth of sound. update() is called every frame with the car's state.
 // cyl: cylinder count (an inline-6 fires 1.5x as often as a 4 at the same rpm, so it sounds smoother).
@@ -80,22 +124,16 @@ export function carSound({ cyl = 4 } = {}) {
   const out = ctx.createGain(); out.gain.value = 0; out.connect(master);
   out.gain.setTargetAtTime(1, t0, 0.3);
 
-  // Engine tone -> gentle saturation -> lowpass that opens up with throttle and revs.
-  const tone = ctx.createOscillator(); tone.setPeriodicWave(engineWave());
-  const drive = softClip(2.2);
-  const toneLp = ctx.createBiquadFilter(); toneLp.type = 'lowpass'; toneLp.Q.value = 0.5;
-  const toneG = ctx.createGain(); toneG.gain.value = 0;
-  tone.connect(drive); drive.connect(toneLp); toneLp.connect(toneG); toneG.connect(out);
-
-  // Exhaust: low noise throbbing at the firing rate (each pulse a little "puff").
-  const ex = noise();
-  const exBp = ctx.createBiquadFilter(); exBp.type = 'lowpass'; exBp.Q.value = 0.7;
-  const exPulse = ctx.createGain(); exPulse.gain.value = 0.5;
-  const pulse = ctx.createOscillator(); pulse.type = 'sine';
-  const pulseDepth = ctx.createGain(); pulseDepth.gain.value = 0.5;
-  pulse.connect(pulseDepth); pulseDepth.connect(exPulse.gain);
-  const exG = ctx.createGain(); exG.gain.value = 0;
-  ex.connect(exBp); exBp.connect(exPulse); exPulse.connect(exG); exG.connect(out);
+  // Engine: the rpm loops -> load filter (bright on throttle, muffled off it) -> level.
+  const load = ctx.createBiquadFilter(); load.type = 'lowpass'; load.Q.value = 0.6; load.frequency.value = 1200;
+  const engG = ctx.createGain(); engG.gain.value = 0;
+  load.connect(engG); engG.connect(out);
+  const loops = engineLoops(cyl).map((buffer) => {
+    const src = ctx.createBufferSource(); src.buffer = buffer; src.loop = true;
+    const g = ctx.createGain(); g.gain.value = 0;
+    src.connect(g); g.connect(load);
+    return { src, g };
+  });
 
   // Intake: a soft whoosh on throttle.
   const intake = noise();
@@ -110,7 +148,7 @@ export function carSound({ cyl = 4 } = {}) {
   const tG = ctx.createGain(); tG.gain.value = 0;
   tire.connect(tBp); tire.connect(tBp2); tBp.connect(tG); tBp2.connect(tG); tG.connect(out);
 
-  const srcs = [tone, pulse, ex, intake, tire];
+  const srcs = [...loops.map((l) => l.src), intake, tire];
   for (const o of srcs) o.start(t0);
 
   let rpmSm = 900, thrSm = 0;
@@ -121,18 +159,20 @@ export function carSound({ cyl = 4 } = {}) {
       const { rpm } = gearFor(speed, top, throttle);
       rpmSm += (rpm - rpmSm) * 0.2;
       thrSm += (throttle - thrSm) * 0.15;
-      const fire = (rpmSm / 60) * (cyl / 2); // firing pulses per second
-      tone.frequency.setTargetAtTime(fire / 2, now, 0.02);
-      pulse.frequency.setTargetAtTime(fire, now, 0.02);
-      // Brighter and louder on throttle; darker and quieter on overrun, never shrill. The filters never
-      // close below ~400 Hz so the engine's body still comes through small phone speakers.
-      toneLp.frequency.setTargetAtTime(Math.min(2200, 420 + fire * (2 + thrSm * 3)), now, 0.05);
-      toneG.gain.setTargetAtTime(0.1 + thrSm * 0.1, now, 0.05);
-      exBp.frequency.setTargetAtTime(Math.min(1000, 220 + fire * 1.6), now, 0.05);
-      exG.gain.setTargetAtTime(0.14 + thrSm * 0.22, now, 0.05);
+      // Crossfade the two loops either side of the current rpm (equal power, in log-rpm).
+      let k = 0;
+      while (k < LOOP_RPMS.length - 2 && rpmSm > LOOP_RPMS[k + 1]) k++;
+      const u = Math.min(1, Math.max(0, Math.log(rpmSm / LOOP_RPMS[k]) / Math.log(LOOP_RPMS[k + 1] / LOOP_RPMS[k])));
+      loops.forEach((l, i) => {
+        const w = i === k ? Math.cos((u * Math.PI) / 2) : i === k + 1 ? Math.sin((u * Math.PI) / 2) : 0;
+        l.g.gain.setTargetAtTime(w, now, 0.03);
+        l.src.playbackRate.setTargetAtTime(rpmSm / LOOP_RPMS[i], now, 0.02);
+      });
+      load.frequency.setTargetAtTime(700 + thrSm * 3800 + rpmSm * 0.15, now, 0.05);
+      engG.gain.setTargetAtTime(0.16 + thrSm * 0.2, now, 0.05);
       inBp.frequency.setTargetAtTime(300 + rpmSm * 0.12, now, 0.05);
-      inG.gain.setTargetAtTime(thrSm * 0.03 * (rpmSm / 7000), now, 0.08);
-      tG.gain.setTargetAtTime(Math.min(1, slip) * Math.min(1, speed / 6) * 0.22, now, 0.05);
+      inG.gain.setTargetAtTime(thrSm * 0.025 * (rpmSm / 7000), now, 0.08);
+      tG.gain.setTargetAtTime(Math.min(1, slip) * Math.min(1, speed / 6) * 0.2, now, 0.05);
     },
     hit(strength) {
       const len = 0.18, buf = ctx.createBuffer(1, ctx.sampleRate * len, ctx.sampleRate), d = buf.getChannelData(0);
