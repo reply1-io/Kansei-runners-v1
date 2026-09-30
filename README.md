@@ -27,7 +27,7 @@ You start at **your cabin, deep in the forest**, shown top-down. It has a carpor
 - **Switchback Ladder:** straight, hairpin, repeat. Nine straights joined by eight hairpins stacked down the mountain, so braking points win it.
 
 **The loop:**
-1. **Marketplace:** 6–10 used cars under $5k each day, all real late-80s cars: **1980 Volvo 242, Mercedes-Benz 190E 2.3, 1987 BMW 325i (E30), Toyota Supra Turbo (Mk3), Nissan 180SX and Nissan Skyline GTS-t (R32)**. Each has its real factory specs and a model built to its real proportions and details. The pricier ones only show up in your budget as project cars. Listings show with a price, factory specs (hp, handling, weight) and condition. Striped `??` bars are hidden problems, so tap **Inspect ($80)** before you buy.
+1. **Marketplace:** 6–10 used cars under $5k each day, all real late-80s cars: **1980 Volvo 242, Mercedes-Benz 190E 2.3, 1987 BMW 325i (E30), Toyota Supra Turbo (Mk3), Nissan 180SX and Nissan Skyline GTS-t (R32)**. Each has its real factory specs and a model built to its real proportions and details. The pricier ones only show up in your budget as project cars. Each listing shows a price, factory specs (hp, handling, weight) and condition. Striped `??` bars are hidden problems, so tap **Inspect ($80)** before you buy.
 2. **Parts Shop:** buy parts for anything marked ⚠️, plus performance mods. They go in your trunk.
 3. **Garage:** tap **Install** / **Install all**.
 4. **Touge app:** pick a course and a difficulty: **Easy, Medium, Hard or Impossible**. Your best time for each shows on its button.
