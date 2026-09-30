@@ -1,4 +1,4 @@
-// Driving with a locked, near-top-down camera. Two modes:
+// Driving with a chase camera. Two modes:
 //   cruise: get in a car at the cabin and drive the home loop (and its side roads), park when done
 //   race:   touge battle on a race course vs rivals in cars with exactly your car's numbers;
 //           difficulty only changes how good their racing line is and how hard they commit to it
@@ -24,9 +24,10 @@ function rivalColors(mine) {
 }
 const HB_RADIUS = 15; // rivals pull the handbrake where their line is tighter than this
 
-// Locked camera: close above and just behind the car, tilted enough off vertical to see its rear,
-// with a wide 90° field of view. (Looking ~60° down: the car sits in the lower third of the screen.)
-const CAM = { height: 8.5, back: 2.0, ahead: 2.9, fov: 90, fovLandscape: 75 };
+// Chase camera: raised up and behind the car, looking down the road so you can see well ahead.
+// The car sits low in the frame (just above the pedals) so it never blocks the road in front.
+// `lag` is how quickly the camera swings round to follow the car's heading.
+const CAM = { height: 5.2, back: 9.5, ahead: 8, fov: 70, fovLandscape: 55, lag: 5 };
 
 let retro = null, world = null, camera = null;
 
@@ -105,6 +106,7 @@ export function startDrive({ canvas, hud, car, perf, rivalBase, mode, event, dif
   const addMesh = (o) => { scene.add(o); added.push(o); return o; };
 
   // ---- player ----
+  let camH = null, frameDt = 0; // chase camera heading, and the sim time covered by this frame
   const P = { x: 0, z: 0, h: 0, vx: 0, vz: 0, steer: 0, hint: -1, e: 0, pitch: 0, roll: 0, drifting: false, sAbs: 0, lastL: null, lastR: null, slip: 0 };
   if (race) {
     // You start behind the rivals and have to get past.
@@ -312,7 +314,8 @@ export function startDrive({ canvas, hud, car, perf, rivalBase, mode, event, dif
     const onBranch = w2.kind === 'branch';
     const inYard = home(P.x, P.z) && Math.abs(w2.m.lat) > ROAD_HALF + 2;
     const eTarget = inYard ? 0 : onBranch ? w2.e : sampleAtS(w2.m.s).e;
-    P.e += (eTarget - P.e) * Math.min(1, dt * 12);
+    P.e += (eTarget - P.e) * (P.eSet ? Math.min(1, dt * 12) : 1); // snaps to the road on the first step
+    P.eSet = true;
     const gAlong = inYard ? 0 : rs.grade * (fx * rs.tx + fz * rs.tz);
     P.pitch += (Math.atan(gAlong) - P.pitch) * Math.min(1, dt * 6);
     P.roll += (clamp(-vl * 0.012 - P.steer * speed * 0.0015, -0.08, 0.08) - P.roll) * Math.min(1, dt * 5);
@@ -447,8 +450,11 @@ export function startDrive({ canvas, hud, car, perf, rivalBase, mode, event, dif
     }
     if (world.fire) world.fire.light.intensity = 26 + Math.sin(time * 13) * 6 + Math.sin(time * 7.7) * 4;
 
-    // Locked camera: rigidly aligned with the car, high above and slightly behind.
-    const cx = Math.cos(P.h), cz = Math.sin(P.h);
+    // Chase camera: swings smoothly after the car's heading (and snaps on big jumps like a reset).
+    if (camH === null) camH = P.h;
+    let dh = P.h - camH; dh = Math.atan2(Math.sin(dh), Math.cos(dh));
+    camH = Math.abs(dh) > 1.2 ? P.h : camH + dh * Math.min(1, CAM.lag * frameDt);
+    const cx = Math.cos(camH), cz = Math.sin(camH);
     camera.position.set(P.x - cx * CAM.back, P.e + CAM.height, P.z - cz * CAM.back);
     camera.lookAt(P.x + cx * CAM.ahead, P.e, P.z + cz * CAM.ahead);
     world.follow(camera);
@@ -562,6 +568,7 @@ export function startDrive({ canvas, hud, car, perf, rivalBase, mode, event, dif
       if (engineBlown) { blownT -= dt; if (blownT <= 0) finish(true); }
       if (race && !done && progress() >= route.to - route.from) { place = 1 + rivals.filter((r) => r.finished).length; finish(false); }
     }
+    frameDt = Math.min(0.1, Math.max(0, realDt) * steps);
     render();
     updateHud();
     if (!done) raf = requestAnimationFrame(loop);

@@ -14,7 +14,7 @@ It's styled after **Gran Turismo 2** on the original PlayStation:
 You start at **your cabin, deep in the forest**, shown top-down. It has a carport tent for one car, a gravel driveway in front of it for 2 more, and a mountain road out front. That's 3 parking spots, so you can own up to 3 cars.
 
 **On the map:**
-- **Select** (the yellow button next to each car) puts you in that car. The camera is locked close above and just behind the car with a wide 90° field of view, tilted enough to see its rear. Drive down the lane onto the road and go anywhere, including the side roads. Tap **🏠 Park** to go home.
+- **Select** (the yellow button next to each car) puts you in that car. The chase camera sits up and behind the car, looking down the road so you can see the next corners coming. The car sits low in the frame, just above the pedals, so it never blocks your view. Drive down the lane onto the road and go anywhere, including the side roads. Tap **🏠 Park** to go home.
 - **Tap a parked car** to open it in the Garage.
 - **Tap an empty spot** to open the Marketplace.
 - **Tap the cabin** to sleep until tomorrow, which brings new listings.
@@ -27,7 +27,7 @@ You start at **your cabin, deep in the forest**, shown top-down. It has a carpor
 - **Switchback Ladder:** straight, hairpin, repeat. Nine straights joined by eight hairpins stacked down the mountain, so braking points win it.
 
 **The loop:**
-1. **Marketplace:** 6–10 used cars under $5k each day, all real late-80s cars: **1980 Volvo 242, Mercedes-Benz 190E 2.3, 1987 BMW 325i (E30), Toyota Supra Turbo (Mk3), Nissan 180SX and Nissan Skyline GTS-t (R32)**. Each has its real factory specs and a model built to its real proportions and details. The pricier ones only show up in your budget as project cars. Each listing shows a price, factory specs (hp, handling, weight) and condition. Striped `??` bars are hidden problems, so tap **Inspect ($80)** before you buy.
+1. **Marketplace:** 6–10 used cars under $5k each day, all real cars: **1980 Volvo 242, Mercedes-Benz 190E 2.3, 1987 BMW 325i (E30), Toyota Supra Turbo (Mk3), Nissan 180SX, Nissan Skyline GTS-t (R32) and 1999 Honda Civic Si hatch (FWD)**. Each has its real factory specs, and a model built from its real dimensions (length, width, height, wheelbase, overhangs, track, tire size and pillar positions). The pricier ones only show up in your budget as project cars. Each listing shows a price, factory specs (hp, handling, weight) and condition. Striped `??` bars are hidden problems, so tap **Inspect ($80)** before you buy.
 2. **Parts Shop:** buy parts for anything marked ⚠️, plus performance mods. They go in your trunk.
 3. **Garage:** tap **Install** / **Install all**.
 4. **Touge app:** pick a course and a difficulty: **Easy, Medium, Hard or Impossible**. Your best time for each shows on its button.
@@ -64,7 +64,7 @@ python3 -m http.server 8000
 | `js/data.js` | Content and balance numbers | **Cars** → `MODELS` (real specs and paint colors), **repair parts** → `COMPONENTS`, **mods** → `UPGRADES`, **races** → `RACES` and `DIFFICULTIES` |
 | `js/road.js` | Road networks: the home loop and side roads, the race courses (`COURSES`), and racing lines | Reshape roads or add a course |
 | `js/state.js` | Game state, save/load, car generation, pricing, performance math | New stats or economy rules |
-| `js/drive.js` | Driving and racing: physics, rival AI, locked camera, HUD and tachometer, controls, wear | Race and driving mechanics |
+| `js/drive.js` | Driving and racing: physics, rival AI, chase camera, HUD and tachometer, controls, wear | Race and driving mechanics |
 | `js/ps1.js` | The PlayStation-style renderer: low-res buffer, dithering, vertex snapping, affine textures | Tweak the retro look (`lines`, dithering) |
 | `js/textures.js` | Pixel-art textures drawn in code (road, grass, rock, rails, trees, sky, cabin, car details) | New textures |
 | `js/carmodel.js` | Low-poly models of the real cars (`CARS`: real dimensions, profile, grille, lights, taillights, bumpers, wheels), glossy paint | New car models |
@@ -76,4 +76,4 @@ python3 -m http.server 8000
 | `js/audio.js` | Synthesized engine, tire and impact sounds, plus the gearbox model | Sounds |
 | `lib/three.module.min.js` | [three.js](https://threejs.org) r160 (MIT), vendored | |
 
-To add a car, add a line to `MODELS` in `js/data.js` (real hp, weight, drive layout, a clean-car price and paint colors), and give it a shape in `CARS` in `js/carmodel.js` (real length, width and wheelbase, profile heights, and which grille, lights, taillights, bumpers and wheels it uses). It then shows up in the Marketplace whenever one is cheap enough to list under $5k.
+To add a car, add a line to `MODELS` in `js/data.js` (real hp, weight, drive layout, a clean-car price and paint colors), and give it a shape in `CARS` in `js/carmodel.js` (real length, width, height, wheelbase, front overhang, track and tire size; the side profile as distances behind the front axle; and which grille, lights, taillights, bumpers and wheels it uses). It then shows up in the Marketplace whenever one is cheap enough to list under $5k.

@@ -10,6 +10,8 @@ export const MARKET_PRICE_CAP = 5000; // every Marketplace listing is under this
 export const MODELS = [
   { id: 'volvo242', name: 'Volvo 242',                 years: [1980, 1980], hp: 107, weight: 1250, drive: 'RWD', price: 4200,  parts: 0.6,
     colors: ['#c9b58a', '#2f4a36', '#8fa9c4', '#8c1f1c', '#e8e4d8', '#3a3a3a'] },
+  { id: 'civic',    name: 'Honda Civic Si Hatch',      years: [1999, 1999], hp: 160, weight: 1120, drive: 'FWD', price: 6000,  parts: 0.7,
+    colors: ['#1f4fa0', '#efefe9', '#b0161c', '#141414', '#b6b9bd', '#c9a21a'] },
   { id: 'mb190e',   name: 'Mercedes-Benz 190E 2.3',    years: [1985, 1990], hp: 130, weight: 1200, drive: 'RWD', price: 5500,  parts: 0.8,
     colors: ['#b9bcc0', '#1c2433', '#e9e6dc', '#5a1d22', '#6f7f86', '#161616'] },
   { id: 'e30',      name: 'BMW 325i',                  years: [1987, 1987], hp: 168, weight: 1230, drive: 'RWD', price: 7000,  parts: 0.8,
