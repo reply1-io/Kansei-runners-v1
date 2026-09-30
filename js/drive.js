@@ -7,7 +7,8 @@ import { ROAD_HALF, RAIL_OFFSET, HOME_NET, COURSES, lineVariant } from './road.j
 import { getWorld, makeCarMesh, inHome } from './world3d.js';
 import { PROBLEM_THRESHOLD } from './data.js';
 import { clamp } from './state.js';
-import { carSound, unlockAudio, isMuted, setMuted } from './audio.js';
+import { carSound, unlockAudio, isMuted, setMuted, gearFor } from './audio.js';
+import { getRetro } from './ps1.js';
 
 const G = 9.81;
 const WHEELBASE = 2.5;
@@ -26,12 +27,12 @@ const HB_RADIUS = 15; // rivals pull the handbrake where their line is tighter t
 // Locked camera: rigidly behind the car, tilted just enough off vertical to see its rear.
 const CAM = { height: 34, back: 8.5, ahead: 7.5 };
 
-let renderer = null, world = null, camera = null;
+let retro = null, world = null, camera = null;
 
 function ensure3D(canvas, net) {
-  if (!renderer) {
-    renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
-    camera = new THREE.PerspectiveCamera(62, 1, 1, 700);
+  if (!retro) {
+    retro = getRetro(canvas);
+    camera = new THREE.PerspectiveCamera(62, 1, 1, 900);
   }
   world = getWorld(net);
 }
@@ -115,11 +116,11 @@ export function startDrive({ canvas, hud, car, perf, rivalBase, mode, event, dif
     P.x = spot.x; P.z = spot.z; P.h = Math.PI / 2; // backed in, facing the road
     P.sAbs = road.nearest(P.x, P.z).s;
   }
-  const playerMesh = makeCarMesh(car.color);
+  const playerMesh = makeCarMesh(car.color, car.modelId);
   playerMesh.beam.intensity = night ? 400 : 0;
   addMesh(playerMesh.group);
   for (const pc of parked) {
-    const mm = makeCarMesh(pc.car.color);
+    const mm = makeCarMesh(pc.car.color, pc.car.modelId);
     mm.group.position.set(pc.x, 0, pc.z);
     mm.group.rotation.set(0, -Math.PI / 2, 0);
     addMesh(mm.group);
@@ -136,7 +137,7 @@ export function startDrive({ canvas, hud, car, perf, rivalBase, mode, event, dif
       const commit = difficulty.commit * jitter, brakeCommit = difficulty.brake * jitter;
       const line = getLine(road, net.id, q);
       const palette = rivalColors(car.color);
-      const mesh = makeCarMesh(palette[i % palette.length]);
+      const mesh = makeCarMesh(palette[i % palette.length], car.modelId); // one-make race: same car as yours
       mesh.beam.intensity = night ? 400 : 0;
       addMesh(mesh.group);
       const s0 = route.from - 2;
@@ -189,9 +190,9 @@ export function startDrive({ canvas, hud, car, perf, rivalBase, mode, event, dif
 
   const resize = () => {
     const dpr = Math.min(window.devicePixelRatio || 1, 1.75);
-    renderer.setPixelRatio(dpr);
-    renderer.setSize(canvas.clientWidth, canvas.clientHeight, false);
-    camera.aspect = canvas.clientWidth / Math.max(1, canvas.clientHeight);
+    void dpr;
+    retro.resize();
+    camera.aspect = retro.aspect;
     camera.fov = camera.aspect < 0.8 ? 66 : 50;
     camera.updateProjectionMatrix();
   };
@@ -438,10 +439,10 @@ export function startDrive({ canvas, hud, car, perf, rivalBase, mode, event, dif
 
   function render() {
     place3D(playerMesh.group, P.x, P.e, P.z, P.h, P.pitch, P.roll);
-    playerMesh.tail.color.set(input.brake || input.hb ? '#ff2a2a' : night ? '#b01818' : '#6a0c0c');
+    playerMesh.tail.color.set(input.brake || input.hb ? '#ffffff' : night ? '#c07070' : '#8a5a5a');
     for (const r of rivals) {
       place3D(r.mesh.group, r.x, r.e, r.z, r.h, Math.atan(S[lineIndexAt(r.line, r.d).i].grade));
-      r.mesh.tail.color.set(r.hb ? '#ff2a2a' : night ? '#b01818' : '#6a0c0c');
+      r.mesh.tail.color.set(r.hb ? '#ffffff' : night ? '#c07070' : '#8a5a5a');
     }
     if (world.fire) world.fire.light.intensity = 26 + Math.sin(time * 13) * 6 + Math.sin(time * 7.7) * 4;
 
@@ -449,7 +450,8 @@ export function startDrive({ canvas, hud, car, perf, rivalBase, mode, event, dif
     const cx = Math.cos(P.h), cz = Math.sin(P.h);
     camera.position.set(P.x - cx * CAM.back, P.e + CAM.height, P.z - cz * CAM.back);
     camera.lookAt(P.x + cx * CAM.ahead, P.e, P.z + cz * CAM.ahead);
-    renderer.render(scene, camera);
+    world.follow(camera);
+    retro.render(scene, camera);
     drawMinimap();
     sound.update({ speed: Math.hypot(P.vx, P.vz), top: spec.top, throttle: input.gas && time > 0 && !engineBlown ? 1 : 0, slip: P.slip });
   }
@@ -492,12 +494,46 @@ export function startDrive({ canvas, hud, car, perf, rivalBase, mode, event, dif
   }
 
   const $ = (sel) => hud.querySelector(sel);
+
+  // GT-style tachometer: segmented rev arc with redline, big gear number and digital speed.
+  const tach = hud.querySelector('[data-tach]'), tctx = tach.getContext('2d');
+  let rpmShown = 900;
+  function drawTach() {
+    const W = 150, H = 112, sc = 2;
+    if (tach.width !== W * sc) { tach.width = W * sc; tach.height = H * sc; }
+    const speed = Math.hypot(P.vx, P.vz);
+    const g = gearFor(speed, spec.top, input.gas && time > 0 ? 1 : 0);
+    rpmShown += (g.rpm - rpmShown) * 0.3;
+    const c = tctx, FONT = '"Exo 2", "Arial Black", Arial, sans-serif';
+    c.setTransform(sc, 0, 0, sc, 0, 0);
+    c.clearRect(0, 0, W, H);
+    const cx = 75, cy = 80, R = 64, a0 = Math.PI * 1.02, a1 = Math.PI * 1.98, MAX = 8000;
+    c.lineWidth = 10;
+    c.strokeStyle = 'rgba(5,11,34,0.7)';
+    c.beginPath(); c.arc(cx, cy, R, a0, a1); c.stroke();
+    for (let k = 0; k < 40; k++) {
+      const rv = (k / 40) * MAX;
+      const aa = a0 + (a1 - a0) * (k / 40), ab = a0 + (a1 - a0) * ((k + 0.7) / 40);
+      const lit = rv < rpmShown;
+      c.strokeStyle = rv >= 7000 ? (lit ? '#ff3b30' : '#6b1a16') : lit ? '#ffe14a' : '#34416a';
+      c.beginPath(); c.arc(cx, cy, R, aa, ab); c.stroke();
+    }
+    c.textAlign = 'center'; c.textBaseline = 'middle';
+    c.font = `italic 700 10px ${FONT}`; c.fillStyle = '#cfd8ea';
+    for (let n = 1; n <= 8; n++) { const aa = a0 + (a1 - a0) * (n * 1000 / MAX); c.fillText(n, cx + Math.cos(aa) * (R - 15), cy + Math.sin(aa) * (R - 15)); }
+    const outlined = (txt, x, y, font, fill) => { c.font = font; c.lineWidth = 4; c.strokeStyle = '#050b22'; c.strokeText(txt, x, y); c.fillStyle = fill; c.fillText(txt, x, y); };
+    outlined(g.gear, cx, cy - 32, `italic 900 30px ${FONT}`, '#ffe14a');
+    outlined(String(Math.round(speed * MPH)), cx - 8, cy - 4, `italic 800 22px ${FONT}`, '#ffffff');
+    c.font = `italic 700 9px ${FONT}`; c.fillStyle = '#9fb0d6'; c.fillText('MPH', cx + 24, cy);
+  }
+
   function updateHud() {
-    $('[data-speed]').textContent = Math.round(Math.hypot(P.vx, P.vz) * MPH);
+    drawTach();
     if (race) {
       const my = progress();
       const all = [{ me: true, prog: my }, ...rivals.map((r) => ({ prog: r.sAbs - route.from }))].sort((a, b) => b.prog - a.prog);
-      $('[data-pos]').textContent = `${all.findIndex((x) => x.me) + 1}/${all.length}`;
+      $('[data-pos]').textContent = all.findIndex((x) => x.me) + 1;
+      $('[data-pos-of]').textContent = `/${all.length}`;
       const gap = Math.max(...rivals.map((r) => r.sAbs - route.from)) - my;
       $('[data-gap]').textContent = gap > 0 ? `-${Math.round(gap)}m` : `+${Math.round(-gap)}m`;
       $('[data-gap]').style.color = gap > 0 ? 'var(--bad)' : 'var(--good)';

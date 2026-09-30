@@ -6,12 +6,16 @@
   <meta name="theme-color" content="#0d0f14">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <title>Kansei Runners</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Exo+2:ital,wght@0,500;0,700;1,600;1,800;1,900&display=swap">
   <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
-  <!-- Home map: the cabin in the woods -->
+  <!-- One 3D view (PS1-style renderer) shared by the home screen and driving -->
+  <canvas id="view"></canvas>
+
+  <!-- Home: the cabin in the woods, with overlays -->
   <div id="world">
-    <canvas id="map-canvas"></canvas>
     <div class="map-hud">
       <span class="map-pill"><small>DAY</small> <b data-map-day></b></span>
       <span class="map-pill money"><b data-map-money></b></span>
@@ -36,20 +40,20 @@
 
   <!-- Race view -->
   <div id="race" hidden>
-    <canvas id="race-canvas"></canvas>
     <div id="hud">
       <div class="hud-top">
-        <div class="hud-box race-only"><small>POS</small><b data-pos></b></div>
-        <div class="hud-box race-only"><small>GAP</small><b data-gap></b></div>
-        <div class="hud-box race-only"><small>TIME</small><b data-time></b></div>
-        <button class="hud-exit" data-mute aria-label="Sound on or off">🔊</button>
-        <button class="hud-exit" data-exit>Retire</button>
+        <div class="hud-pos race-only"><small>POSITION</small><div><b data-pos>1</b><span data-pos-of>/3</span></div></div>
+        <div class="hud-time race-only"><small>TIME</small><b data-time>0:00.0</b><small>GAP</small><b data-gap>0m</b></div>
+        <div class="hud-buttons">
+          <button class="hud-exit" data-mute aria-label="Sound on or off">🔊</button>
+          <button class="hud-exit" data-exit>Retire</button>
+        </div>
       </div>
       <canvas class="minimap" data-minimap></canvas>
       <div class="hud-togo race-only" data-togo></div>
       <div class="hud-msg" data-msg></div>
       <div class="hud-warn" data-warn></div>
-      <div class="hud-speed"><b data-speed>0</b><small>MPH</small></div>
+      <canvas class="tach" data-tach></canvas>
       <div class="controls">
         <div class="ctl-group">
           <button class="ctl" data-ctl="left">◀</button>

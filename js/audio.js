@@ -26,8 +26,19 @@ export function setMuted(on) {
   if (master) master.gain.setTargetAtTime(on ? 0 : 0.9, ctx.currentTime, 0.05);
 }
 
+// Simple 5-speed gearbox model shared by the engine sound and the tachometer.
+const GEARS = [0.24, 0.4, 0.57, 0.76, 1.0];
+export function gearFor(speed, top, throttle = 0) {
+  const r = Math.max(0, speed) / Math.max(1, top);
+  let lo = 0, g = 0;
+  while (g < GEARS.length - 1 && r > GEARS[g]) { lo = GEARS[g]; g++; }
+  const frac = Math.min(1, (r - lo) / (GEARS[g] - lo));
+  const rpm = speed < 0.5 ? 900 + throttle * 2200 : 2600 + frac * 4700 + throttle * 300;
+  return { gear: speed < 0.5 && !throttle ? 'N' : String(g + 1), rpm };
+}
+
 // One car's worth of sound. update() is called every frame with the car's state.
-export function carSound({ gears = [0.24, 0.4, 0.57, 0.76, 1.0] } = {}) {
+export function carSound() {
   if (!ctx) return { update() {}, hit() {}, stop() {} };
   const t0 = ctx.currentTime;
   // Engine: saw + square an octave down, through a throttle-controlled lowpass.
@@ -51,11 +62,7 @@ export function carSound({ gears = [0.24, 0.4, 0.57, 0.76, 1.0] } = {}) {
     // speed and top in m/s, throttle 0..1, slip 0..1 (how hard the tires are sliding)
     update({ speed, top, throttle, slip }) {
       const now = ctx.currentTime;
-      const r = Math.max(0, speed) / Math.max(1, top);
-      let lo = 0, g = 0;
-      while (g < gears.length - 1 && r > gears[g]) { lo = gears[g]; g++; }
-      const frac = Math.min(1, (r - lo) / (gears[g] - lo));
-      const rpm = speed < 0.5 ? 900 + throttle * 2200 : 2600 + frac * 4700 + throttle * 300;
+      const { rpm } = gearFor(speed, top, throttle);
       rpmSm += (rpm - rpmSm) * 0.25;
       const f = (rpmSm / 60) * 2; // 4-cylinder firing frequency
       o1.frequency.setTargetAtTime(f, now, 0.02);

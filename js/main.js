@@ -7,7 +7,9 @@ import {
   spend, earn, nextDay, money, clamp, uid,
 } from './state.js';
 import { startDrive, fmtTime } from './drive.js';
-import { createMap, PARKING, parkingAssignments } from './map.js';
+import { PARKING, parkingAssignments } from './map.js';
+import { createHomeView } from './homeview.js';
+import { mountTurntable, unmountTurntable } from './turntable.js';
 import { U, COURSES } from './road.js';
 import { unlockAudio } from './audio.js';
 
@@ -130,7 +132,7 @@ function renderHome() {
     <div class="apps">${apps.map(([id, ico, label]) =>
       `<button class="app-icon" data-action="open" data-arg="${id}"><span class="ico ${id}">${ico}${id === 'garage' && state.inventory.length ? `<span class="dot">${state.inventory.length}</span>` : ''}</span>${label}</button>`).join('')}
     </div>
-    <div style="margin-top:28px"><button class="btn block" data-action="sleep">😴 Sleep until tomorrow <span class="muted small">(new listings)</span></button></div>
+    <div style="margin-top:28px"><button class="btn block" data-action="sleep">😴 Sleep until tomorrow</button></div>
   </div>`;
 }
 
@@ -230,6 +232,7 @@ function renderGarage() {
     const active = car.id === state.activeCarId;
     const dead = canRun(car);
     return `<div class="card">
+      ${active ? '<canvas class="turntable" data-turntable aria-label="Your car on the garage turntable"></canvas>' : ''}
       <div class="row"><div class="car-swatch" style="background:${car.color}"></div>
         <div style="flex:1"><h2>${esc(carName(car))}</h2><div class="small muted">${Math.round(car.miles / 1000)}k mi · worth ~${money(carValue(car))}</div></div>
         ${clsBadge(perf)}</div>
@@ -314,6 +317,8 @@ function render() {
   render.keepScroll = false;
   document.querySelector('[data-sb-day]').textContent = `Day ${state.day}`;
   document.querySelector('[data-sb-money]').textContent = money(state.money);
+  const tt = screen.querySelector('[data-turntable]');
+  if (tt && !phoneWrap.hidden && activeCar()) mountTurntable(tt, activeCar()); else unmountTurntable();
   renderMapHud();
 }
 
@@ -340,6 +345,7 @@ function openPhone(app) {
 
 function closePhone() {
   phoneWrap.hidden = true;
+  unmountTurntable();
   renderMapHud();
 }
 
@@ -362,7 +368,9 @@ function onMapTap(hit) {
   }
 }
 
-const map = createMap(document.getElementById('map-canvas'), {
+const map = createHomeView({
+  canvas: document.getElementById('view'),
+  overlay: document.getElementById('world'),
   getCars: () => state.cars,
   getActiveId: () => state.activeCarId,
   onTap: onMapTap,
@@ -559,7 +567,7 @@ function runDrive(mode, car, ev, difficulty) {
   document.getElementById('race').hidden = false;
   try {
     startDrive({
-      canvas: document.getElementById('race-canvas'),
+      canvas: document.getElementById('view'),
       hud: document.getElementById('hud'),
       car, perf: performance(car), mode, event: ev, difficulty,
       // Rivals get your car's numbers as if it were healthy (a sick engine is still your problem).

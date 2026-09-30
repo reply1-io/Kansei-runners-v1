@@ -1,6 +1,13 @@
 # Kansei Runners
 
-A mobile-friendly browser game. Buy a junk car with $5,000, fix what's broken, drive it hard, and work your way up to faster cars. There's nothing to install: it runs in a phone browser with an HTML5 canvas and plain JavaScript.
+A mobile-friendly browser game. Buy a junk car with $5,000, fix what's broken, drive it hard, and work your way up to faster cars. There's nothing to install: it runs in a phone browser with plain JavaScript and WebGL.
+
+It's styled after **Gran Turismo 2** on the original PlayStation:
+- **3D view:** rendered at low resolution with chunky pixels, 15-bit dithered color, wobbly vertex snapping and warping textures.
+- **Scenery:** pixel-art textures, sprite trees and a painted sky panorama.
+- **Cars:** low-poly models with glossy paint.
+- **Menus:** GT-style chrome buttons, steel-blue panels and italic type.
+- **Garage:** a spinning turntable showing your car.
 
 ## How to play
 
@@ -54,16 +61,20 @@ python3 -m http.server 8000
 
 | File | What's in it | Add… |
 |---|---|---|
-| `js/data.js` | Content and balance numbers | **Cars** → `MODELS`, **repair parts** → `COMPONENTS`, **mods** → `UPGRADES`, **races** → `RACES` (per-course rival calibration) and `DIFFICULTIES` (line quality, mistakes, rivals, entry, purse) |
-| `js/road.js` | Road networks: the home loop (`LOOP`, arcs with a grade each) and side roads (`BRANCH_DEFS`), the race courses (`COURSES`: Kansei Pass is generated from corner blocks with a fixed seed; Switchback Ladder is a list of straights and hairpins), and racing lines (`lineVariant`) | Reshape roads or add a course. The 3D world, races and AI follow automatically |
-| `js/state.js` | Game state, save/load, car generation, pricing, performance math (condition + mods → hp/grip/brakes) | New stats or economy rules |
-| `js/drive.js` | Driving in 3D on any road network: car physics (grip, drift, handbrake, slope gravity), rival AI (racing line, commitment, mistakes, racing room, passing), locked camera, HUD, controls, wear/failures | Race and driving mechanics |
-| `js/audio.js` | Synthesized engine, tire squeal and impact sounds (Web Audio, no sound files) | Sounds |
-| `js/world3d.js` | One 3D scene per road network, built on first use: terrain shaped around the roads, road surfaces, guardrails, barriers, forest, cabin/tent/driveway, day/night lighting, skid marks, car model with headlights | Scenery and props |
-| `js/map.js` | Top-down home map: layout (`HOME`), parking spots (`PARKING`), Select buttons, traffic, tap targets | Home layout, more parking spots |
-| `js/main.js` | Phone UI and every app, plus the flow between the map, phone and driving | New apps or screens |
-| `js/draw.js` | Shared 2D canvas helpers | |
-| `lib/three.module.min.js` | [three.js](https://threejs.org) r160 (MIT), vendored so the game needs no install or network | |
+| `js/data.js` | Content and balance numbers | **Cars** → `MODELS` (including `body` style and `wing`), **repair parts** → `COMPONENTS`, **mods** → `UPGRADES`, **races** → `RACES` and `DIFFICULTIES` |
+| `js/road.js` | Road networks: the home loop and side roads, the race courses (`COURSES`), and racing lines | Reshape roads or add a course |
+| `js/state.js` | Game state, save/load, car generation, pricing, performance math | New stats or economy rules |
+| `js/drive.js` | Driving and racing: physics, rival AI, locked camera, HUD and tachometer, controls, wear | Race and driving mechanics |
+| `js/ps1.js` | The PlayStation-style renderer: low-res buffer, dithering, vertex snapping, affine textures | Tweak the retro look (`lines`, dithering) |
+| `js/textures.js` | Pixel-art textures drawn in code (road, grass, rock, rails, trees, sky, cabin, car details) | New textures |
+| `js/carmodel.js` | Low-poly car models: body styles, lights, wings, glossy paint | New body styles |
+| `js/world3d.js` | One 3D world per road network: terrain, roads, rails, sprite forest, sky, cabin, lighting, skid marks | Scenery and props |
+| `js/homeview.js` | The 3D home screen: cabin from above, parked cars, traffic, Select buttons, taps | Home screen behavior |
+| `js/turntable.js` | The garage turntable | |
+| `js/map.js` | Home layout (`HOME`) and parking spots (`PARKING`) | Move things at the cabin, more parking |
+| `js/main.js` | Phone UI and every app, plus the flow between home, phone and driving | New apps or screens |
+| `js/audio.js` | Synthesized engine, tire and impact sounds, plus the gearbox model | Sounds |
+| `lib/three.module.min.js` | [three.js](https://threejs.org) r160 (MIT), vendored | |
 
 For example, to add a car, add one line to `MODELS`:
 
