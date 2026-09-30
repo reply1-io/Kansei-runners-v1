@@ -237,20 +237,20 @@ button { font: inherit; color: inherit; cursor: pointer; }
 .hud-msg { position: absolute; top: 28%; left: 0; right: 0; text-align: center; font-family: var(--display); font-style: italic; font-weight: 900; font-size: 26px; color: #fff; text-shadow: 3px 3px 0 #000, -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000; }
 .hud-msg.big { font-size: 64px; color: var(--accent); }
 .hud-warn { position: absolute; top: calc(110px + var(--safe-top)); left: 12px; color: var(--bad); font-weight: 800; font-style: italic; font-size: 13px; text-shadow: 1px 1px 0 #000; }
-.tach { position: absolute; right: 4px; bottom: calc(146px + var(--safe-bottom)); width: 150px; height: 112px; }
-.controls { position: absolute; left: 0; right: 0; bottom: calc(12px + var(--safe-bottom)); display: flex; justify-content: space-between; padding: 0 12px; }
-.ctl-group { display: flex; gap: 10px; }
+.tach { position: absolute; right: 4px; bottom: calc(150px + var(--safe-bottom)); width: 150px; height: 112px; }
+.controls { position: absolute; left: 0; right: 0; bottom: calc(12px + var(--safe-bottom)); display: flex; justify-content: space-between; padding: 0 10px; }
+.ctl-group { display: flex; gap: 8px; }
 .ctl {
-  pointer-events: auto; touch-action: none; width: 82px; height: 108px; border-radius: var(--radius);
+  pointer-events: auto; touch-action: none; width: 76px; height: 112px; border-radius: var(--radius);
   background: linear-gradient(rgba(220,228,245,0.28), rgba(120,135,170,0.22)); border: 1px solid rgba(220,228,245,0.55);
   font-size: 28px; font-weight: 900; font-style: italic; color: #fff; text-shadow: 1px 1px 0 #000;
 }
-.ctl.gas { background: linear-gradient(rgba(92,240,122,0.38), rgba(30,140,60,0.3)); border-color: rgba(92,240,122,0.8); font-size: 17px; }
-.ctl.brake { background: linear-gradient(rgba(255,77,61,0.38), rgba(150,30,20,0.3)); border-color: rgba(255,77,61,0.8); font-size: 14px; }
-.ctl.hb { background: linear-gradient(rgba(255,163,26,0.38), rgba(160,90,0,0.3)); border-color: rgba(255,163,26,0.8); font-size: 11px; line-height: 1.1; }
-.ctl.on { transform: scale(0.94); filter: brightness(1.6); }
+/* Brake: a big pedal. Handbrake sits right above the gas. */
+.ctl.brake { width: 96px; height: 112px; font-size: 16px; background: linear-gradient(rgba(255,77,61,0.4), rgba(150,30,20,0.32)); border-color: rgba(255,77,61,0.85); }
 .ctl-stack { display: flex; flex-direction: column; gap: 6px; }
-.ctl-stack .ctl { height: 51px; width: 78px; }
+.ctl.hb { width: 84px; height: 40px; font-size: 11px; letter-spacing: 0.5px; background: linear-gradient(rgba(255,163,26,0.4), rgba(160,90,0,0.32)); border-color: rgba(255,163,26,0.85); }
+.ctl.gas { width: 84px; height: 66px; font-size: 18px; background: linear-gradient(rgba(92,240,122,0.4), rgba(30,140,60,0.32)); border-color: rgba(92,240,122,0.85); }
+.ctl.on { transform: scale(0.94); filter: brightness(1.6); }
 
 /* ---------- Modal + toast ---------- */
 #modal { position: fixed; inset: 0; background: rgba(0,4,20,0.65); display: flex; align-items: center; justify-content: center; z-index: 20; padding: 20px; }
@@ -268,4 +268,4 @@ button { font: inherit; color: inherit; cursor: pointer; }
 }
 
 /* GT-style garage turntable */
-.turntable { display: block; width: calc(100% + 24px); height: 180px; margin: -12px -12px 12px; border-bottom: 2px solid var(--accent); background: #0a1638; }
+.turntable { display: block; width: calc(100% + 24px); height: 210px; margin: -12px -12px 12px; border-bottom: 2px solid var(--accent); background: #0a1638; }

@@ -8,7 +8,7 @@ let active = null;
 export function mountTurntable(canvas, car) {
   if (active && active.canvas === canvas && active.key === `${car.id}:${car.color}`) return;
   unmountTurntable();
-  const retro = createRetro(canvas, { lines: 200 });
+  const retro = createRetro(canvas, { lines: 300, minPx: 1 });
   const scene = new THREE.Scene();
   scene.background = new THREE.Color('#0a1638');
   scene.add(new THREE.HemisphereLight('#dfe8ff', '#1a2244', 0.8));
@@ -28,7 +28,7 @@ export function mountTurntable(canvas, car) {
     t += Math.min(0.05, (now - last) / 1000); last = now;
     retro.resize();
     camera.aspect = retro.aspect; camera.updateProjectionMatrix();
-    camera.position.set(Math.cos(t * 0.5) * 9.5, 2.1, Math.sin(t * 0.5) * 9.5);
+    camera.position.set(Math.cos(t * 0.5) * 8.2, 2.0, Math.sin(t * 0.5) * 8.2);
     camera.lookAt(0, 0.55, 0);
     retro.render(scene, camera);
     raf = requestAnimationFrame(loop);

@@ -57,7 +57,7 @@ export function getRetro(canvas) {
 }
 
 // A PS1-style renderer on any canvas. `lines` is roughly how many "PlayStation" lines tall the image is.
-export function createRetro(canvas, { lines = 330, alpha = false } = {}) {
+export function createRetro(canvas, { lines = 330, alpha = false, minPx = 2 } = {}) {
   if (!installed) { installPsxShaders(); installed = true; }
   const renderer = new THREE.WebGLRenderer({ canvas, antialias: false, alpha, powerPreference: 'high-performance' });
   renderer.setPixelRatio(1);
@@ -80,7 +80,7 @@ export function createRetro(canvas, { lines = 330, alpha = false } = {}) {
       if (w === cssW && h === cssH) return false;
       cssW = w; cssH = h;
       renderer.setSize(w, h, false);
-      const px = Math.max(2, Math.min(4, Math.round(Math.max(w, h * 0.75) / lines)));
+      const px = Math.max(minPx, Math.min(4, Math.round(Math.max(w, h * 0.75) / lines)));
       self.width = Math.ceil(w / px); self.height = Math.ceil(h / px);
       rt.setSize(self.width, self.height);
       postMat.uniforms.res.value.set(self.width, self.height);

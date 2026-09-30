@@ -207,6 +207,46 @@ export const rimStyleTex = (style) => tex(`rim-${style}`, 16, 16, (g) => {
   g.fillStyle = '#e8ebef'; g.fillRect(7, 7, 2, 2);
 }, { repeat: false });
 
+// License plates: 'us' (white, dark blue characters, red state band) or 'jp' (white, green characters).
+export const plateTex = (style) => tex(`plate-${style}`, 32, 16, (g) => {
+  g.fillStyle = '#f4f4ee'; g.fillRect(0, 0, 32, 16);
+  g.fillStyle = '#555'; g.fillRect(0, 0, 32, 1); g.fillRect(0, 15, 32, 1); g.fillRect(0, 0, 1, 16); g.fillRect(31, 0, 1, 16);
+  const ink = style === 'jp' ? '#1f6b3a' : '#1c2a6b';
+  if (style === 'us') { g.fillStyle = '#b3231e'; g.fillRect(2, 2, 28, 2); }
+  g.fillStyle = ink;
+  // Blocky characters.
+  const glyphs = style === 'jp' ? [[4, 3, 3, 3], [9, 3, 2, 3], [20, 3, 4, 3], [3, 8, 5, 6], [10, 8, 5, 6], [17, 8, 5, 6], [24, 8, 5, 6]] : [[3, 6, 4, 7], [8, 6, 4, 7], [13, 6, 4, 7], [19, 6, 4, 7], [24, 6, 4, 7]];
+  for (const [x, y, w, h] of glyphs) { g.fillRect(x, y, w, 1); g.fillRect(x, y + h - 1, w, 1); g.fillRect(x, y, 1, h); g.fillRect(x + w - 1, y + Math.floor(h / 2), 1, Math.ceil(h / 2)); }
+}, { repeat: false });
+
+// Detailed wheel face: tire sidewall, rim lip, spokes/pattern, center cap, lug nuts.
+export const wheelTex = (style) => tex(`wheel-${style}`, 32, 32, (g) => {
+  g.clearRect(0, 0, 32, 32);
+  g.fillStyle = '#18181a'; g.beginPath(); g.arc(16, 16, 15.5, 0, 7); g.fill();
+  g.fillStyle = '#2a2a2e'; g.beginPath(); g.arc(16, 16, 14, 0, 7); g.fill();          // sidewall
+  g.fillStyle = '#1c1c1f'; g.beginPath(); g.arc(16, 16, 12, 0, 7); g.fill();
+  const face = style === 'mesh' ? '#c9ab62' : '#c8ccd2', dark = style === 'mesh' ? '#6f5c30' : '#4a4e56';
+  g.fillStyle = '#e6e9ee'; g.beginPath(); g.arc(16, 16, 11, 0, 7); g.fill();          // polished lip
+  g.fillStyle = dark; g.beginPath(); g.arc(16, 16, 10, 0, 7); g.fill();
+  g.fillStyle = face;
+  if (style === 'mesh') {
+    g.beginPath(); g.arc(16, 16, 10, 0, 7); g.fill();
+    g.strokeStyle = dark; g.lineWidth = 1;
+    for (let i = 0; i < 10; i++) { const a = (i / 10) * Math.PI * 2; g.beginPath(); g.moveTo(16 + Math.cos(a) * 3, 16 + Math.sin(a) * 3); g.lineTo(16 + Math.cos(a + 0.6) * 10, 16 + Math.sin(a + 0.6) * 10); g.stroke(); g.beginPath(); g.moveTo(16 + Math.cos(a) * 3, 16 + Math.sin(a) * 3); g.lineTo(16 + Math.cos(a - 0.6) * 10, 16 + Math.sin(a - 0.6) * 10); g.stroke(); }
+  } else if (style === 'holes') {
+    g.beginPath(); g.arc(16, 16, 10, 0, 7); g.fill();
+    g.fillStyle = dark; for (let i = 0; i < 15; i++) { const a = (i / 15) * Math.PI * 2; g.beginPath(); g.arc(16 + Math.cos(a) * 7.5, 16 + Math.sin(a) * 7.5, 1.3, 0, 7); g.fill(); }
+  } else if (style === 'turbine') {
+    g.beginPath(); g.arc(16, 16, 10, 0, 7); g.fill();
+    g.fillStyle = dark; for (let i = 0; i < 10; i++) { const a = (i / 10) * Math.PI * 2; g.beginPath(); g.moveTo(16 + Math.cos(a) * 4, 16 + Math.sin(a) * 4); g.lineTo(16 + Math.cos(a + 0.35) * 9.5, 16 + Math.sin(a + 0.35) * 9.5); g.lineTo(16 + Math.cos(a + 0.5) * 9.5, 16 + Math.sin(a + 0.5) * 9.5); g.closePath(); g.fill(); }
+  } else {
+    for (let i = 0; i < 5; i++) { const a = (i / 5) * Math.PI * 2 - Math.PI / 2; g.save(); g.translate(16, 16); g.rotate(a); g.fillRect(2, -1.6, 8.5, 3.2); g.restore(); }
+  }
+  g.fillStyle = '#9aa0a8'; g.beginPath(); g.arc(16, 16, 3, 0, 7); g.fill();
+  g.fillStyle = '#2b2e33'; for (let i = 0; i < 4; i++) { const a = (i / 4) * Math.PI * 2 + 0.4; g.fillRect(Math.round(16 + Math.cos(a) * 4.3) - 1, Math.round(16 + Math.sin(a) * 4.3) - 1, 2, 2); }
+  g.fillStyle = '#e8ebef'; g.fillRect(15, 15, 2, 2);
+}, { repeat: false });
+
 // Environment map for glossy paint: sky above, horizon haze, ground below.
 let env = null;
 export function envCube() {
