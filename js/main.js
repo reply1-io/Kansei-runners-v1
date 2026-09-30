@@ -2,8 +2,8 @@
 import { COMPONENTS, UPGRADES, EVENTS, TRACKS, INSPECTION_COST, PROBLEM_THRESHOLD } from './data.js';
 import {
   state, load, save, resetGame, refreshListings, addLog, carName, modelOf, carValue,
-  repairCost, upgradeCost, repair, performance, canRun, applyWear, activeCar,
-  spend, earn, nextDay, money, clamp,
+  repairCost, upgradeCost, repair, performance, factorySpecs, canRun, applyWear, activeCar,
+  spend, earn, nextDay, money, clamp, uid,
 } from './state.js';
 import { startRace, fmtTime } from './race.js';
 
@@ -37,6 +37,19 @@ function problemList(car, hidden = []) {
   }).join('');
   const unknown = hidden.length ? `<li class="hidden-issue">❓ ${hidden.length} system${hidden.length > 1 ? 's' : ''} not disclosed by seller</li>` : '';
   return items || unknown ? `<ul class="problems">${items}${unknown}</ul>` : `<ul class="problems"><li style="color:var(--good)">✓ No known major problems</li></ul>`;
+}
+
+function specLine(sp, label) {
+  return `<div class="specs"><span><b>${sp.hp}</b> hp</span><span><b>${sp.handling}</b> handling</span><span><b>${sp.weight}</b> kg</span><span class="muted">${label}</span></div>`;
+}
+
+// Parts in your trunk waiting to be installed on a car.
+const pendingFor = (car) => state.inventory.filter((p) => p.carId === car.id);
+const hasPending = (car, kind, target) => state.inventory.some((p) => p.carId === car.id && p.kind === kind && p.target === target);
+function partLabel(item) {
+  if (item.kind === 'repair') return COMPONENTS.find((c) => c.id === item.target).part;
+  const u = UPGRADES.find((x) => x.id === item.target);
+  return `${u.name} (level ${item.level})`;
 }
 
 function clsBadge(perf) {
@@ -100,7 +113,7 @@ function renderHome() {
     carCard = `<div class="hint">You've got <b>${money(state.money)}</b> and no car. Open <b>Marketplace</b> and find something in your budget. Cheap usually means broken — that's the point.</div>`;
   }
   const apps = [
-    ['market', '🚗', 'Marketplace'], ['parts', '🔧', 'Parts'], ['garage', '🏠', 'Garage'], ['races', '🏁', 'Races'],
+    ['market', '🚗', 'Marketplace'], ['parts', '🔧', 'Parts Shop'], ['garage', '🏠', 'Garage'], ['races', '🏁', 'Races'],
     ['bank', '💵', 'Bank'], ['msgs', '💬', 'Messages'],
   ];
   return `<div class="home">
@@ -108,7 +121,7 @@ function renderHome() {
     <div class="date">Day ${state.day}</div>
     ${carCard}
     <div class="apps">${apps.map(([id, ico, label]) =>
-      `<button class="app-icon" data-action="open" data-arg="${id}"><span class="ico ${id}">${ico}</span>${label}</button>`).join('')}
+      `<button class="app-icon" data-action="open" data-arg="${id}"><span class="ico ${id}">${ico}${id === 'garage' && state.inventory.length ? `<span class="dot">${state.inventory.length}</span>` : ''}</span>${label}</button>`).join('')}
     </div>
     <div style="margin-top:28px"><button class="btn block" data-action="sleep">😴 Sleep until tomorrow <span class="muted small">(new listings)</span></button></div>
   </div>`;
@@ -126,6 +139,7 @@ function renderMarket() {
         <div class="row between"><h2>${esc(carName(l.car))}</h2>${clsBadge(perf)}</div>
         <div class="row between"><span class="price ${l.price > state.money ? 'cant' : ''}">${money(l.price)}</span>
           <span class="small muted">${Math.round(l.car.miles / 1000)}k mi · ${modelOf(l.car).drive}</span></div>
+        ${specLine(factorySpecs(modelOf(l.car)), 'Factory specs')}
         <div class="small muted">Seller: ${esc(l.seller)}</div>
         <div class="notes">"${esc(l.notes)}"</div>
         ${bars(l.car, hidden)}
@@ -153,31 +167,51 @@ function renderMarket() {
 
 function renderParts() {
   const car = activeCar();
-  if (!car) return `<div class="app">${header('Parts')}<div class="empty"><div class="big">🔧</div>Buy a car first — parts need something to go on.</div></div>`;
+  if (!car) return `<div class="app">${header('Parts Shop')}<div class="empty"><div class="big">🔧</div>Buy a car first — parts need something to go on.</div></div>`;
+  const picker = state.cars.length > 1
+    ? `<div class="tabs">${state.cars.map((c) => `<button class="${c.id === car.id ? 'on' : ''}" data-action="pickcar" data-arg="${c.id}">${esc(modelOf(c).name.split(' ').slice(1).join(' '))}</button>`).join('')}</div>`
+    : '';
   const repairs = COMPONENTS.map((c) => {
     const v = car.cond[c.id];
     const cost = repairCost(car, c.id);
-    const full = v >= 100;
+    const pending = hasPending(car, 'repair', c.id);
+    const label = pending ? 'In trunk' : v >= 100 ? 'New' : money(cost);
     return `<div class="list-item">
       <div class="grow"><div class="title">${c.name} <span style="color:${condColor(v)}">${Math.round(v)}%</span></div>
-        <div class="sub">${car.problems[c.id] ? `<span style="color:var(--bad)">⚠️ ${esc(car.problems[c.id])}</span>` : full ? 'Brand new' : 'Worn but working'}</div>
+        <div class="sub">${c.part}</div>
+        <div class="sub">${car.problems[c.id] ? `<span style="color:var(--bad)">⚠️ ${esc(car.problems[c.id])}</span>` : v >= 100 ? 'Brand new' : 'Worn but working'}</div>
       </div>
-      <button class="btn ${car.problems[c.id] ? 'primary' : ''}" data-action="repair" data-arg="${c.id}" ${full || cost > state.money ? 'disabled' : ''}>${full ? '✓' : money(cost)}</button>
+      <button class="btn ${car.problems[c.id] && !pending ? 'primary' : ''}" data-action="buypart" data-arg="${c.id}" ${pending || v >= 100 || cost > state.money ? 'disabled' : ''}>${label}</button>
     </div>`;
   }).join('');
   const ups = UPGRADES.map((u) => {
     const lvl = car.upgrades[u.id];
     const cost = upgradeCost(car, u.id);
+    const pending = hasPending(car, 'mod', u.id);
+    const label = pending ? 'In trunk' : cost === null ? 'MAX' : money(cost);
     return `<div class="list-item">
       <div class="grow"><div class="title">${u.name}</div><div class="sub">${u.desc}</div>
         <span class="pips">${Array.from({ length: u.max }, (_, i) => `<i class="${i < lvl ? 'on' : ''}"></i>`).join('')}</span></div>
-      <button class="btn" data-action="upgrade" data-arg="${u.id}" ${cost === null || cost > state.money ? 'disabled' : ''}>${cost === null ? 'MAX' : money(cost)}</button>
+      <button class="btn" data-action="buymod" data-arg="${u.id}" ${pending || cost === null || cost > state.money ? 'disabled' : ''}>${label}</button>
     </div>`;
   }).join('');
-  return `<div class="app">${header('Parts')}
-    <div class="card"><div class="row"><div class="car-swatch" style="background:${car.color}"></div><b style="flex:1">${esc(carName(car))}</b>${clsBadge(performance(car))}</div></div>
-    <div class="card"><h3 style="margin-top:0">Replacement parts</h3><div class="small muted">Installed in your driveway. Replacing resets the part to 100%.</div>${repairs}</div>
-    <div class="card"><h3 style="margin-top:0">Performance</h3>${ups}</div>
+  const n = pendingFor(car).length;
+  return `<div class="app">${header('Parts Shop')}${picker}
+    <div class="card"><div class="row"><div class="car-swatch" style="background:${car.color}"></div><b style="flex:1">${esc(carName(car))}</b>${clsBadge(performance(car))}</div>
+      ${n ? `<div class="btns"><button class="btn primary" data-action="open" data-arg="garage">🏠 ${n} part${n > 1 ? 's' : ''} waiting — install in Garage</button></div>` : ''}</div>
+    <div class="hint">Parts you buy go in your trunk. Install them from the <b>Garage</b>.</div>
+    <div class="card"><h3 style="margin-top:0">Repair parts</h3><div class="small muted">A new part puts that system back to 100% and fixes its problem.</div>${repairs}</div>
+    <div class="card"><h3 style="margin-top:0">Performance mods</h3>${ups}</div>
+  </div>`;
+}
+
+function installList(car) {
+  const items = pendingFor(car);
+  if (!items.length) return '';
+  return `<div class="install">
+    <div class="row between"><b>📦 Ready to install</b>${items.length > 1 ? `<button class="btn small-btn primary" data-action="installall" data-arg="${car.id}">Install all</button>` : ''}</div>
+    ${items.map((it) => `<div class="list-item"><div class="grow"><div class="title">${esc(partLabel(it))}</div></div>
+      <button class="btn primary" data-action="install" data-arg="${it.id}">Install</button></div>`).join('')}
   </div>`;
 }
 
@@ -192,11 +226,12 @@ function renderGarage() {
         <div style="flex:1"><h2>${esc(carName(car))}</h2><div class="small muted">${Math.round(car.miles / 1000)}k mi · worth ~${money(carValue(car))}</div></div>
         ${clsBadge(perf)}</div>
       ${dead ? `<div class="small" style="color:var(--bad);margin-top:8px">🚫 ${dead}</div>` : ''}
+      ${installList(car)}
       ${statGrid(perf)}
       ${bars(car)}
       ${problemList(car)}
       <div class="btns">${active ? '<button class="btn" disabled>★ Selected</button>' : `<button class="btn primary" data-action="select" data-arg="${car.id}">Drive this one</button>`}
-        <button class="btn" data-action="goparts" data-arg="${car.id}">🔧 Work on it</button></div>
+        <button class="btn" data-action="goparts" data-arg="${car.id}">🔧 Shop parts</button></div>
     </div>`;
   }).join('')}</div>`;
 }
@@ -213,7 +248,7 @@ function renderRaces() {
       <div class="stats">
         <div class="stat"><b>${money(ev.entry)}</b><small>Entry</small></div>
         <div class="stat"><b style="color:var(--good)">${money(ev.purse[0])}</b><small>1st</small></div>
-        <div class="stat"><b>${money(ev.purse[1])}</b><small>2nd / 3rd ${money(ev.purse[2])}</small></div>
+        <div class="stat"><b>${money(ev.purse[1])}</b><small>2nd</small></div>
       </div>
       <div class="btns"><button class="btn primary" data-action="race" data-arg="${ev.id}" ${!car || ev.entry > state.money ? 'disabled' : ''}>Enter race</button></div>
     </div>`;
@@ -251,7 +286,7 @@ function renderMsgs() {
   const msgs = [
     ['Kenji', `Yo. Heard you finally scraped together ${money(5000)}. Don't blow it on something shiny.`],
     ['Kenji', 'Check Marketplace. Cheap cars are cheap for a reason — pay for an inspection if the seller is being shady.'],
-    ['Kenji', 'Fix the stuff marked ⚠️ in the Parts app before you run it hard. A bad engine WILL let go.'],
+    ['Kenji', 'Buy parts for anything marked ⚠️ in the Parts Shop, then install them in the Garage before you run it hard. A bad engine WILL let go.'],
     ['Kenji', 'Parking Lot Meet behind the grocery store is where everyone starts. Win some cash, then mod it or flip it for something faster.'],
   ];
   if (car && Object.keys(car.problems).length) msgs.push(['Kenji', `That ${modelOf(car).name}... you gonna fix it or just pray?`]);
@@ -328,39 +363,58 @@ const ACTIONS = {
     if (!car) return;
     const offer = Math.round(carValue(car) * 0.85 / 50) * 50;
     if (!(await confirmBox(`<h2>Sell it?</h2><p>${esc(carName(car))} for <b>${money(offer)}</b>.</p>`, 'Sell'))) return;
-    earn(offer);
-    state.stats.earned -= offer; // selling isn't race earnings
+    const leftover = pendingFor(car);
+    const refund = Math.round(leftover.reduce((t, p) => t + p.price, 0) * 0.5);
+    earn(offer + refund);
+    state.stats.earned -= offer + refund; // selling isn't race earnings
+    state.inventory = state.inventory.filter((p) => !leftover.includes(p));
+    if (refund) toast(`Also sold ${leftover.length} uninstalled part${leftover.length > 1 ? 's' : ''} for ${money(refund)}`);
     state.cars = state.cars.filter((c) => c !== car);
     if (state.activeCarId === id) state.activeCarId = state.cars[0]?.id || null;
     addLog(`Sold ${carName(car)} for ${money(offer)}`);
-    save(); toast('Sold!'); render();
+    save(); if (!refund) toast('Sold!'); render();
   },
 
   select: (id) => { state.activeCarId = id; save(); toast('Selected.'); render.keepScroll = true; render(); },
   goparts: (id) => { state.activeCarId = id; save(); go('parts'); },
 
-  repair: (compId) => {
+  pickcar: (id) => { state.activeCarId = id; save(); render.keepScroll = true; render(); },
+
+  buypart: (compId) => {
     const car = activeCar();
     const cost = repairCost(car, compId);
     if (cost > state.money) return toast('Not enough cash.');
     spend(cost);
-    const fixed = car.problems[compId];
-    repair(car, compId);
-    const name = COMPONENTS.find((c) => c.id === compId).name;
-    addLog(`Replaced ${name} on ${carName(car)} (${money(cost)})`);
-    toast(fixed ? `Fixed: ${fixed}` : `${name} refreshed`);
+    state.inventory.push({ id: uid(), carId: car.id, kind: 'repair', target: compId, price: cost });
+    const part = COMPONENTS.find((c) => c.id === compId).part;
+    addLog(`Bought ${part} for ${carName(car)} (${money(cost)})`);
+    toast(`${part} in your trunk — install in Garage`);
     save(); render.keepScroll = true; render();
   },
 
-  upgrade: (upId) => {
+  buymod: (upId) => {
     const car = activeCar();
     const cost = upgradeCost(car, upId);
     if (cost === null || cost > state.money) return toast('Not enough cash.');
     spend(cost);
-    car.upgrades[upId] += 1;
+    const level = car.upgrades[upId] + 1;
+    state.inventory.push({ id: uid(), carId: car.id, kind: 'mod', target: upId, level, price: cost });
     const u = UPGRADES.find((x) => x.id === upId);
-    addLog(`Installed ${u.name} L${car.upgrades[upId]} (${money(cost)})`);
-    toast(`${u.name} installed!`);
+    addLog(`Bought ${u.name} L${level} (${money(cost)})`);
+    toast(`${u.name} in your trunk — install in Garage`);
+    save(); render.keepScroll = true; render();
+  },
+
+  install: (itemId) => {
+    const msg = installItem(itemId);
+    if (msg) toast(msg);
+    save(); render.keepScroll = true; render();
+  },
+
+  installall: (carId) => {
+    const items = state.inventory.filter((p) => p.carId === carId);
+    items.forEach((it) => installItem(it.id));
+    toast(`Installed ${items.length} parts`);
     save(); render.keepScroll = true; render();
   },
 
@@ -369,11 +423,11 @@ const ACTIONS = {
     const car = activeCar();
     if (!car) return;
     const dead = canRun(car);
-    if (dead) return modal(`<h2>Not happening</h2><p>${dead}</p><p class="small muted">Fix it in the Parts app.</p>`);
+    if (dead) return modal(`<h2>Not happening</h2><p>${dead}</p><p class="small muted">Buy parts in the Parts Shop, then install them in the Garage.</p>`);
     if (ev.entry > state.money) return toast('Can\'t cover the entry fee.');
     const nProb = Object.keys(car.problems).length;
     const risky = nProb ? `<p class="small" style="color:var(--warn)">⚠️ Your car has ${nProb} major problem${nProb > 1 ? 's' : ''}. Things might break.</p>` : '';
-    const ok = await confirmBox(`<h2>${ev.name}</h2><p>Entry fee <b>${money(ev.entry)}</b>. ${ev.laps} laps, 4 cars.</p>${risky}
+    const ok = await confirmBox(`<h2>${ev.name}</h2><p>Entry fee <b>${money(ev.entry)}</b>. ${ev.laps} laps vs 2 rivals. Top 2 get paid.</p>${risky}
       <p class="small muted">Controls: ◀ ▶ steer, GAS / BRAKE. Keyboard: arrows or WASD.</p>`, 'Race!');
     if (!ok) return;
     spend(ev.entry);
@@ -393,6 +447,25 @@ document.body.addEventListener('click', (e) => {
   const fn = ACTIONS[el.dataset.action];
   if (fn) fn(el.dataset.arg);
 });
+
+function installItem(itemId) {
+  const it = state.inventory.find((p) => p.id === itemId);
+  if (!it) return null;
+  const car = state.cars.find((c) => c.id === it.carId);
+  state.inventory = state.inventory.filter((p) => p !== it);
+  if (!car) return null;
+  if (it.kind === 'repair') {
+    const fixed = car.problems[it.target];
+    repair(car, it.target);
+    const name = COMPONENTS.find((c) => c.id === it.target).name;
+    addLog(`Installed ${COMPONENTS.find((c) => c.id === it.target).part} on ${carName(car)}`);
+    return fixed ? `Fixed: ${fixed}` : `${name} is like new`;
+  }
+  car.upgrades[it.target] = Math.max(car.upgrades[it.target], it.level);
+  const u = UPGRADES.find((x) => x.id === it.target);
+  addLog(`Installed ${u.name} L${it.level} on ${carName(car)}`);
+  return `${u.name} installed!`;
+}
 
 // ---------- race flow ----------
 
@@ -417,7 +490,7 @@ async function finishRace(car, ev, res) {
     title = res.engineBlown ? '💥 DNF — Engine' : 'DNF';
   } else {
     payout = ev.purse[res.place - 1] || 0;
-    title = ['', '🥇 1st', '🥈 2nd', '🥉 3rd', '4th'][res.place];
+    title = ['', '🥇 1st', '🥈 2nd', '🥉 3rd'][res.place];
     if (res.place === 1) state.stats.wins += 1;
   }
   if (payout) earn(payout);

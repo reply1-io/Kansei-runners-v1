@@ -3,6 +3,7 @@
 
 export const START_MONEY = 5000;
 export const INSPECTION_COST = 80;
+export const MARKET_PRICE_CAP = 5000; // every Marketplace listing is under this
 
 export const MODELS = [
   { id: 'camra',   name: 'Toyoda Camra',        years: [1992, 1996], hp: 130, weight: 1400, drive: 'FWD', price: 3200,  parts: 0.6 },
@@ -20,17 +21,17 @@ export const MODELS = [
 ];
 
 export const COMPONENTS = [
-  { id: 'engine', name: 'Engine',       repair: 1600, weightInValue: 0.35,
+  { id: 'engine', part: 'Engine rebuild kit', name: 'Engine',       repair: 1600, weightInValue: 0.35,
     problems: ['Blown head gasket', 'Low compression', 'Spun rod bearing', 'Burning oil'] },
-  { id: 'trans',  name: 'Transmission', repair: 900,  weightInValue: 0.2,
+  { id: 'trans',  part: 'Clutch & gearbox rebuild', name: 'Transmission', repair: 900,  weightInValue: 0.2,
     problems: ['Slipping clutch', 'Grinding 3rd gear', 'Pops out of gear', 'Worn synchros'] },
-  { id: 'susp',   name: 'Suspension',   repair: 550,  weightInValue: 0.15,
+  { id: 'susp',   part: 'Shocks, springs & bushings', name: 'Suspension',   repair: 550,  weightInValue: 0.15,
     problems: ['Blown shocks', 'Worn bushings', 'Bent control arm', 'Sagging springs'] },
-  { id: 'brakes', name: 'Brakes',       repair: 320,  weightInValue: 0.1,
+  { id: 'brakes', part: 'Pads & rotors', name: 'Brakes',       repair: 320,  weightInValue: 0.1,
     problems: ['Warped rotors', 'Metal-on-metal pads', 'Leaking caliper', 'Spongy pedal'] },
-  { id: 'tires',  name: 'Tires',        repair: 380,  weightInValue: 0.05,
+  { id: 'tires',  part: 'Set of 4 tires', name: 'Tires',        repair: 380,  weightInValue: 0.05,
     problems: ['Bald tires', 'Dry-rotted tires', 'Mismatched tires', 'Bulging sidewall'] },
-  { id: 'body',   name: 'Body',         repair: 650,  weightInValue: 0.15,
+  { id: 'body',   part: 'Body panels & rust repair', name: 'Body',         repair: 650,  weightInValue: 0.15,
     problems: ['Rusted rocker panels', 'Crumpled fender', 'Cracked bumper', 'Rust in the floor'] },
 ];
 
@@ -69,12 +70,12 @@ export const SELLER_NOTES = [
 
 export const COLORS = ['#e8e8e8', '#d63031', '#0984e3', '#2d3436', '#fdcb6e', '#00b894', '#6c5ce7', '#e17055', '#b2bec3', '#fab1a0'];
 
-// Race events. aiPace scales opponents' top speed / cornering relative to a baseline.
+// Race events: you vs 2 AI cars, purse pays 1st and 2nd. aiPace scales opponents' top speed / cornering relative to a baseline.
 export const EVENTS = [
-  { id: 'lot',   name: 'Parking Lot Meet',   track: 'lot',   laps: 2, entry: 50,   purse: [700, 350, 120],     aiPace: 0.74, desc: 'Beaters and bragging rights behind the grocery store.' },
-  { id: 'touge', name: 'Midnight Touge',     track: 'touge', laps: 2, entry: 250,  purse: [2200, 1000, 400],   aiPace: 0.92, desc: 'Mountain pass. Tight hairpins, no guardrail forgiveness.' },
-  { id: 'harbor',name: 'Harbor Circuit',     track: 'harbor',laps: 3, entry: 900,  purse: [7000, 3200, 1200],  aiPace: 1.1, desc: 'Fast sweepers around the shipping yard. Bring power.' },
-  { id: 'kansei',name: 'Kansei Invitational',track: 'touge', laps: 3, entry: 4000, purse: [35000, 15000, 6000],aiPace: 1.35, desc: 'The best runners in the city. Invite only... or just pay up.' },
+  { id: 'lot',   name: 'Parking Lot Meet',   track: 'lot',   laps: 2, entry: 50,   purse: [700, 300],          aiPace: 0.74, desc: 'Beaters and bragging rights behind the grocery store.' },
+  { id: 'touge', name: 'Midnight Touge',     track: 'touge', laps: 2, entry: 250,  purse: [2200, 900],         aiPace: 0.92, desc: 'Mountain pass. Tight hairpins, no guardrail forgiveness.' },
+  { id: 'harbor',name: 'Harbor Circuit',     track: 'harbor',laps: 3, entry: 900,  purse: [7000, 2800],        aiPace: 1.1, desc: 'Fast sweepers around the shipping yard. Bring power.' },
+  { id: 'kansei',name: 'Kansei Invitational',track: 'touge', laps: 3, entry: 4000, purse: [35000, 12000],      aiPace: 1.35, desc: 'The best runners in the city. Invite only... or just pay up.' },
 ];
 
 // Track control points (closed loop, Catmull-Rom smoothed at load).

@@ -1,47 +1,53 @@
 # Kansei Runners
 
-A mobile game about buying a junk car with $5,000, fixing what's broken, driving it hard, and working your way up.
+A mobile-friendly browser game. Buy a junk car with $5,000, fix what's broken, drive it hard, and work your way up to faster cars. There's nothing to install: it runs in a phone browser with an HTML5 canvas and plain JavaScript.
 
-Your phone is your whole world. It has these apps:
+## How to play
 
-| App | What it does |
-|---|---|
-| 🚗 **Marketplace** | Used cars that refresh daily. Sellers hide problems, so pay $80 to inspect before you buy. You can also sell cars here. |
-| 🔧 **Parts** | Replace worn or broken components (engine, transmission, suspension, brakes, tires, body) and buy performance upgrades. |
-| 🏠 **Garage** | Your cars, their stats and condition, and which one you're driving. |
-| 🏁 **Races** | Four events, from the Parking Lot Meet to the Kansei Invitational. You pay an entry fee and win prize money. |
-| 💵 **Bank** | Your money, stats and activity log. |
-| 💬 **Messages** | Tips from Kenji, plus rivals who call you out as you win. |
+1. **Open the Marketplace** on your in-game phone. 6–10 used cars under $5k are listed each day, each with a price, factory specs (hp, handling, weight) and condition bars.
+2. **Inspect before you buy ($80).** Striped bars marked `??` are systems the seller didn't disclose. Buy without inspecting and you find out what's wrong on the drive home.
+3. **Open the Parts Shop** and buy parts for anything marked ⚠️: an engine rebuild kit, pads & rotors, a set of 4 tires, and so on. Performance mods are sold here too. Everything you buy goes in your trunk.
+4. **Open the Garage** and tap **Install** (or **Install all**). This is where the car gets fixed and upgraded.
+5. **Open Races** and pick an event. The Parking Lot Meet is the starter race. You race 2 AI cars, and 1st and 2nd place get paid.
+6. **Drive:**
+   - **◀ ▶** (bottom left) steer
+   - **GAS / BRAKE** (bottom right)
+   - On a keyboard, use the arrow keys or WASD.
+   - Stay on the tarmac: grass slows you down and walls damage the car.
+7. **Repeat.** Every race wears the car. Throttle wears the engine and transmission, sliding wears tires, grass wears suspension, and contact damages the body. A worn engine can blow mid-race, which is a DNF. Spend your winnings on repairs and mods, or sell the car (Marketplace → Sell) and move up.
 
-## The loop
+Other things on the phone:
+- **Sleep** (home screen) advances a day and refreshes the Marketplace.
+- **Bank** shows your stats and history, and has **Start over**.
+- **Messages** has tips from Kenji.
 
-1. Buy whatever car your budget allows. Cheap cars are cheap for a reason.
-2. Fix the major problems (⚠️). A bad engine can blow mid-race and your transmission can pop out of gear.
-3. Race. Driving hard wears parts: throttle wears the engine and transmission, sliding wears tires, grass wears suspension, and walls and contact damage the body.
-4. Spend your winnings on repairs and mods, or flip the car for something faster.
+Progress saves automatically in the browser (localStorage), so refreshing won't lose it.
 
 ## Running it
 
-It's plain HTML/CSS/JavaScript (ES modules) with no build step.
+It's plain HTML/CSS/JS ES modules with no build step. Browsers won't load modules from `file://`, so serve the folder:
 
 ```bash
 python3 -m http.server 8000
-# open http://localhost:8000 (or http://<your-computer-ip>:8000 on your phone, same Wi-Fi)
 ```
 
-Controls: on-screen ◀ ▶ / GAS / BRAKE on touch, or arrows/WASD on keyboard. Progress saves to localStorage.
+- **Computer:** open http://localhost:8000
+- **Phone:** connect to the same Wi-Fi, then open `http://<your-computer's-IP>:8000`
+- **Hosted:** any static host works (GitHub Pages, Netlify and so on). Point it at the repo root.
 
-## Code layout
+## Code layout: where to add things
 
-- `js/data.js`: cars, components, upgrades, events, tracks (balance lives here)
-- `js/state.js`: game state, car generation, value/repair pricing, performance math, save/load
-- `js/race.js`: top-down race (car physics, AI speed profiles, wear, failures, rendering)
-- `js/main.js`: phone UI and app screens
+| File | What's in it | Add… |
+|---|---|---|
+| `js/data.js` | All content and balance numbers | **Cars** → `MODELS`, **repair parts** → `COMPONENTS`, **mods** → `UPGRADES`, **races** → `EVENTS`, **tracks** → `TRACKS` (a list of control points, smoothed automatically) |
+| `js/state.js` | Game state, save/load, car generation, pricing, performance math (condition + mods → hp/grip/brakes) | New stats or economy rules |
+| `js/race.js` | Top-down race: car physics, AI speed profiles, wear, mid-race failures, rendering, touch controls | Race mechanics |
+| `js/main.js` | Phone UI: home screen and every app | New apps or screens |
 
-## Ideas for next steps
+For example, to add a car, add one line to `MODELS`:
 
-- Wrap with [Capacitor](https://capacitorjs.com/) to ship to iOS/Android stores
-- Haggling with sellers, scams, and test drives before buying
-- Mechanic skill tree (cheaper DIY repairs, better inspections)
-- More tracks, night races, drift scoring events, pink-slip races
-- Car sprites and sound (engine note from RPM, tire squeal)
+```js
+{ id: 'mr2', name: 'Toyoda MR-Two', years: [1991, 1995], hp: 200, weight: 1250, drive: 'RWD', price: 11000, parts: 1.0 },
+```
+
+It then shows up in the Marketplace, as long as it's wrecked enough to list under $5k.

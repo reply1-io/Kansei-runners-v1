@@ -8,7 +8,8 @@ const CAR_LEN = 38;
 const CAR_WID = 19;
 const RIVAL_NAMES = ['Takumi-ish', 'Ryo', 'Keisuke', 'Iketani', 'Sato', 'Mako', 'Rin', 'Kyoko', 'Bunta Jr.', 'Shingo'];
 const RIVAL_COLORS = ['#f5f6fa', '#e84118', '#00a8ff', '#fbc531', '#9c88ff', '#4cd137'];
-const MPH = 0.17; // px/s -> displayed mph
+const MPH = 0.17;
+const AI_COUNT = 2; // px/s -> displayed mph
 
 // ---------- Track geometry ----------
 
@@ -127,7 +128,7 @@ export function startRace({ canvas, hud, car, perf, event, onFinish }) {
   // Opponents: fixed-line AI following a precomputed speed profile.
   const rivals = [];
   const names = [...RIVAL_NAMES].sort(() => Math.random() - 0.5);
-  for (let i = 0; i < 3; i++) {
+  for (let i = 0; i < AI_COUNT; i++) {
     const pace = event.aiPace * rand(0.95, 1.04);
     const top = (350 + 2400 * 0.13) * pace;
     rivals.push({
@@ -140,7 +141,7 @@ export function startRace({ canvas, hud, car, perf, event, onFinish }) {
   }
 
   // Player starts at the back of the grid.
-  const startS = -50 - 3 * 60;
+  const startS = -50 - AI_COUNT * 60;
   const sp = sampleAt(track, startS);
   const player = {
     x: sp.x + sp.nx * 28, y: sp.y + sp.ny * 28,

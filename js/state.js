@@ -1,6 +1,6 @@
 // Game state, car generation, performance math, economy and save/load.
 import {
-  START_MONEY, MODELS, COMPONENTS, UPGRADES, SELLERS, SELLER_NOTES, COLORS,
+  START_MONEY, MARKET_PRICE_CAP, MODELS, COMPONENTS, UPGRADES, SELLERS, SELLER_NOTES, COLORS,
   PROBLEM_THRESHOLD, DEAD_THRESHOLD,
 } from './data.js';
 
@@ -23,6 +23,7 @@ export function newState() {
     cars: [],
     activeCarId: null,
     listings: [],
+    inventory: [], // parts bought but not yet installed: { id, carId, kind: 'repair'|'mod', target, price }
     log: [],
     stats: { races: 0, wins: 0, earned: 0, spent: 0 },
   };
@@ -60,12 +61,12 @@ function problemFor(compId) {
   return pick(COMPONENTS.find((c) => c.id === compId).problems);
 }
 
-export function generateCar(model) {
+export function generateCar(model, badChance = 0.3) {
   const cond = {};
   const problems = {};
   // Each component: mostly worn, with a decent chance of a major problem.
   for (const c of COMPONENTS) {
-    const bad = Math.random() < 0.3;
+    const bad = Math.random() < badChance;
     cond[c.id] = bad ? randInt(5, PROBLEM_THRESHOLD - 1) : randInt(45, 95);
     if (cond[c.id] < PROBLEM_THRESHOLD) problems[c.id] = problemFor(c.id);
   }
@@ -108,10 +109,9 @@ export function carValue(car) {
 }
 
 export function repairCost(car, compId) {
+  // A replacement part costs the same no matter how worn the old one is; pricier cars have pricier parts.
   const comp = COMPONENTS.find((c) => c.id === compId);
-  const missing = (100 - car.cond[compId]) / 100;
-  // Fixed cost for parts plus scaled labor/consumables.
-  return Math.round((comp.repair * modelOf(car).parts) * (0.35 + 0.65 * missing) / 10) * 10;
+  return Math.round(comp.repair * modelOf(car).parts / 10) * 10;
 }
 
 export function upgradeCost(car, upId) {
@@ -119,6 +119,12 @@ export function upgradeCost(car, upId) {
   const lvl = car.upgrades[upId];
   if (lvl >= u.max) return null;
   return Math.round(u.cost[lvl] * (0.6 + 0.4 * modelOf(car).parts) / 10) * 10;
+}
+
+// What the ad says: factory numbers, which don't reveal the car's actual condition.
+export function factorySpecs(model) {
+  const driveGrip = { AWD: 1.08, FWD: 1.0, RWD: 0.97 }[model.drive];
+  return { hp: model.hp, weight: model.weight, handling: Math.round(driveGrip * 100), drive: model.drive };
 }
 
 export function canRun(car) {
@@ -144,6 +150,7 @@ export function performance(car) {
   const pw = hp / weight;
   const launch = m.drive === 'AWD' ? 1.1 : m.drive === 'FWD' ? 0.95 : 1;
   const stats = {
+    handling: Math.round(grip * 100),
     hp: Math.round(hp),
     weight: Math.round(weight),
     drive: m.drive,
@@ -186,15 +193,20 @@ export function repair(car, compId) {
 
 export function refreshListings() {
   const listings = [];
-  const n = 7;
+  const n = randInt(6, 10);
   for (let i = 0; i < n; i++) {
-    // Bias toward cheap cars so there is always something in a starter budget.
-    const pool = i < 4 ? MODELS.filter((m) => m.price <= 14000) : MODELS;
-    const model = pick(pool);
-    const car = generateCar(model);
+    // Everything listed is under the price cap. Nice cars only get there by being wrecks,
+    // so keep rolling until we get a car + condition combo that is cheap enough.
+    let car, price;
+    for (let tries = 0; tries < 60; tries++) {
+      const model = tries < 50 ? pick(MODELS) : MODELS[0];
+      car = generateCar(model, rand(0.3, 0.85));
+      price = Math.round(carValue(car) * rand(0.8, 1.15) / 50) * 50;
+      if (price <= MARKET_PRICE_CAP) break;
+    }
+    price = Math.min(price, MARKET_PRICE_CAP);
     // Sellers hide some of the mechanical problems unless you pay for an inspection.
-    const hidden = ['engine', 'trans', 'susp', 'brakes'].filter(() => Math.random() < 0.45);
-    const price = Math.round(carValue(car) * rand(0.8, 1.15) / 50) * 50;
+    const hidden = ['engine', 'trans', 'susp', 'brakes', 'tires'].filter(() => Math.random() < 0.45);
     listings.push({
       id: uid(), car, price: Math.max(price, 600), hidden,
       seller: pick(SELLERS), notes: pick(SELLER_NOTES), inspected: false,
