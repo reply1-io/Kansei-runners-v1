@@ -23,9 +23,10 @@ function rivalColors(mine) {
 }
 const HB_RADIUS = 15; // rivals pull the handbrake where their line is tighter than this
 
-// Locked chase camera: fixed high up behind the car, looking down the road over the treetops.
+// Locked chase camera: fixed high up behind the car with a wide 90° view, looking down the road over the
+// treetops so you can see the next corners (a narrower view loses bends off the sides of a tall phone screen).
 // It never swings or lags; it turns exactly with the car. The car sits low in the frame, above the pedals.
-const CAM = { height: 12.5, back: 10, ahead: 5, fov: 72, fovLandscape: 56 };
+const CAM = { height: 14, back: 5.4, ahead: 8.5, fov: 90, fovLandscape: 70 };
 
 let retro = null, world = null, camera = null;
 
