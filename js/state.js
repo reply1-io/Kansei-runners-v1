@@ -39,7 +39,15 @@ export function save() {
 export function load() {
   try {
     const raw = localStorage.getItem(SAVE_KEY);
-    if (raw) { state = Object.assign(newState(), JSON.parse(raw)); return true; }
+    if (raw) {
+      state = Object.assign(newState(), JSON.parse(raw));
+      // Older saves had made-up car names; swap them for the closest real car.
+      const OLD = { camra: 'volvo242', accordo: 'mb190e', civix: 'e30', roadstar: 'e30', kaze86: 'e30', s13: 's180sx', fc: 'supra', s14: 's180sx', wrx: 'r32', evo: 'r32', supremo: 'supra' };
+      const fix = (car) => { if (!MODELS.some((m) => m.id === car.modelId)) car.modelId = OLD[car.modelId] || 'e30'; };
+      state.cars.forEach(fix);
+      if (state.listings.some((l) => !MODELS.some((m) => m.id === l.car.modelId))) refreshListings();
+      return true;
+    }
   } catch (e) { /* ignore corrupt save */ }
   state = newState();
   return false;
@@ -81,7 +89,7 @@ export function generateCar(model, badChance = 0.3) {
     id: uid(),
     modelId: model.id,
     year: randInt(model.years[0], model.years[1]),
-    color: pick(COLORS),
+    color: pick(model.colors || COLORS),
     miles: randInt(90, 260) * 1000,
     cond, problems, upgrades,
   };

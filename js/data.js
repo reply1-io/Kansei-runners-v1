@@ -1,24 +1,25 @@
-// Static game data: car models, components, upgrades, events, tracks.
-// Brand names are fictional on purpose.
+// Static game data: cars, components, upgrades, races.
 
 export const START_MONEY = 5000;
 export const INSPECTION_COST = 80;
 export const MARKET_PRICE_CAP = 5000; // every Marketplace listing is under this
 
-// body: which low-poly body style the car uses (see js/carmodel.js); wing: 0 none, 1 lip, 2 tall.
+// body: which low-poly body style the car uses (see js/// The cars you can find for under $5k. Specs are the real factory numbers (hp, kg, layout); `price` is
+// what a clean one is worth in-game, so the pricier ones only show up in your budget as project cars.
+// The 3D model for each is in js/carmodel.js (by id). `colors` are period-correct paint colors.
 export const MODELS = [
-  { id: 'camra',   name: 'Toyoda Camra',        years: [1992, 1996], hp: 130, weight: 1400, drive: 'FWD', price: 3200,  parts: 0.6, body: 'sedan' },
-  { id: 'accordo', name: 'Hondo Accordo',       years: [1990, 1993], hp: 140, weight: 1330, drive: 'FWD', price: 3600,  parts: 0.6, body: 'sedan' },
-  { id: 'civix',   name: 'Hondo Civix EG',      years: [1992, 1995], hp: 125, weight: 1050, drive: 'FWD', price: 6000,  parts: 0.7, body: 'hatch' },
-  { id: 'roadstar',name: 'Mazdo Roadstar NA',   years: [1990, 1997], hp: 115, weight: 960,  drive: 'RWD', price: 7000,  parts: 0.7, body: 'roadster' },
-  { id: 'kaze86',  name: 'Toyoda Kaze 86',      years: [1984, 1987], hp: 112, weight: 950,  drive: 'RWD', price: 12000, parts: 0.9, body: 'hatch' },
-  { id: 's13',     name: 'Nissaka 240S',        years: [1989, 1994], hp: 155, weight: 1250, drive: 'RWD', price: 10000, parts: 0.9, body: 'coupe' },
-  { id: 'fc',      name: 'Mazdo RX-7 FC',       years: [1986, 1991], hp: 180, weight: 1220, drive: 'RWD', price: 14000, parts: 1.1, body: 'fastback' },
-  { id: 's14',     name: 'Nissaka Silvio S14',  years: [1995, 1998], hp: 220, weight: 1240, drive: 'RWD', price: 18000, parts: 1.1, body: 'coupe', wing: 1 },
-  { id: 'wrx',     name: 'Subaro Impreza WRX',  years: [1994, 2000], hp: 225, weight: 1250, drive: 'AWD', price: 16000, parts: 1.2, body: 'rally', wing: 1 },
-  { id: 'evo',     name: 'Mitsuba Lancer Evo',  years: [1996, 2001], hp: 276, weight: 1260, drive: 'AWD', price: 32000, parts: 1.5, body: 'rally', wing: 2 },
-  { id: 'r32',     name: 'Nissaka Skyliner R32',years: [1989, 1994], hp: 276, weight: 1430, drive: 'AWD', price: 45000, parts: 1.8, body: 'coupe', wing: 1 },
-  { id: 'supremo', name: 'Toyoda Supremo MK4',  years: [1993, 1998], hp: 320, weight: 1500, drive: 'RWD', price: 60000, parts: 2.0, body: 'gt', wing: 2 },
+  { id: 'volvo242', name: 'Volvo 242',                 years: [1980, 1980], hp: 107, weight: 1250, drive: 'RWD', price: 4200,  parts: 0.6,
+    colors: ['#c9b58a', '#2f4a36', '#8fa9c4', '#8c1f1c', '#e8e4d8', '#3a3a3a'] },
+  { id: 'mb190e',   name: 'Mercedes-Benz 190E 2.3',    years: [1985, 1990], hp: 130, weight: 1200, drive: 'RWD', price: 5500,  parts: 0.8,
+    colors: ['#b9bcc0', '#1c2433', '#e9e6dc', '#5a1d22', '#6f7f86', '#161616'] },
+  { id: 'e30',      name: 'BMW 325i',                  years: [1987, 1987], hp: 168, weight: 1230, drive: 'RWD', price: 7000,  parts: 0.8,
+    colors: ['#f2f2ee', '#b3231e', '#141414', '#1d3a6b', '#9aa3a8', '#2c4a3b'] },
+  { id: 'supra',    name: 'Toyota Supra Turbo (Mk3)',  years: [1987, 1992], hp: 230, weight: 1600, drive: 'RWD', price: 8000,  parts: 1.1,
+    colors: ['#f0f0ec', '#b4161b', '#141414', '#27427a', '#8f959b'] },
+  { id: 's180sx',   name: 'Nissan 180SX',              years: [1991, 1994], hp: 202, weight: 1220, drive: 'RWD', price: 9000,  parts: 0.9,
+    colors: ['#f2f2ee', '#a81a1e', '#141414', '#3c4a8a', '#b8bcc2'] },
+  { id: 'r32',      name: 'Nissan Skyline GTS-t (R32)', years: [1989, 1993], hp: 212, weight: 1340, drive: 'RWD', price: 11000, parts: 1.0,
+    colors: ['#5e6267', '#f2f2ee', '#141414', '#7a1418', '#2b3d63'] },
 ];
 
 export const COMPONENTS = [

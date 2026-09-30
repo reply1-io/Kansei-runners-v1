@@ -24,15 +24,16 @@ function rivalColors(mine) {
 }
 const HB_RADIUS = 15; // rivals pull the handbrake where their line is tighter than this
 
-// Locked camera: rigidly behind the car, tilted just enough off vertical to see its rear.
-const CAM = { height: 34, back: 8.5, ahead: 7.5 };
+// Locked camera: close above and just behind the car, tilted enough off vertical to see its rear,
+// with a wide 90° field of view. (Looking ~60° down: the car sits in the lower third of the screen.)
+const CAM = { height: 8.5, back: 2.0, ahead: 2.9, fov: 90, fovLandscape: 75 };
 
 let retro = null, world = null, camera = null;
 
 function ensure3D(canvas, net) {
   if (!retro) {
     retro = getRetro(canvas);
-    camera = new THREE.PerspectiveCamera(62, 1, 1, 900);
+    camera = new THREE.PerspectiveCamera(90, 1, 0.3, 900);
   }
   world = getWorld(net);
 }
@@ -193,7 +194,7 @@ export function startDrive({ canvas, hud, car, perf, rivalBase, mode, event, dif
     void dpr;
     retro.resize();
     camera.aspect = retro.aspect;
-    camera.fov = camera.aspect < 0.8 ? 66 : 50;
+    camera.fov = camera.aspect < 0.8 ? CAM.fov : CAM.fovLandscape;
     camera.updateProjectionMatrix();
   };
   resize();
@@ -500,7 +501,7 @@ export function startDrive({ canvas, hud, car, perf, rivalBase, mode, event, dif
   let rpmShown = 900;
   function drawTach() {
     const W = 150, H = 112, sc = 2;
-    if (tach.width !== W * sc) { tach.width = W * sc; tach.height = H * sc; }
+    if (tach.width !== W * sc || tach.height !== H * sc) { tach.width = W * sc; tach.height = H * sc; }
     const speed = Math.hypot(P.vx, P.vz);
     const g = gearFor(speed, spec.top, input.gas && time > 0 ? 1 : 0);
     rpmShown += (g.rpm - rpmShown) * 0.3;

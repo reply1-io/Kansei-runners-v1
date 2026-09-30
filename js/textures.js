@@ -155,6 +155,58 @@ export const rimTex = () => tex('rim', 16, 16, (g) => {
   g.fillStyle = '#e8ebef'; g.fillRect(7, 7, 2, 2);
 }, { repeat: false });
 
+// ---- Real-car details (fronts, rears, wheels) ----
+const lamp = (g, x, y, r, rim = '#9aa0a8', glass = '#fdf8d8') => {
+  g.fillStyle = rim; g.beginPath(); g.arc(x, y, r, 0, 7); g.fill();
+  g.fillStyle = glass; g.beginPath(); g.arc(x, y, r - 1, 0, 7); g.fill();
+  g.fillStyle = '#ffffff'; g.fillRect(Math.round(x - r / 2), Math.round(y - r / 2), 1, 1);
+};
+export const roundLampTex = () => tex('lamp-round', 16, 16, (g) => { g.clearRect(0, 0, 16, 16); lamp(g, 8, 8, 7); }, { repeat: false });
+export const kidneyTex = () => tex('kidney', 16, 8, (g) => {
+  g.fillStyle = '#c9ced6'; g.fillRect(1, 0, 6, 8); g.fillRect(9, 0, 6, 8);
+  g.fillStyle = '#15171a'; g.fillRect(2, 1, 4, 6); g.fillRect(10, 1, 4, 6);
+  g.fillStyle = '#3c4048'; for (let x = 2; x < 14; x += 2) if (x !== 8) g.fillRect(x, 1, 1, 6);
+}, { repeat: false });
+export const volvoGrilleTex = () => tex('volvo-grille', 32, 12, (g) => {
+  g.fillStyle = '#d6dae0'; g.fillRect(0, 0, 32, 12);
+  g.fillStyle = '#1a1c20'; g.fillRect(1, 1, 30, 10);
+  g.fillStyle = '#50545c'; for (let x = 2; x < 31; x += 2) g.fillRect(x, 1, 1, 10);
+  g.strokeStyle = '#d6dae0'; g.lineWidth = 1.5; g.beginPath(); g.moveTo(3, 11); g.lineTo(29, 1); g.stroke();
+  g.fillStyle = '#d6dae0'; g.beginPath(); g.arc(16, 6, 2.5, 0, 7); g.fill();
+}, { repeat: false });
+export const mercGrilleTex = () => tex('merc-grille', 16, 16, (g) => {
+  g.fillStyle = '#e1e5ea'; g.fillRect(0, 0, 16, 16);
+  g.fillStyle = '#16181c'; g.fillRect(2, 3, 12, 12);
+  g.fillStyle = '#b8bec6'; for (let y = 4; y < 15; y += 2) g.fillRect(2, y, 12, 1);
+  g.fillStyle = '#ffffff'; g.fillRect(7, 0, 2, 3); g.fillRect(6, 1, 4, 1);
+}, { repeat: false });
+export const blackGrilleTex = () => tex('black-grille', 32, 8, (g) => {
+  g.fillStyle = '#101113'; g.fillRect(0, 0, 32, 8);
+  g.fillStyle = '#2b2e33'; for (let x = 0; x < 32; x += 2) for (let y = (x / 2) % 2; y < 8; y += 2) g.fillRect(x, y, 1, 1);
+}, { repeat: false });
+export const rectLampTex = () => tex('lamp-rect', 16, 8, (g) => {
+  g.fillStyle = '#9aa0a8'; g.fillRect(0, 0, 16, 8); g.fillStyle = '#fdf8d8'; g.fillRect(1, 1, 14, 6);
+  g.fillStyle = '#d8d2b0'; for (let x = 2; x < 15; x += 3) g.fillRect(x, 1, 1, 6); g.fillStyle = '#f0a020'; g.fillRect(13, 1, 2, 6);
+}, { repeat: false });
+export const tailBarTex = () => tex('tail-bar', 32, 6, (g) => {
+  g.fillStyle = '#1a0a0a'; g.fillRect(0, 0, 32, 6); g.fillStyle = '#c01818'; g.fillRect(1, 1, 30, 4);
+  g.fillStyle = '#ff5a3a'; g.fillRect(2, 2, 11, 1); g.fillRect(19, 2, 11, 1); g.fillStyle = '#e8e8e8'; g.fillRect(13, 1, 6, 4);
+}, { repeat: false });
+export const roundTailTex = () => tex('tail-round', 16, 16, (g) => { g.clearRect(0, 0, 16, 16); lamp(g, 8, 8, 7, '#2a2a2a', '#c8141a'); g.fillStyle = '#ff6a50'; g.beginPath(); g.arc(8, 8, 3, 0, 7); g.fill(); }, { repeat: false });
+export const ribbedTailTex = () => tex('tail-ribbed', 16, 8, (g) => {
+  g.fillStyle = '#b8141a'; g.fillRect(0, 0, 16, 8); g.fillStyle = '#f0a020'; g.fillRect(0, 0, 16, 2);
+  g.fillStyle = '#e8e8e8'; g.fillRect(0, 4, 16, 1); g.fillStyle = '#7a0d10'; for (let y = 1; y < 8; y += 2) g.fillRect(0, y, 16, 1);
+}, { repeat: false });
+export const rimStyleTex = (style) => tex(`rim-${style}`, 16, 16, (g) => {
+  g.fillStyle = '#141414'; g.fillRect(0, 0, 16, 16);
+  g.fillStyle = style === 'mesh' ? '#c7a960' : '#c8ccd2'; g.beginPath(); g.arc(8, 8, 6.5, 0, 7); g.fill();
+  if (style === 'mesh') { g.fillStyle = '#7d6a3a'; for (let i = 3; i < 14; i += 2) { g.fillRect(i, 3, 1, 10); g.fillRect(3, i, 10, 1); } }
+  if (style === 'holes') { g.fillStyle = '#5d6168'; for (let i = 0; i < 12; i++) { const a = (i / 12) * Math.PI * 2; g.fillRect(Math.round(8 + Math.cos(a) * 4.5), Math.round(8 + Math.sin(a) * 4.5), 1, 1); } }
+  if (style === 'turbine') { g.strokeStyle = '#6d7178'; g.lineWidth = 1; for (let i = 0; i < 8; i++) { const a = (i / 8) * Math.PI * 2; g.beginPath(); g.moveTo(8, 8); g.lineTo(8 + Math.cos(a + 0.5) * 6, 8 + Math.sin(a + 0.5) * 6); g.stroke(); } }
+  if (style === '5spoke') { g.fillStyle = '#4d5158'; for (let i = 0; i < 5; i++) { const a = (i / 5) * Math.PI * 2 + 0.6; g.fillRect(Math.round(8 + Math.cos(a) * 4) - 1, Math.round(8 + Math.sin(a) * 4) - 1, 2, 2); } }
+  g.fillStyle = '#e8ebef'; g.fillRect(7, 7, 2, 2);
+}, { repeat: false });
+
 // Environment map for glossy paint: sky above, horizon haze, ground below.
 let env = null;
 export function envCube() {
