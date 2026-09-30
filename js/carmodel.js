@@ -38,9 +38,13 @@ const CARS = {
               ws0: 0.4, ws1: 1.2, rf1: 2.26, rw0: 2.86, sg: 2.48, nose: 0.72, cowl: 0.9, beltR: 0.98, tail: 1.0, tumble: 0.2, taper: 0.1, doors: 4,
               front: 'mercedes', lights: 'rect', tails: 'ribbed', bumper: 'cladding', rim: 'holes', plate: 'us', chromeTrim: true, extras: ['gutters', 'fogs'] },
   // Nissan 180SX: 4540 x 1690 x 1290, wb 2475, track 1465/1460, 195/60R15
-  s180sx:   { L: 4.54, W: 1.69, H: 1.29, wb: 2.475, fo: 0.93, track: 1.46, tireR: 0.307, tireW: 0.195, sill: 0.18,
-              ws0: 0.42, ws1: 1.28, rf1: 1.98, rw0: 3.3, sg: 2.52, nose: 0.6, cowl: 0.84, beltR: 0.94, tail: 0.94, tumble: 0.22, taper: 0.18, doors: 2,
-              front: 'slot', lights: 'popup', tails: 'bar', bumper: 'body', rim: '5spoke', plate: 'jp', spoiler: 'lip', extras: ['markers'] },
+  // Profile measured off side/front/rear photos: windshield well back, short roof ending at the B-pillar,
+  // long hatch glass down to a short deck with the big rear wing, pop-up lids on the hood corners,
+  // deep front bumper with a wide intake, twin tail-lamp units with a garnish panel between.
+  s180sx:   { L: 4.54, W: 1.69, H: 1.29, wb: 2.475, fo: 0.93, track: 1.46, tireR: 0.307, tireW: 0.195, sill: 0.18, arch: 0.33,
+              ws0: 0.68, ws1: 1.21, rf1: 1.85, rw0: 3.0, sg: 2.67, bpillar: 1.82, nose: 0.63, cowl: 0.86, beltR: 0.96, tail: 0.9, tumble: 0.24, taper: 0.18, doors: 2, beltIn: 0.1,
+              bumperF: [0.41, 0.42], bumperR: [0.45, 0.24], intake: [1.18, 0.1, 0.24], popupLamp: [0.1, 0.06, 0.36, 0.51], tailY: 0.72, tailZ: 0.6, plateY: 0.46, mirrorBack: 0.15, blackMirrors: true,
+              front: 'none', lights: 'popup', tails: 'twin', bumper: 'body', rim: '5spoke', plate: 'jp', spoiler: 'wing', extras: ['markers'] },
   // Toyota Supra Turbo (A70): 4620 x 1745 x 1300, wb 2595, track 1480/1500, 225/50R16
   supra:    { L: 4.62, W: 1.745, H: 1.3, wb: 2.595, fo: 0.93, track: 1.49, tireR: 0.316, tireW: 0.225, sill: 0.18,
               ws0: 0.52, ws1: 1.36, rf1: 2.14, rw0: 3.4, sg: 2.78, nose: 0.6, cowl: 0.86, beltR: 0.95, tail: 0.95, tumble: 0.22, taper: 0.18, doors: 2,
@@ -194,7 +198,7 @@ export function makeCarMesh(color, modelId) {
   for (const s of [-1, 1]) {
     bar([wsBase - 0.02, b.belt, s * beltW(wsBase)], [roofF, b.roof, s * roofW(roofF)], 0.07, 0.07, paint);                  // A-pillar
   }
-  const bX = roofR + (roofF - roofR) * (liftback ? 0.62 : b.doors === 4 ? 0.48 : 0.42);
+  const bX = b.bpillar ? at(b.bpillar) : roofR + (roofF - roofR) * (liftback ? 0.62 : b.doors === 4 ? 0.48 : 0.42);
   for (const s of [-1, 1]) {
     bar([bX, b.belt, s * beltW(bX)], [bX, b.roof, s * roofW(bX)], 0.09, 0.05, black);                                     // B-pillar
     bar([wsBase, b.cowl, s * (beltW(0) + 0.012)], [rwBase, b.beltR, s * (beltW(0) + 0.012)], 0.02, 0.025, b.chromeTrim ? chrome : black); // window trim
@@ -264,7 +268,7 @@ export function makeCarMesh(color, modelId) {
     box(0.1, rhB, 2 * hw(xR) - 0.01, paint, xR + 0.03, ryB, 0);
     box(0.1, ih, iw, black, xF + 0.02, iy, 0);
   }
-  const bumperX = b.bumper === 'big' ? 0.22 : b.bumper === 'us' ? bo + 0.01 : 0.09;
+  const bumperX = b.bumper === 'big' ? 0.22 : b.bumper === 'us' ? bo + 0.01 : b.bumperF ? 0.02 : 0.09;
   if (b.extras?.includes('mudflaps')) for (const ax of axles) for (const s of [-1, 1]) box(0.02, 0.22, 0.2, black, ax - ARCH_R - 0.02, 0.26, s * b.track / 2);
 
   // ---- front: grille, headlights, fogs, plate ----
@@ -292,9 +296,11 @@ export function makeCarMesh(color, modelId) {
     // Closed pop-up headlights: lids set into the front of the hood, outlined by a dark seam.
     const lx = xF - 0.32, ly = top(lx);
     for (const s of [-1, 1]) {
-      box(0.42, 0.02, 0.42, black, lx, ly + 0.012, s * (W / 2 - 0.34));
-      box(0.38, 0.03, 0.38, paint, lx, ly + 0.024, s * (W / 2 - 0.34));
-      face(0.26, 0.06, decal('amberlamp', rectLampTex()), xF + 0.03, 0.46, s * (W / 2 - 0.32));
+      const tilt = Math.atan((top(lx + 0.1) - top(lx - 0.1)) / 0.2); // lie flat on the sloping hood
+      box(0.42, 0.02, 0.42, black, lx, ly + 0.012, s * (W / 2 - 0.34)).rotation.z = tilt;
+      box(0.38, 0.03, 0.38, paint, lx, ly + 0.024, s * (W / 2 - 0.34)).rotation.z = tilt;
+      const [pw, ph, py, pz] = b.popupLamp || [0.26, 0.06, 0.46, W / 2 - 0.32];
+      face(pw, ph, decal('amberlamp', rectLampTex()), xF + 0.03, py, s * pz);
     }
   }
   if (b.extras?.includes('fogs')) for (const s of [-1, 1]) face(0.1, 0.1, decal('lamp', roundLampTex()), xF + bumperX + 0.02, 0.4, s * (W / 2 - 0.42));
@@ -308,6 +314,11 @@ export function makeCarMesh(color, modelId) {
   if (b.tails === 'volvo') for (const s of [-1, 1]) face(0.33, 0.16, tailWith(taillightTex()), bx, ty, s * b.tailZ, 'back');
   if (b.tails === 'tall') for (const s of [-1, 1]) face(0.26, 0.26, tailWith(ribbedTailTex()), bx, ty - 0.04, s * (W / 2 - 0.2), 'back');
   if (b.tails === 'ribbed') for (const s of [-1, 1]) face(0.5, 0.2, tailWith(ribbedTailTex()), bx, ty, s * (W / 2 - 0.3), 'back');
+  if (b.tails === 'twin') {
+    // Two big lamp units with a dark garnish panel between them.
+    for (const s of [-1, 1]) face(0.5, 0.24, tailWith(roundTailTex()), bx, ty, s * b.tailZ, 'back');
+    face(0.66, 0.07, black, bx, ty + 0.05, 0, 'back');
+  }
   if (b.tails === 'bar') face(W - 2 * b.taper - 0.05, 0.12, tailWith(tailBarTex()), bx, ty, 0, 'back');
   if (b.tails === 'hatch') for (const s of [-1, 1]) {
     // Tall lamps in the rear corners, wrapping onto the sides.
@@ -316,9 +327,17 @@ export function makeCarMesh(color, modelId) {
     face(0.14, 0.3, tailWith(ribbedTailTex()), sx, b.tailY ?? b.tail - 0.24, s * (hw(sx) + 0.003), s > 0 ? 'right' : 'left');
   }
   if (b.tails === 'quadround') for (const z of [-0.6, -0.4, 0.4, 0.6]) face(0.17, 0.17, tailWith(roundTailTex()), bx, ty, z, 'back');
-  face(0.34, 0.14, decal(`plate-${b.plate}`, plateTex(b.plate)), bx - 0.001, b.plateY ?? Math.min(ty - 0.16, 0.66), 0, 'back');
+  const py = b.plateY ?? Math.min(ty - 0.16, 0.66), onBumper = b.bumperR && py < b.bumperR[0] + b.bumperR[1] / 2;
+  face(0.34, 0.14, decal(`plate-${b.plate}`, plateTex(b.plate)), onBumper ? xR - 0.025 : bx - 0.001, py, 0, 'back');
   const pipe = once('pipe', () => { const c = new THREE.CylinderGeometry(0.04, 0.04, 0.18, 8); c.rotateZ(Math.PI / 2); return c; });
   for (let i = 0; i < (b.exhausts || 1); i++) add(pipe, chrome, xR - 0.04 - bo * 0.7, b.exhaustY ?? 0.3, (b.exhausts === 2 ? -0.42 - i * 0.1 : b.exhaustZ ?? -0.45));
+  if (b.spoiler === 'wing') {
+    // Big rear wing on uprights at the outer ends of the deck, rising towards its trailing edge.
+    const wy = b.tail + 0.16, wx = xR + 0.2;
+    const blade = box(0.3, 0.035, W - 0.18, paint, wx, wy, 0);
+    blade.rotation.z = 0.12;
+    for (const z of [-1, 1]) box(0.24, 0.16, 0.04, paint, wx + 0.02, b.tail + 0.07, z * (W / 2 - 0.13));
+  }
   if (b.spoiler === 'lip') box(0.16, 0.05, W - 0.4, paint, xR + 0.12, b.tail + 0.01, 0);
   if (b.spoiler === 'roof') {
     // Big roof spoiler overhanging the hatch glass, with a dark centre (the brake light).
@@ -337,7 +356,7 @@ export function makeCarMesh(color, modelId) {
   // ---- mirrors ----
   for (const s of [-1, 1]) {
     const mx = wsBase - (b.mirrorBack || 0.12);
-    const mMat = b.chromeTrim && !b.paintMirrors ? black : paint;
+    const mMat = (b.chromeTrim && !b.paintMirrors) || b.blackMirrors ? black : paint;
     if (b.smallMirrors) {
       // Small mirrors on short stalks at the glass line, standing just proud of the door.
       box(0.06, 0.03, hw(mx) - beltW(mx) + 0.02, black, mx, b.belt + 0.03, s * ((hw(mx) + beltW(mx)) / 2 + 0.01));
