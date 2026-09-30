@@ -523,6 +523,21 @@ phoneWrap.addEventListener('click', (e) => { if (e.target === phoneWrap) closePh
 // Browsers only allow sound after a tap.
 document.addEventListener('pointerdown', unlockAudio, { passive: true });
 
+// Full screen (Android / desktop browsers; iPhone Safari has no full-screen API for pages, so the
+// button hides there and "Add to Home Screen" is the way to play without the browser bars).
+const fsEl = document.documentElement;
+const canFullscreen = !!(fsEl.requestFullscreen || fsEl.webkitRequestFullscreen) && (document.fullscreenEnabled || document.webkitFullscreenEnabled);
+if (!canFullscreen || window.matchMedia('(display-mode: fullscreen), (display-mode: standalone)').matches) document.body.classList.add('no-fullscreen');
+function toggleFullscreen() {
+  const on = document.fullscreenElement || document.webkitFullscreenElement;
+  try {
+    if (on) (document.exitFullscreen || document.webkitExitFullscreen).call(document);
+    else Promise.resolve((fsEl.requestFullscreen || fsEl.webkitRequestFullscreen).call(fsEl, { navigationUI: 'hide' }))
+      .then(() => screen.orientation?.lock?.('portrait')).catch(() => {});
+  } catch (err) { /* not allowed here (e.g. inside a frame without permission) */ }
+}
+document.addEventListener('click', (e) => { if (e.target.closest('[data-fullscreen]')) { e.stopPropagation(); toggleFullscreen(); } }, true);
+
 document.body.addEventListener('click', (e) => {
   const el = e.target.closest('[data-action]');
   if (!el || el.closest('#modal')) return;

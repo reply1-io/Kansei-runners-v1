@@ -57,6 +57,11 @@ python3 -m http.server 8000
 - **Phone:** connect to the same Wi-Fi, then open `http://<your-computer's-IP>:8000`
 - **Hosted:** any static host works (GitHub Pages, Netlify and so on). Point it at the repo root.
 
+### Full screen
+
+- **Android / desktop:** tap the **⛶** button (top right at home, next to 🔊 in a race).
+- **iPhone / any phone, best option:** open the hosted game in the browser (Safari: Share → **Add to Home Screen**; Chrome: ⋮ → **Add to Home screen** / **Install app**). Launched from its icon, it runs full screen with no browser bars (it ships a web app manifest and icons). iPhone Safari doesn't allow web pages to go full screen any other way, so the ⛶ button hides there.
+
 ## Code layout: where to add things
 
 | File | What's in it | Add… |

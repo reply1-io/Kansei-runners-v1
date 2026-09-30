@@ -227,6 +227,8 @@ button { font: inherit; color: inherit; cursor: pointer; }
 .hud-pos span { font-family: var(--display); font-style: italic; font-weight: 800; font-size: 22px; color: var(--muted); }
 .hud-time b { display: block; font-size: 22px; line-height: 1.05; color: var(--accent); font-variant-numeric: tabular-nums; }
 .hud-buttons { margin-left: auto; display: flex; gap: 6px; }
+.fs-btn { pointer-events: auto; color: #fff; font-size: 18px; line-height: 1; cursor: pointer; }
+.no-fullscreen [data-fullscreen] { display: none; }
 .hud-exit {
   pointer-events: auto; background: var(--chrome); color: #0b1330; border: 1px solid #1f2b4f; border-radius: var(--radius);
   padding: 6px 10px; font-size: 12px; font-weight: 800; font-style: italic; text-transform: uppercase; box-shadow: inset 0 1px 0 #fff, 0 2px 0 #000;
