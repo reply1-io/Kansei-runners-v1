@@ -1,10 +1,11 @@
 // Home map: a cabin in a clearing deep in the forest, a carport tent, a two-car driveway,
 // and a winding two-lane road out front. Top-down, drawn procedurally on a canvas.
-import { drawCar, roundRectPath, seeded, smoothPath } from './draw.js';
+import { drawCar, roundRectPath, seeded } from './draw.js';
+import { ROAD, ROAD_HALF, U } from './road.js';
 
 // ---- Layout (world units). Tweak positions here. ----
 export const HOME = {
-  focus: { x: 215, y: 215, w: 500, h: 600 },         // what the camera always keeps in view
+  focus: { x: 170, y: 215, w: 520, h: 600 },         // what the camera always keeps in view
   clearing: { x: 455, y: 430, rx: 300, ry: 225 },
   cabin: { x: 440, y: 250, w: 200, h: 150 },
   porch: { x: 470, y: 400, w: 140, h: 44 },
@@ -14,18 +15,18 @@ export const HOME = {
   lane: { x: 294, w: 72, y0: 496, y1: 690 },           // gravel lane from driveway to the road
   firepit: { x: 548, y: 530, r: 18 },
   woodpile: { x: 652, y: 292, w: 26, h: 84 },
-  road: {
-    width: 96, // two 48-unit lanes
-    points: [[-900, 900], [-400, 860], [-100, 700], [140, 770], [330, 675], [540, 722], [720, 830], [920, 700], [1200, 790], [1700, 700], [2100, 780]],
-  },
+  // The road itself comes from js/road.js (the touge); the lane meets it at (330, 675).
 };
+const ROAD_W = (ROAD_HALF * 2) / U; // road width in map units
 
-// Where owned cars park. Spot 0 is under the tent (your selected car).
+// Where owned cars park (backed in, facing the road). Spot 0 is under the tent (your selected car).
+// btn: where that car's Select button sits, relative to the car.
 export const PARKING = [
-  { x: 330, y: 350, label: 'Tent' },
-  { x: 290, y: 454, label: 'Driveway' },
-  { x: 370, y: 454, label: 'Driveway' },
+  { x: 330, y: 350, label: 'Tent', btn: { dx: -78, dy: 0 } },
+  { x: 290, y: 454, label: 'Driveway', btn: { dx: -62, dy: 0 } },
+  { x: 370, y: 454, label: 'Driveway', btn: { dx: 70, dy: 0 } },
 ];
+const PARK_HEADING = Math.PI / 2;
 
 const CAR = { len: 50, wid: 25 };
 const PALETTE = {
@@ -43,10 +44,11 @@ export function parkingAssignments(cars, activeId) {
   return PARKING.map((spot, i) => ({ spot, index: i, car: ordered[i] || null }));
 }
 
-export function createMap(canvas, { getCars, getActiveId, onTap }) {
+export function createMap(canvas, { getCars, getActiveId, onTap, onSelect, buttonsEl }) {
   const ctx = canvas.getContext('2d');
-  const road = smoothPath(HOME.road.points, 10);
+  const road = ROAD.samples.map((p) => ({ x: p.x / U, y: p.z / U, nx: p.nx, ny: p.nz, tx: p.tx, ty: p.tz, d: p.s / U }));
   const roadLen = road[road.length - 1].d;
+  const homeD = ROAD.homeS / U;
   const trees = makeTrees(road);
   const staticLayer = document.createElement('canvas');
   const cam = { s: 1, cx: 0, cy: 0, W: 0, H: 0, dpr: 1 };
@@ -128,12 +130,22 @@ export function createMap(canvas, { getCars, getActiveId, onTap }) {
       c.strokeStyle = color; c.lineWidth = width; c.setLineDash(dash || []); c.stroke(); c.setLineDash([]);
     };
     c.lineJoin = 'round'; c.lineCap = 'round';
-    strokeRoad(0, HOME.road.width + 22, PALETTE.shoulder);
-    strokeRoad(0, HOME.road.width, PALETTE.asphalt);
-    strokeRoad(-HOME.road.width / 2 + 5, 2.5, PALETTE.line);
-    strokeRoad(HOME.road.width / 2 - 5, 2.5, PALETTE.line);
+    strokeRoad(0, ROAD_W + 22, PALETTE.shoulder);
+    strokeRoad(0, ROAD_W, PALETTE.asphalt);
+    strokeRoad(-ROAD_W / 2 + 5, 2.5, PALETTE.line);
+    strokeRoad(ROAD_W / 2 - 5, 2.5, PALETTE.line);
     strokeRoad(-2.5, 2, PALETTE.yellow);
     strokeRoad(2.5, 2, PALETTE.yellow);
+    // Touge start/finish line in front of the cabin.
+    const sl = sampleRoad(ROAD.startLineS / U);
+    c.save();
+    c.translate(sl.x, sl.y);
+    c.rotate(Math.atan2(sl.ty, sl.tx));
+    for (let i = 0; i * 8 < ROAD_W; i++) for (let j = 0; j < 2; j++) {
+      c.fillStyle = (i + j) % 2 ? '#111' : '#eee';
+      c.fillRect(-8 + j * 8, -ROAD_W / 2 + i * 8, 8, 8);
+    }
+    c.restore();
 
     drawFirepitStones(c);
     drawWoodpile(c, rnd);
@@ -238,12 +250,12 @@ export function createMap(canvas, { getCars, getActiveId, onTap }) {
       trafficT = 4 + Math.random() * 7;
       const dir = Math.random() < 0.5 ? 1 : -1;
       traffic.push({
-        d: dir > 0 ? 0 : roadLen, dir, speed: 170 + Math.random() * 110,
+        d: homeD - dir * 1100, dir, speed: 170 + Math.random() * 110,
         color: ['#c8ccd2', '#8c1c13', '#1d3557', '#e9c46a', '#2a9d8f', '#222'][Math.floor(Math.random() * 6)],
       });
     }
     for (const t of traffic) t.d += t.dir * t.speed * dt;
-    for (let i = traffic.length - 1; i >= 0; i--) if (traffic[i].d < 0 || traffic[i].d > roadLen) traffic.splice(i, 1);
+    for (let i = traffic.length - 1; i >= 0; i--) if (Math.abs(traffic[i].d - homeD) > 1200 || traffic[i].d < 0 || traffic[i].d > roadLen) traffic.splice(i, 1);
 
     for (const r of ripples) r.t += dt;
     while (ripples.length && ripples[0].t > 0.6) ripples.shift();
@@ -276,7 +288,7 @@ export function createMap(canvas, { getCars, getActiveId, onTap }) {
     // Parked cars, with empty spots outlined.
     const spots = parkingAssignments(getCars(), getActiveId());
     for (const { spot, car } of spots) {
-      if (car) drawCar(ctx, spot.x, spot.y, -Math.PI / 2, car.color, { len: CAR.len, wid: CAR.wid });
+      if (car) drawCar(ctx, spot.x, spot.y, PARK_HEADING, car.color, { len: CAR.len, wid: CAR.wid });
       else {
         ctx.strokeStyle = 'rgba(255,255,255,0.28)'; ctx.lineWidth = 2; ctx.setLineDash([6, 6]);
         roundRectPath(ctx, spot.x - CAR.wid / 2 - 5, spot.y - CAR.len / 2 - 5, CAR.wid + 10, CAR.len + 10, 6);
@@ -338,11 +350,32 @@ export function createMap(canvas, { getCars, getActiveId, onTap }) {
     if (hit) { ripples.push({ x: w.x, y: w.y, t: 0 }); onTap(hit); }
   });
 
+  // Select buttons next to each parked car (DOM, so they're real tappable buttons).
+  let btnKey = '';
+  function syncButtons() {
+    if (!buttonsEl) return;
+    const spots = parkingAssignments(getCars(), getActiveId()).filter((x) => x.car);
+    const key = spots.map((x) => x.car.id).join() + `|${cam.W}x${cam.H}`;
+    if (key === btnKey) return;
+    btnKey = key;
+    buttonsEl.innerHTML = spots.map(({ spot, car }) => {
+      const p = worldToScreen(spot.x + spot.btn.dx, spot.y + spot.btn.dy);
+      return `<button class="select-btn" data-select="${car.id}" style="left:${p.x}px;top:${p.y}px">Select</button>`;
+    }).join('');
+  }
+  if (buttonsEl) buttonsEl.addEventListener('click', (e) => {
+    const b = e.target.closest('[data-select]');
+    if (b && onSelect) onSelect(b.dataset.select);
+  });
+
+  const worldToScreen = (x, y) => ({ x: ((x - cam.cx) * cam.s + cam.W / 2) / cam.dpr, y: ((y - cam.cy) * cam.s + cam.H / 2) / cam.dpr });
+
   function loop(now) {
     const dt = Math.min(0.05, (now - (last || now)) / 1000);
     last = now;
     update(dt);
     render();
+    syncButtons();
     if (running) raf = requestAnimationFrame(loop);
   }
 
@@ -356,8 +389,7 @@ export function createMap(canvas, { getCars, getActiveId, onTap }) {
       raf = requestAnimationFrame(loop);
     },
     stop() { running = false; cancelAnimationFrame(raf); },
-    // For tests/debugging: world <-> screen helpers.
-    worldToScreen: (x, y) => ({ x: ((x - cam.cx) * cam.s + cam.W / 2) / cam.dpr, y: ((y - cam.cy) * cam.s + cam.H / 2) / cam.dpr }),
+    worldToScreen,
   };
 }
 
@@ -365,7 +397,7 @@ export function createMap(canvas, { getCars, getActiveId, onTap }) {
 function makeTrees(road) {
   const rnd = seeded(1337);
   const trees = [];
-  const cl = HOME.clearing, half = HOME.road.width / 2;
+  const cl = HOME.clearing, half = ROAD_W / 2;
   const step = 44;
   for (let gy = -700; gy < 1700; gy += step) {
     for (let gx = -1000; gx < 2000; gx += step) {

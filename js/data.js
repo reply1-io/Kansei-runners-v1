@@ -70,27 +70,16 @@ export const SELLER_NOTES = [
 
 export const COLORS = ['#e8e8e8', '#d63031', '#0984e3', '#2d3436', '#fdcb6e', '#00b894', '#6c5ce7', '#e17055', '#b2bec3', '#fab1a0'];
 
-// Race events: you vs 2 AI cars, purse pays 1st and 2nd. aiPace scales opponents' top speed / cornering relative to a baseline.
+// Touge races, all on the road in front of the cabin (see js/road.js).
+// dir: 'up' = cabin -> summit, 'down' = summit -> cabin. rivals: 1-2 AI cars.
+// aiPace scales rival top speed, acceleration and cornering; 1.0 is roughly a well-driven stock 240S.
 export const EVENTS = [
-  { id: 'lot',   name: 'Parking Lot Meet',   track: 'lot',   laps: 2, entry: 50,   purse: [700, 300],          aiPace: 0.74, desc: 'Beaters and bragging rights behind the grocery store.' },
-  { id: 'touge', name: 'Midnight Touge',     track: 'touge', laps: 2, entry: 250,  purse: [2200, 900],         aiPace: 0.92, desc: 'Mountain pass. Tight hairpins, no guardrail forgiveness.' },
-  { id: 'harbor',name: 'Harbor Circuit',     track: 'harbor',laps: 3, entry: 900,  purse: [7000, 2800],        aiPace: 1.1, desc: 'Fast sweepers around the shipping yard. Bring power.' },
-  { id: 'kansei',name: 'Kansei Invitational',track: 'touge', laps: 3, entry: 4000, purse: [35000, 12000],      aiPace: 1.35, desc: 'The best runners in the city. Invite only... or just pay up.' },
+  { id: 'kid-up',   name: 'Local Kid',          dir: 'up',   rivals: ['Kenta'],          aiPace: 0.56, entry: 50,   purse: [650, 0],
+    desc: 'The kid from down the road thinks his wagon can make it to the summit first.' },
+  { id: 'iketani-down', name: 'Downhill Dare',  dir: 'down', rivals: ['Iketani'],        aiPace: 0.74, entry: 200,  purse: [1800, 0],
+    desc: 'Summit to your driveway. Downhill means brakes and nerve.' },
+  { id: 'ryo-up',   name: 'Night Hillclimb',    dir: 'up',   rivals: ['Ryo', 'Shingo'],  aiPace: 0.95, entry: 800,  purse: [6000, 1500],
+    desc: 'Two of the valley\'s best, full throttle up all five hairpins.' },
+  { id: 'king-down',name: 'Kansei Downhill King',dir: 'down', rivals: ['The Ghost'],     aiPace: 1.2, entry: 3000, purse: [30000, 0],
+    desc: 'Nobody has seen his face. Beat him down the mountain and the road is yours.' },
 ];
-
-// Track control points (closed loop, Catmull-Rom smoothed at load).
-export const TRACKS = {
-  lot: {
-    name: 'Grocery Lot', width: 150, grass: '#3d4a3a', road: '#3a3a40',
-    points: [[0,0],[900,0],[1150,150],[1150,600],[900,750],[600,650],[400,800],[100,800],[-150,600],[-150,200]],
-  },
-  touge: {
-    name: 'Akina-ish Pass', width: 120, grass: '#244a2c', road: '#35353b',
-    points: [[0,0],[500,-100],[900,50],[1000,350],[750,500],[1000,700],[1200,1000],[900,1250],[500,1100],
-             [350,850],[100,1050],[-250,950],[-300,600],[-100,450],[-300,200]],
-  },
-  harbor: {
-    name: 'Harbor Yard', width: 160, grass: '#2e3b45', road: '#3b3d44',
-    points: [[0,0],[1400,-100],[2000,200],[2100,800],[1700,1200],[1100,1000],[800,1400],[200,1500],[-300,1100],[-400,500]],
-  },
-};

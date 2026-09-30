@@ -56,28 +56,3 @@ export function seeded(seed) {
     return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
   };
 }
-
-// Catmull-Rom through control points, sampled every `step` units. Open path (not a loop).
-export function smoothPath(points, step = 8) {
-  const pts = [points[0], ...points, points[points.length - 1]];
-  const out = [];
-  for (let i = 1; i < pts.length - 2; i++) {
-    const [p0, p1, p2, p3] = [pts[i - 1], pts[i], pts[i + 1], pts[i + 2]];
-    const n = Math.max(2, Math.ceil(Math.hypot(p2[0] - p1[0], p2[1] - p1[1]) / step));
-    for (let s = 0; s < n; s++) {
-      const t = s / n, t2 = t * t, t3 = t2 * t;
-      const f = (a, b, c, d) => 0.5 * (2 * b + (-a + c) * t + (2 * a - 5 * b + 4 * c - d) * t2 + (-a + 3 * b - 3 * c + d) * t3);
-      out.push({ x: f(p0[0], p1[0], p2[0], p3[0]), y: f(p0[1], p1[1], p2[1], p3[1]) });
-    }
-  }
-  out.push({ x: points[points.length - 1][0], y: points[points.length - 1][1] });
-  let d = 0;
-  for (let i = 0; i < out.length; i++) {
-    const a = out[i], b = out[Math.min(i + 1, out.length - 1)], prev = out[Math.max(i - 1, 0)];
-    const dx = b.x - prev.x, dy = b.y - prev.y, len = Math.hypot(dx, dy) || 1;
-    a.tx = dx / len; a.ty = dy / len; a.nx = -a.ty; a.ny = a.tx;
-    if (i > 0) d += Math.hypot(a.x - out[i - 1].x, a.y - out[i - 1].y);
-    a.d = d;
-  }
-  return out;
-}

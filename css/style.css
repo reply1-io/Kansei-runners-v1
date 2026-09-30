@@ -194,12 +194,23 @@ button { font: inherit; color: inherit; cursor: pointer; }
 .hud-box { background: rgba(0,0,0,0.55); border-radius: 10px; padding: 6px 10px; text-align: center; min-width: 58px; }
 .hud-box small { display: block; font-size: 10px; color: var(--muted); letter-spacing: 1px; }
 .hud-box b { font-size: 18px; font-variant-numeric: tabular-nums; }
-.hud-retire { margin-left: auto; margin-right: 128px; pointer-events: auto; background: rgba(0,0,0,0.55); border: 1px solid #555; border-radius: 10px; padding: 8px 10px; font-size: 12px; }
+.hud-exit { margin-left: auto; pointer-events: auto; background: rgba(0,0,0,0.55); border: 1px solid #555; border-radius: 10px; padding: 8px 12px; font-size: 13px; font-weight: 700; }
+#hud.cruise .race-only { display: none; }
+.minimap { position: absolute; top: calc(64px + var(--safe-top)); right: 10px; width: 104px; height: 120px; background: rgba(0,0,0,0.45); border-radius: 10px; }
+.hud-togo { position: absolute; top: calc(190px + var(--safe-top)); right: 10px; width: 104px; text-align: center; font-size: 12px; font-weight: 700; color: #ddd; text-shadow: 0 1px 3px #000; }
+#map-buttons { position: absolute; inset: 0; pointer-events: none; }
+.select-btn {
+  position: absolute; transform: translate(-50%, -50%); pointer-events: auto;
+  background: var(--accent); color: #111; border: 0; border-radius: 16px; padding: 7px 12px;
+  font-weight: 800; font-size: 13px; box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+}
+.select-btn:active { transform: translate(-50%, -50%) scale(0.94); }
 .hud-msg { position: absolute; top: 28%; left: 0; right: 0; text-align: center; font-size: 24px; font-weight: 800; text-shadow: 0 3px 10px #000; }
 .hud-msg.big { font-size: 54px; color: var(--accent); }
-.hud-warn { position: absolute; top: calc(78px + var(--safe-top)); left: 12px; color: var(--bad); font-weight: 700; font-size: 13px; text-shadow: 0 2px 4px #000; }
-.hud-speed { position: absolute; bottom: calc(150px + var(--safe-bottom)); left: 0; right: 0; text-align: center; text-shadow: 0 2px 8px #000; }
-.hud-speed b { font-size: 44px; font-weight: 800; font-variant-numeric: tabular-nums; }
+.hud-warn { position: absolute; top: calc(70px + var(--safe-top)); left: 12px; color: var(--bad); font-weight: 700; font-size: 13px; text-shadow: 0 2px 4px #000; }
+.hud-speed { position: absolute; top: calc(212px + var(--safe-top)); right: 10px; width: 104px; text-align: center; text-shadow: 0 2px 8px #000; }
+#hud.cruise .hud-speed { top: calc(192px + var(--safe-top)); }
+.hud-speed b { font-size: 40px; font-weight: 800; font-variant-numeric: tabular-nums; line-height: 1; }
 .hud-speed small { display: block; color: #ccc; letter-spacing: 2px; font-size: 11px; }
 .controls { position: absolute; left: 0; right: 0; bottom: calc(14px + var(--safe-bottom)); display: flex; justify-content: space-between; padding: 0 14px; }
 .ctl-group { display: flex; gap: 12px; }

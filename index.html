@@ -16,6 +16,7 @@
       <span class="map-pill"><small>DAY</small> <b data-map-day></b></span>
       <span class="map-pill money"><b data-map-money></b></span>
     </div>
+    <div id="map-buttons"></div>
     <div class="map-hint" data-map-hint></div>
     <button id="phone-btn" data-action="phone"><span class="pb-ico">📱</span> Phone<span class="pb-dot" data-phone-dot hidden></span></button>
   </div>
@@ -38,11 +39,13 @@
     <canvas id="race-canvas"></canvas>
     <div id="hud">
       <div class="hud-top">
-        <div class="hud-box"><small>POS</small><b data-pos></b></div>
-        <div class="hud-box"><small>LAP</small><b data-lap></b></div>
-        <div class="hud-box"><small>TIME</small><b data-time></b></div>
-        <button class="hud-retire" data-retire>Retire</button>
+        <div class="hud-box race-only"><small>POS</small><b data-pos></b></div>
+        <div class="hud-box race-only"><small>GAP</small><b data-gap></b></div>
+        <div class="hud-box race-only"><small>TIME</small><b data-time></b></div>
+        <button class="hud-exit" data-exit>Retire</button>
       </div>
+      <canvas class="minimap" data-minimap></canvas>
+      <div class="hud-togo race-only" data-togo></div>
       <div class="hud-msg" data-msg></div>
       <div class="hud-warn" data-warn></div>
       <div class="hud-speed"><b data-speed>0</b><small>MPH</small></div>

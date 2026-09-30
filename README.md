@@ -4,31 +4,34 @@ A mobile-friendly browser game. Buy a junk car with $5,000, fix what's broken, d
 
 ## How to play
 
-You start at **your cabin, deep in the forest**. It has a carport tent that fits one car, a gravel driveway in front of the tent with room for 2 more, and a winding 2-lane road out front. That's 3 parking spots, so you can own up to 3 cars.
+You start at **your cabin, deep in the forest**, shown top-down. It has a carport tent for one car, a gravel driveway in front of it for 2 more, and a mountain road out front. That's 3 parking spots, so you can own up to 3 cars.
 
-- **Tap a parked car** to pull it under the tent as your ride and open it in the Garage.
+**On the map:**
+- **Select** (the yellow button next to each car) puts you in that car and switches to a close 3/4 chase view. Drive down the lane onto the road and go wherever you like. Tap **🏠 Park** to go home.
+- **Tap a parked car** to open it in the Garage.
 - **Tap an empty spot** to open the Marketplace.
-- **Tap the cabin** to sleep until tomorrow, which brings new Marketplace listings.
-- **Tap 📱 Phone** to pull out your phone. **▾ Put away** puts it back.
+- **Tap the cabin** to sleep until tomorrow, which brings new listings.
+- **📱 Phone** pulls out your phone. **▾ Put away** puts it back.
 
-1. **Open the Marketplace** on your phone. 6–10 used cars under $5k are listed each day, each with a price, factory specs (hp, handling, weight) and condition bars.
-2. **Inspect before you buy ($80).** Striped bars marked `??` are systems the seller didn't disclose. Buy without inspecting and you find out what's wrong on the drive home.
-3. **Open the Parts Shop** and buy parts for anything marked ⚠️: an engine rebuild kit, pads & rotors, a set of 4 tires, and so on. Performance mods are sold here too. Everything you buy goes in your trunk.
-4. **Open the Garage** and tap **Install** (or **Install all**). This is where the car gets fixed and upgraded.
-5. **Open Races** and pick an event. The Parking Lot Meet is the starter race. You race 2 AI cars, and 1st and 2nd place get paid.
-6. **Drive:**
-   - **◀ ▶** (bottom left) steer
-   - **GAS / BRAKE** (bottom right)
+**The road** is a touge: 1.1 km from the cabin to the summit, with 5 hairpins (the tightest is 9.5 m radius), grades up to 10%, and 75 m of climb. Guardrails line the mountain section. Gravity is simulated, so uphill slows you and downhill pulls you into the hairpins.
+
+**The loop:**
+1. **Marketplace:** 6–10 used cars under $5k each day, with a price, factory specs (hp, handling, weight) and condition. Striped `??` bars are hidden problems, so tap **Inspect ($80)** before you buy.
+2. **Parts Shop:** buy parts for anything marked ⚠️, plus performance mods. They go in your trunk.
+3. **Garage:** tap **Install** / **Install all**.
+4. **Touge app:** street races on your road, **uphill** (cabin → summit) or **downhill** (summit → cabin), against 1–2 rivals:
+   - **Kenta** (uphill): a stock beater can beat him.
+   - **Iketani** (downhill): needs a few mods, or clean driving.
+   - **Ryo & Shingo** (uphill night hillclimb): needs a properly modded car.
+   - **The Ghost** (downhill): needs a serious, grip-focused build.
+5. **Drive:**
+   - **◀ ▶** steer
+   - **GAS / BRAKE**
    - On a keyboard, use the arrow keys or WASD.
-   - Stay on the tarmac: grass slows you down and walls damage the car.
-7. **Repeat.** Every race wears the car. Throttle wears the engine and transmission, sliding wears tires, grass wears suspension, and contact damages the body. A worn engine can blow mid-race, which is a DNF. Spend your winnings on repairs and mods, or sell the car (Marketplace → Sell) and move up.
+   - The HUD shows your position, gap to the rival, time, meters to go and a minimap.
+6. Every drive wears the car. Throttle wears the engine and transmission, sliding wears tires, brakes wear on downhills, and guardrails and contact damage the body. A worn engine can blow. Spend your winnings on repairs and mods, or sell and move up.
 
-Other things on the phone:
-- **Sleep** (home screen) advances a day and refreshes the Marketplace.
-- **Bank** shows your stats and history, and has **Start over**.
-- **Messages** has tips from Kenji.
-
-Progress saves automatically in the browser (localStorage), so refreshing won't lose it.
+Progress saves automatically in the browser (localStorage).
 
 ## Running it
 
@@ -46,12 +49,15 @@ python3 -m http.server 8000
 
 | File | What's in it | Add… |
 |---|---|---|
-| `js/data.js` | All content and balance numbers | **Cars** → `MODELS`, **repair parts** → `COMPONENTS`, **mods** → `UPGRADES`, **races** → `EVENTS`, **tracks** → `TRACKS` (a list of control points, smoothed automatically) |
+| `js/data.js` | Content and balance numbers | **Cars** → `MODELS`, **repair parts** → `COMPONENTS`, **mods** → `UPGRADES`, **touge races** → `EVENTS` (direction, rivals, pace, entry, purse) |
+| `js/road.js` | The touge, built from straights and arcs with a grade each (`MOUNTAIN` / `VALLEY` lists) | New hairpins or sections: edit the segment lists. The map, 3D world, races and AI all follow automatically |
 | `js/state.js` | Game state, save/load, car generation, pricing, performance math (condition + mods → hp/grip/brakes) | New stats or economy rules |
-| `js/race.js` | Top-down race: car physics, AI speed profiles, wear, mid-race failures, rendering, touch controls | Race mechanics |
-| `js/main.js` | Phone UI (home screen and every app), plus wiring between the map, phone and races | New apps or screens |
-| `js/map.js` | Home map: cabin, tent, driveway, road, forest, traffic, tap targets. The `HOME` layout and `PARKING` spots are at the top | Move or add scenery and parking spots (more spots = more cars you can own) |
-| `js/draw.js` | Shared canvas helpers: top-down car, seeded random, smooth paths | Shared drawing code |
+| `js/drive.js` | Driving in 3D: car physics (grip, drift, slope gravity), rival AI, chase camera, HUD, controls, wear/failures | Race and driving mechanics |
+| `js/world3d.js` | The 3D scene: terrain shaped around the road, road surface, guardrails, forest, cabin/tent/driveway, car model | Scenery and props |
+| `js/map.js` | Top-down home map: layout (`HOME`), parking spots (`PARKING`), Select buttons, traffic, tap targets | Home layout, more parking spots |
+| `js/main.js` | Phone UI and every app, plus the flow between the map, phone and driving | New apps or screens |
+| `js/draw.js` | Shared 2D canvas helpers | |
+| `lib/three.module.min.js` | [three.js](https://threejs.org) r160 (MIT), vendored so the game needs no install or network | |
 
 For example, to add a car, add one line to `MODELS`:
 

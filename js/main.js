@@ -1,12 +1,14 @@
-// Phone UI: home screen + apps (Marketplace, Parts, Garage, Races, Bank, Messages).
-import { COMPONENTS, UPGRADES, EVENTS, TRACKS, INSPECTION_COST, PROBLEM_THRESHOLD } from './data.js';
+// Phone UI: home screen + apps (Marketplace, Parts, Garage, Touge, Bank, Messages), and the flow
+// between the cabin map, the phone, and driving.
+import { COMPONENTS, UPGRADES, EVENTS, INSPECTION_COST, PROBLEM_THRESHOLD } from './data.js';
 import {
   state, load, save, resetGame, refreshListings, addLog, carName, modelOf, carValue,
   repairCost, upgradeCost, repair, performance, factorySpecs, canRun, applyWear, activeCar,
   spend, earn, nextDay, money, clamp, uid,
 } from './state.js';
-import { startRace, fmtTime } from './race.js';
-import { createMap, PARKING } from './map.js';
+import { startDrive, fmtTime } from './drive.js';
+import { createMap, PARKING, parkingAssignments } from './map.js';
+import { U } from './road.js';
 
 const screen = document.getElementById('screen');
 const modalEl = document.getElementById('modal');
@@ -117,7 +119,7 @@ function renderHome() {
     carCard = `<div class="hint">You've got <b>${money(state.money)}</b>, a cabin in the woods, and no car. Open <b>Marketplace</b> and find something in your budget. Cheap usually means broken — that's the point.</div>`;
   }
   const apps = [
-    ['market', '🚗', 'Marketplace'], ['parts', '🔧', 'Parts Shop'], ['garage', '🏠', 'Garage'], ['races', '🏁', 'Races'],
+    ['market', '🚗', 'Marketplace'], ['parts', '🔧', 'Parts Shop'], ['garage', '🏠', 'Garage'], ['races', '🏔️', 'Touge'],
     ['bank', '💵', 'Bank'], ['msgs', '💬', 'Messages'],
   ];
   return `<div class="home">
@@ -245,25 +247,26 @@ function renderRaces() {
   const car = activeCar();
   const perf = car && performance(car);
   const cards = EVENTS.map((ev) => {
-    const stars = Math.round(clamp((ev.aiPace - 0.7) / 0.13, 1, 5));
+    const stars = Math.round(clamp((ev.aiPace - 0.5) / 0.13, 1, 5));
+    const route = ev.dir === 'up' ? '⬆️ Uphill · cabin → summit' : '⬇️ Downhill · summit → cabin';
     return `<div class="card">
       <div class="row between"><h2>${ev.name}</h2><span>${'★'.repeat(stars)}<span class="muted">${'★'.repeat(5 - stars)}</span></span></div>
-      <div class="small muted">${TRACKS[ev.track].name} · ${ev.laps} laps</div>
+      <div class="small muted">${route} · vs ${ev.rivals.map(esc).join(' & ')}</div>
       <div class="notes">${ev.desc}</div>
       <div class="stats">
         <div class="stat"><b>${money(ev.entry)}</b><small>Entry</small></div>
-        <div class="stat"><b style="color:var(--good)">${money(ev.purse[0])}</b><small>1st</small></div>
-        <div class="stat"><b>${money(ev.purse[1])}</b><small>2nd</small></div>
+        <div class="stat"><b style="color:var(--good)">${money(ev.purse[0])}</b><small>Win</small></div>
+        <div class="stat"><b>${ev.purse[1] ? money(ev.purse[1]) : '—'}</b><small>2nd</small></div>
       </div>
-      <div class="btns"><button class="btn primary" data-action="race" data-arg="${ev.id}" ${!car || ev.entry > state.money ? 'disabled' : ''}>Enter race</button></div>
+      <div class="btns"><button class="btn primary" data-action="race" data-arg="${ev.id}" ${!car || ev.entry > state.money ? 'disabled' : ''}>Accept challenge</button></div>
     </div>`;
   }).join('');
   const carInfo = car
     ? `<div class="card"><div class="row"><div class="car-swatch" style="background:${car.color}"></div><b style="flex:1">${esc(carName(car))}</b>${clsBadge(perf)}</div>
         ${canRun(car) ? `<div class="small" style="color:var(--bad);margin-top:6px">🚫 ${canRun(car)}</div>` : ''}</div>`
     : '<div class="hint">You need a car to race.</div>';
-  return `<div class="app">${header('Races')}
-    <div class="hint">Driving hard wears parts. Bad engines can blow mid-race. Entry fees are non-refundable.</div>
+  return `<div class="app">${header('Touge')}
+    <div class="hint">Every race runs on the mountain road in front of your cabin: 1.1 km, 5 hairpins, 75 m of climb. Driving hard wears parts and bad engines can blow mid-run. Entry fees are non-refundable.</div>
     ${carInfo}${cards}</div>`;
 }
 
@@ -293,11 +296,12 @@ function renderMsgs() {
     ['Kenji', 'Cabin\'s all yours. One spot under the tent, two on the driveway. That\'s your whole garage.'],
     ['Kenji', 'Check Marketplace. Cheap cars are cheap for a reason — pay for an inspection if the seller is being shady.'],
     ['Kenji', 'Buy parts for anything marked ⚠️ in the Parts Shop, then install them in the Garage before you run it hard. A bad engine WILL let go.'],
-    ['Kenji', 'Parking Lot Meet behind the grocery store is where everyone starts. Win some cash, then mod it or flip it for something faster.'],
+    ['Kenji', 'Tap Select next to a car to get in and take it up the mountain. Learn the hairpins before you race anyone.'],
+    ['Kenji', 'Kenta from down the road races uphill for cash. Beat him, then mod your car or flip it for something faster.'],
   ];
   if (car && Object.keys(car.problems).length) msgs.push(['Kenji', `That ${modelOf(car).name}... you gonna fix it or just pray?`]);
-  if (state.stats.wins >= 3) msgs.push(['Ryo', 'People are talking about you. Harbor Circuit. Prove it.']);
-  if (state.stats.wins >= 8) msgs.push(['???', 'The Kansei Invitational is open. Don\'t embarrass yourself.']);
+  if (state.stats.wins >= 3) msgs.push(['Ryo', 'People are talking about you. Night hillclimb, your road. Prove it.']);
+  if (state.stats.wins >= 6) msgs.push(['???', 'Summit. Midnight. Downhill. Don\'t embarrass yourself.']);
   return `<div class="app">${header('Messages')}${msgs.map(([from, m]) => `<div class="msg-bubble"><small>${from}</small>${esc(m)}</div>`).join('')}</div>`;
 }
 
@@ -322,7 +326,7 @@ function renderMapHud() {
     ? 'No car yet. Pull out your phone and check the Marketplace.'
     : state.inventory.length
       ? 'Parts are waiting in your trunk. Tap a car to install them.'
-      : 'Tap a car to work on it · tap the cabin to sleep';
+      : 'Tap Select to get in and drive · tap a car to work on it · tap the cabin to sleep';
 }
 
 // ---------- phone + map ----------
@@ -362,6 +366,8 @@ const map = createMap(document.getElementById('map-canvas'), {
   getCars: () => state.cars,
   getActiveId: () => state.activeCarId,
   onTap: onMapTap,
+  onSelect: selectAndDrive,
+  buttonsEl: document.getElementById('map-buttons'),
 });
 window.__kmap = map; // debug/testing hook
 
@@ -489,11 +495,12 @@ const ACTIONS = {
     if (ev.entry > state.money) return toast('Can\'t cover the entry fee.');
     const nProb = Object.keys(car.problems).length;
     const risky = nProb ? `<p class="small" style="color:var(--warn)">⚠️ Your car has ${nProb} major problem${nProb > 1 ? 's' : ''}. Things might break.</p>` : '';
-    const ok = await confirmBox(`<h2>${ev.name}</h2><p>Entry fee <b>${money(ev.entry)}</b>. ${ev.laps} laps vs 2 rivals. Top 2 get paid.</p>${risky}
+    const route = ev.dir === 'up' ? 'Uphill from your cabin to the summit' : 'Downhill from the summit to your cabin';
+    const ok = await confirmBox(`<h2>${ev.name}</h2><p>${route} vs ${ev.rivals.map(esc).join(' & ')}. Entry fee <b>${money(ev.entry)}</b>.</p>${risky}
       <p class="small muted">Controls: ◀ ▶ steer, GAS / BRAKE. Keyboard: arrows or WASD.</p>`, 'Race!');
     if (!ok) return;
     spend(ev.entry);
-    runRace(car, ev);
+    runDrive('race', car, ev);
   },
 
   reset: async () => {
@@ -531,20 +538,77 @@ function installItem(itemId) {
   return `${u.name} installed!`;
 }
 
-// ---------- race flow ----------
+// ---------- driving (cruise + touge races) ----------
 
-function runRace(car, ev) {
-  const raceEl = document.getElementById('race');
+// Where each owned car is parked, in meters, for the 3D view.
+function parkedInMeters() {
+  return parkingAssignments(state.cars, state.activeCarId)
+    .filter((x) => x.car)
+    .map(({ spot, car }) => ({ car, x: spot.x * U, z: spot.y * U }));
+}
+
+function runDrive(mode, car, ev) {
+  const all = parkedInMeters();
+  const mine = all.find((p) => p.car.id === car.id);
   phoneWrap.hidden = true;
   worldEl.hidden = true;
   map.stop();
-  raceEl.hidden = false;
-  startRace({
-    canvas: document.getElementById('race-canvas'),
-    hud: document.getElementById('hud'),
-    car, perf: performance(car), event: ev,
-    onFinish: (res) => finishRace(car, ev, res),
-  });
+  document.getElementById('race').hidden = false;
+  try {
+    startDrive({
+      canvas: document.getElementById('race-canvas'),
+      hud: document.getElementById('hud'),
+      car, perf: performance(car), mode, event: ev,
+      parked: all.filter((p) => p !== mine),
+      spot: mine,
+      onExit: (res) => (mode === 'race' ? finishRace(car, ev, res) : finishCruise(car, res)),
+    });
+  } catch (err) {
+    console.error(err);
+    backToCabin();
+    modal('<h2>Can\'t start driving</h2><p>This browser couldn\'t start 3D graphics (WebGL). Try another browser.</p>');
+  }
+}
+
+function backToCabin() {
+  document.getElementById('race').hidden = true;
+  worldEl.hidden = false;
+  map.start();
+  ui.app = 'home';
+  closePhone();
+}
+
+function wearList(report) {
+  return report.map((r) => r.problem
+    ? `<li>⚠️ ${esc(r.comp)}: ${esc(r.problem)}</li>`
+    : `<li style="color:var(--muted)">${esc(r.comp)} −${r.amt}%</li>`).join('');
+}
+
+async function selectAndDrive(carId) {
+  const car = state.cars.find((c) => c.id === carId);
+  if (!car) return;
+  const dead = canRun(car);
+  if (dead) {
+    await modal(`<h2>It won't go</h2><p>${esc(carName(car))}: ${dead}</p><p class="small muted">Buy parts in the Parts Shop, then install them in the Garage.</p>`);
+    return;
+  }
+  runDrive('cruise', car);
+  state.activeCarId = car.id; // after parking it goes under the tent
+  save();
+}
+
+async function finishCruise(car, res) {
+  const report = applyWear(car, res.wear);
+  addLog(`Took the ${modelOf(car).name} for a drive`);
+  save();
+  backToCabin();
+  if (res.engineBlown) {
+    await modal(`<h2>💥 Engine's done</h2><p>Your buddy towed it home. The engine needs replacing before it runs again.</p><ul class="problems">${wearList(report)}</ul>`);
+  } else if (report.some((r) => r.problem)) {
+    await modal(`<h2>Parked</h2><p>Something gave out on that drive:</p><ul class="problems">${wearList(report)}</ul>`);
+  } else {
+    toast('Parked under the tent.');
+  }
 }
 
 async function finishRace(car, ev, res) {
@@ -564,23 +628,15 @@ async function finishRace(car, ev, res) {
   nextDay();
   save();
 
-  const wearHtml = report.map((r) => r.problem
-    ? `<li>⚠️ ${esc(r.comp)}: ${esc(r.problem)}</li>`
-    : `<li style="color:var(--muted)">${esc(r.comp)} −${r.amt}%</li>`).join('');
   await modal(`<div class="result-place">${title}</div>
     <p style="text-align:center" class="muted">${ev.name}${res.dnf ? '' : ` · ${fmtTime(res.time)}`}</p>
     <div class="stats"><div class="stat"><b>${money(-ev.entry)}</b><small>Entry</small></div>
       <div class="stat"><b style="color:var(--good)">${money(payout)}</b><small>Prize</small></div>
       <div class="stat"><b>${money(payout - ev.entry)}</b><small>Net</small></div></div>
     <h3 class="small muted" style="margin:14px 0 4px">WEAR &amp; TEAR</h3>
-    <ul class="problems">${wearHtml || '<li style="color:var(--muted)">Barely a scratch.</li>'}</ul>`,
+    <ul class="problems">${wearList(report) || '<li style="color:var(--muted)">Barely a scratch.</li>'}</ul>`,
   [{ label: 'Back to the cabin', value: true, cls: 'primary' }]);
-
-  document.getElementById('race').hidden = true;
-  worldEl.hidden = false;
-  map.start();
-  ui.app = 'home';
-  closePhone();
+  backToCabin();
 }
 
 // ---------- boot ----------
