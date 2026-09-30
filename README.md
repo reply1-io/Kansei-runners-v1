@@ -35,7 +35,7 @@ You start at **your cabin, deep in the forest**, shown top-down. It has a carpor
    - **Easy** rivals mostly keep to their lane, brake early and make mistakes, so the other lane is open to pass.
    - Each level up drives a cleaner racing line, which uses the whole road and closes the doors. They also commit harder in corners, brake later, and run wide less often.
    - **Hard** is only a few seconds off a perfect drive. **Impossible** is two flawless drivers on the ideal line who never slip.
-   - Measured rival times (average of the two): Kansei Pass about 1:58 / 1:54 / 1:47 / 1:44 and Switchback Ladder about 1:47 / 1:44 / 1:41 / 1:37 from Easy to Impossible. A flawless drive in your car is about 1:42 on the Pass and 1:37 on the Ladder, so **Impossible rivals drive flawlessly and never make mistakes**: to win you have to match them and get past.
+   - Measured rival times (average of the two): Kansei Pass about 1:58 / 1:54 / 1:40.5 / 1:36.5 and Switchback Ladder about 1:47 / 1:44 / 1:41 / 1:37 from Easy to Impossible. A flawless drive in your car is about 1:42 on the Pass and 1:37 on the Ladder. **On the Pass, Hard and Impossible rivals have more grip and braking than your car** (their power-to-weight still matches yours), so they lap faster than your car can: you win there by getting past and holding them off, not by outrunning them.
    - You start behind two rivals and have to get past. They pull the handbrake through the tightest hairpins, give you racing room when you're alongside, and go for gaps themselves.
 6. **Drive:**
    - **◀ ▶** steer

@@ -108,11 +108,11 @@ export function startDrive({ canvas, hud, car, perf, rivalBase, mode, event, dif
   const P = { yr: 0, x: 0, z: 0, h: 0, vx: 0, vz: 0, steer: 0, hint: -1, e: 0, pitch: 0, roll: 0, drifting: false, sAbs: 0, lastL: null, lastR: null, slip: 0 };
   if (race) {
     // You start behind the rivals and have to get past.
-    const st = sampleAtS(route.from - 11);
+    const st = sampleAtS(route.from - 13);
     P.x = st.x; P.z = st.z;
     P.h = Math.atan2(st.tz, st.tx);
     P.hint = st.i;
-    P.sAbs = route.from - 11;
+    P.sAbs = route.from - 13;
   } else {
     P.x = spot.x; P.z = spot.z; P.h = Math.PI / 2; // backed in, facing the road
     P.sAbs = road.nearest(P.x, P.z).s;
@@ -142,7 +142,7 @@ export function startDrive({ canvas, hud, car, perf, rivalBase, mode, event, dif
       const mesh = makeCarMesh(palette[i % palette.length], car.modelId); // one-make race: same car as yours
       mesh.beam.intensity = night ? 400 : 0;
       addMesh(mesh.group);
-      const s0 = route.from - 2;
+      const s0 = route.from - 2 - i * 5.5; // staggered grid: the second rival starts a car length back, so they run nose to tail instead of tangling
       rivals.push({
         name, spec: rs, skill: brakeCommit, line, prof: speedProfile(line, rs, commit, brakeCommit), mesh,
         d: lineDAtS(line, s0), sAbs: s0, v: 0, pass: 0, passTarget: 0, startLat: i === 0 ? -2.1 : 2.1, curLat: 0,
@@ -569,7 +569,7 @@ export function startDrive({ canvas, hud, car, perf, rivalBase, mode, event, dif
     last = now;
     const steps = window.__krSimSpeed || 1; // test hook: run the sim faster than real time
     for (let n = 0; n < steps && !done; n++) {
-      const dt = Math.min(0.033, realDt);
+      const dt = window.__krDt || Math.min(0.033, realDt); // test hook: fixed step
       time += dt;
       messageT -= dt; noPowerT -= dt; hitCool -= dt;
       stepPlayer(dt / 2); stepPlayer(dt / 2);
