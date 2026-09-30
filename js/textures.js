@@ -52,15 +52,6 @@ export const rockTex = () => tex('rock', 64, 64, (g, w, h, rnd) => {
   for (let i = 0; i < 14; i++) { g.beginPath(); let x = rnd() * w, y = rnd() * h; g.moveTo(x, y); for (let k = 0; k < 4; k++) { x += (rnd() - 0.5) * 14; y += rnd() * 8; g.lineTo(x, y); } g.stroke(); }
 });
 
-export const railTex = () => tex('rail', 16, 16, (g, w, h) => {
-  g.fillStyle = '#b8bcc4'; g.fillRect(0, 0, w, h);
-  g.fillStyle = '#e4e7ec'; g.fillRect(0, 3, w, 2);
-  g.fillStyle = '#8a8e96'; g.fillRect(0, 8, w, 2);
-  g.fillStyle = '#e4e7ec'; g.fillRect(0, 11, w, 1);
-  g.fillStyle = '#6a6e76'; g.fillRect(0, 14, w, 2);
-  g.fillStyle = '#555'; g.fillRect(7, 6, 2, 2);
-});
-
 // Pine tree sprite with transparent background (used on crossed billboards).
 export const treeTex = (variant = 0) => tex(`tree${variant}`, 32, 64, (g, w, h, rnd) => {
   g.clearRect(0, 0, w, h);

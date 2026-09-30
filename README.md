@@ -14,13 +14,13 @@ It's styled after **Gran Turismo 2** on the original PlayStation:
 You start at **your cabin, deep in the forest**, shown top-down. It has a carport tent for one car, a gravel driveway in front of it for 2 more, and a mountain road out front. That's 3 parking spots, so you can own up to 3 cars.
 
 **On the map:**
-- **Select** (the yellow button next to each car) puts you in that car. The chase camera sits high up behind the car and aims at the road 25–45 m ahead (further the faster you go), so it swings into a corner before you reach it and you can see the whole hairpin and its exit. Trees near the road are kept short so they do not hide the next bend. Drive down the lane onto the road and go anywhere, including the side roads. Tap **🏠 Park** to go home.
+- **Select** (the yellow button next to each car) puts you in that car. The camera is locked high up behind the car, looking down the road over the treetops; it turns exactly with the car and never swings on its own. Trees near the road are kept short so they do not hide the next bend. Drive down the lane onto the road and go anywhere, including the side roads. Tap **🏠 Park** to go home.
 - **Tap a parked car** to open it in the Garage.
 - **Tap an empty spot** to open the Marketplace.
 - **Tap the cabin** to sleep until tomorrow, which brings new listings.
 - **📱 Phone** pulls out your phone. **▾ Put away** puts it back.
 
-**The home road** is a 2.7 km touge loop around the mountain in front of the cabin, for free driving. It has 7 hairpins, a ridge over the summit and guardrails on the mountain sections, with side roads that end at "Road closed" barriers for now.
+**The home road** is a 2.7 km touge loop around the mountain in front of the cabin, for free driving. It has 7 hairpins, a ridge over the summit and no guardrails (run wide and you're in the dirt, then the trees), with side roads that end at "Road closed" barriers for now.
 
 **Race courses** (from the phone's Touge app). Each takes about 2 minutes:
 - **Kansei Pass:** ultra-winding downhill. It's 1.7 km of hairpins, sharp esses and square 90s with almost no straight road, and the corners are tight enough that passing is hard.
@@ -41,7 +41,7 @@ You start at **your cabin, deep in the forest**, shown top-down. It has a carpor
    - **GAS**, **BRAKE** and **HAND BRAKE**; pull the handbrake to swing the rear around hairpins.
    - On a keyboard, use arrows/WASD, with space for the handbrake.
    - 🔊 toggles sound (engine, tire squeal, impacts).
-7. Every drive wears the car. Throttle wears the engine and transmission, sliding wears tires, brakes wear on downhills, and guardrails and contact damage the body. A worn engine can blow. Spend your winnings on repairs and mods, or sell and move up.
+7. Every drive wears the car. Throttle wears the engine and transmission, sliding wears tires, brakes wear on downhills, and hitting the trees or other cars damages the body. Bumping another car doesn't slow either of you down. A worn engine can blow. Spend your winnings on repairs and mods, or sell and move up.
 
 Progress saves automatically in the browser (localStorage).
 
@@ -66,9 +66,9 @@ python3 -m http.server 8000
 | `js/state.js` | Game state, save/load, car generation, pricing, performance math | New stats or economy rules |
 | `js/drive.js` | Driving and racing: physics, rival AI, chase camera, HUD and tachometer, controls, wear | Race and driving mechanics |
 | `js/ps1.js` | The PlayStation-style renderer: low-res buffer, dithering, vertex snapping, affine textures | Tweak the retro look (`lines`, dithering) |
-| `js/textures.js` | Pixel-art textures drawn in code (road, grass, rock, rails, trees, sky, cabin, car details) | New textures |
+| `js/textures.js` | Pixel-art textures drawn in code (road, grass, rock, trees, sky, cabin, car details) | New textures |
 | `js/carmodel.js` | Low-poly models of the real cars (`CARS`: real dimensions, profile, grille, lights, taillights, bumpers, wheels), glossy paint | New car models |
-| `js/world3d.js` | One 3D world per road network: terrain, roads, rails, sprite forest, sky, cabin, lighting, skid marks | Scenery and props |
+| `js/world3d.js` | One 3D world per road network: terrain, roads, sprite forest, sky, cabin, lighting, skid marks | Scenery and props |
 | `js/homeview.js` | The 3D home screen: cabin from above, parked cars, traffic, Select buttons, taps | Home screen behavior |
 | `js/turntable.js` | The garage turntable | |
 | `js/map.js` | Home layout (`HOME`) and parking spots (`PARKING`) | Move things at the cabin, more parking |

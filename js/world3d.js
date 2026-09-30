@@ -1,11 +1,11 @@
 // 3D worlds for driving, one per road network (the cabin loop, each race course): terrain shaped
-// around the roads, road surfaces, guardrails, barriers, forest, and (at home) the cabin/tent/driveway.
+// around the roads, road surfaces, barriers, forest, and (at home) the cabin/tent/driveway.
 // Each world is built the first time it's needed and then reused.
 import * as THREE from '../lib/three.module.min.js';
-import { ROAD_HALF, RAIL_OFFSET, U } from './road.js';
+import { ROAD_HALF, U } from './road.js';
 import { HOME } from './map.js';
 import { seeded } from './draw.js';
-import { roadTex, shoulderTex, grassTex, rockTex, railTex, treeTex, treeTopTex, skyTex, logTex, roofTex, canvasTex, gravelTex } from './textures.js';
+import { roadTex, shoulderTex, grassTex, rockTex, treeTex, treeTopTex, skyTex, logTex, roofTex, canvasTex, gravelTex } from './textures.js';
 export { makeCarMesh } from './carmodel.js';
 
 const m = (v) => v * U; // map units -> meters
@@ -76,30 +76,6 @@ function ribbon(samples, offsetA, offsetB, yA, yB, { every = 1, withUV = false, 
   const g = new THREE.BufferGeometry();
   g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
   if (withUV) g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
-  g.setIndex(idx);
-  g.computeVertexNormals();
-  return g;
-}
-
-// Guardrail strip on one side, only where railed.
-function railGeometry(net, side) {
-  const S = net.road.samples, loop = net.road.loop;
-  const pos = [], idx = [], uv = [];
-  let n = 0, prevOk = false;
-  const end = loop ? S.length : S.length - 1;
-  for (let i = 0; i <= end; i += 2) {
-    const p = S[Math.min(i, S.length - 1) % S.length];
-    const ok = net.isRailed(p.s, side);
-    if (!ok) { prevOk = false; continue; }
-    const o = side * (ROAD_HALF + RAIL_OFFSET);
-    pos.push(p.x + p.nx * o, p.e + 0.42, p.z + p.nz * o, p.x + p.nx * o, p.e + 0.82, p.z + p.nz * o);
-    uv.push(p.s / 2, 0, p.s / 2, 1);
-    if (prevOk) { const a = (n - 1) * 2; idx.push(a, a + 1, a + 2, a + 1, a + 3, a + 2); }
-    n++; prevOk = true;
-  }
-  const g = new THREE.BufferGeometry();
-  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
-  g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
   g.setIndex(idx);
   g.computeVertexNormals();
   return g;
@@ -176,23 +152,10 @@ function buildWorld(net) {
   tg.computeVertexNormals();
   scene.add(new THREE.Mesh(tg, [grassTex(), rockTex(), shoulderTex()].map((map) => new THREE.MeshLambertMaterial({ map, vertexColors: true }))));
 
-  // Road, shoulder, guardrails and posts.
+  // Road and shoulder. No guardrails: run wide and you're in the dirt, then the trees.
   const closed = net.road.loop, length = net.road.length;
   scene.add(new THREE.Mesh(ribbon(S, -ROAD_HALF - 1.1, ROAD_HALF + 1.1, -0.02, -0.02, { every: 2, closed, length, withUV: true, uAcross: 3, vPer: 3 }), new THREE.MeshLambertMaterial({ map: shoulderTex() })));
   scene.add(new THREE.Mesh(ribbon(S, -ROAD_HALF, ROAD_HALF, 0.03, 0.03, { withUV: true, closed, length, vPer: 10 }), new THREE.MeshLambertMaterial({ map: roadTex() })));
-  const railMat = new THREE.MeshLambertMaterial({ map: railTex(), side: THREE.DoubleSide });
-  for (const side of [-1, 1]) scene.add(new THREE.Mesh(railGeometry(net, side), railMat));
-  const postGeo = new THREE.BoxGeometry(0.14, 0.85, 0.14);
-  const posts = [];
-  for (let i = 0; i < S.length; i += 4) for (const side of [-1, 1]) if (net.isRailed(S[i].s, side)) posts.push([S[i], side]);
-  const postMesh = new THREE.InstancedMesh(postGeo, new THREE.MeshLambertMaterial({ color: '#8a8f96' }), posts.length);
-  const mtx = new THREE.Matrix4();
-  posts.forEach(([p, side], i) => {
-    const o = side * (ROAD_HALF + RAIL_OFFSET);
-    mtx.makeTranslation(p.x + p.nx * o, p.e + 0.42, p.z + p.nz * o);
-    postMesh.setMatrixAt(i, mtx);
-  });
-  scene.add(postMesh);
 
   // Side roads: narrower gravel with a "Road closed" barrier at the end.
   const branchMat = new THREE.MeshLambertMaterial({ map: gravelTex() });
@@ -227,7 +190,7 @@ function buildWorld(net) {
   const crossGeo = mergeGeos([quad(0), quad(Math.PI / 2)]);
   const treeMeshes = [0, 1].map((v) => new THREE.InstancedMesh(crossGeo, new THREE.MeshLambertMaterial({ map: treeTex(v), alphaTest: 0.5, side: THREE.DoubleSide }), trees.length));
   const counts = [0, 0];
-  const color = new THREE.Color();
+  const color = new THREE.Color(), mtx = new THREE.Matrix4();
   const q = new THREE.Quaternion(), up = new THREE.Vector3(0, 1, 0);
   trees.forEach((t, i) => {
     const v = i % 2;

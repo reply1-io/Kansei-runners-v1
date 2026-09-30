@@ -3,7 +3,7 @@
 //   race:   touge battle on a race course vs rivals in cars with exactly your car's numbers;
 //           difficulty only changes how good their racing line is and how hard they commit to it
 import * as THREE from '../lib/three.module.min.js';
-import { ROAD_HALF, RAIL_OFFSET, HOME_NET, COURSES, lineVariant } from './road.js';
+import { ROAD_HALF, HOME_NET, COURSES, lineVariant } from './road.js';
 import { getWorld, makeCarMesh, inHome } from './world3d.js';
 import { PROBLEM_THRESHOLD, MODELS } from './data.js';
 import { clamp } from './state.js';
@@ -12,7 +12,6 @@ import { getRetro } from './ps1.js';
 
 const G = 9.81;
 const WHEELBASE = 2.5;
-const CAR_HALF_W = 0.95;
 const CAR_LEN = 4.4;
 const MPH = 2.237;
 const RIVAL_COLORS = ['#f5f6fa', '#e84118', '#9c88ff', '#fbc531', '#00a8ff', '#4cd137'];
@@ -24,12 +23,9 @@ function rivalColors(mine) {
 }
 const HB_RADIUS = 15; // rivals pull the handbrake where their line is tighter than this
 
-// Chase camera: high up behind the car, looking down over the treetops. It aims at the road
-// `look` meters ahead (more at speed), so it turns into a corner before you get there and you can
-// see where the road goes. The car sits low in the frame, just above the pedals.
-// aim: how much it favors the road ahead over the car's heading; maxSwing caps that (radians);
-// lag: how quickly it swings round.
-const CAM = { height: 12.5, back: 10, ahead: 5, fov: 72, fovLandscape: 56, look: 24, lookPerMps: 0.7, aim: 0.8, maxSwing: 1.05, lag: 3.2 };
+// Locked chase camera: fixed high up behind the car, looking down the road over the treetops.
+// It never swings or lags; it turns exactly with the car. The car sits low in the frame, above the pedals.
+const CAM = { height: 12.5, back: 10, ahead: 5, fov: 72, fovLandscape: 56 };
 
 let retro = null, world = null, camera = null;
 
@@ -108,7 +104,6 @@ export function startDrive({ canvas, hud, car, perf, rivalBase, mode, event, dif
   const addMesh = (o) => { scene.add(o); added.push(o); return o; };
 
   // ---- player ----
-  let camH = null, frameDt = 0; // chase camera heading, and the sim time covered by this frame
   const P = { x: 0, z: 0, h: 0, vx: 0, vz: 0, steer: 0, hint: -1, e: 0, pitch: 0, roll: 0, drifting: false, sAbs: 0, lastL: null, lastR: null, slip: 0 };
   if (race) {
     // You start behind the rivals and have to get past.
@@ -204,11 +199,12 @@ export function startDrive({ canvas, hud, car, perf, rivalBase, mode, event, dif
   resize();
   window.addEventListener('resize', resize);
 
-  // Which road surface is the car on, and how far can it go sideways before a rail/tree/barrier?
+  // Which road surface is the car on, and how far can it go sideways before the trees/barrier?
+  // No guardrails: past the road edge is dirt shoulder (slow, less grip), then the tree line.
   const home = (x, z) => net.home && inHome(x, z);
   function where(x, z) {
     const m = road.nearest(x, z, P.hint);
-    const mainLimit = net.isRailed(m.s, Math.sign(m.lat) || 1) ? ROAD_HALF + RAIL_OFFSET - CAR_HALF_W : ROAD_HALF + 4.5;
+    const mainLimit = ROAD_HALF + 4.5;
     const mainOk = Math.abs(m.lat) <= mainLimit && m.dist < mainLimit + 2 && !m.pastEnd;
     let best = { kind: 'main', m, lat: m.lat, dist: m.dist, limit: mainLimit, asphalt: Math.abs(m.lat) <= ROAD_HALF && m.dist < 12, valid: mainOk };
     for (const b of net.branches) {
@@ -288,7 +284,7 @@ export function startDrive({ canvas, hud, car, perf, rivalBase, mode, event, dif
     const ox = P.x, oz = P.z;
     P.x += P.vx * dt; P.z += P.vz * dt;
 
-    // Stay on something drivable: slide along rails, bounce off barriers / cabin edges.
+    // Stay on something drivable: scrape along the tree line, bounce off barriers / cabin edges.
     const w1 = where(P.x, P.z);
     if (!w1.valid) {
       let into = speed;
@@ -302,9 +298,8 @@ export function startDrive({ canvas, hud, car, perf, rivalBase, mode, event, dif
         P.x = ox; P.z = oz; P.vx *= -0.25; P.vz *= -0.25;
       }
       if (into > 3 && hitCool <= 0) {
-        const railed = w1.kind === 'main' && net.isRailed(w1.m.s, Math.sign(w1.lat));
         wear.body += into * 0.5; wear.susp += into * 0.15;
-        flash(w1.pastEnd ? 'ROAD CLOSED' : railed ? 'GUARDRAIL!' : 'Into the trees!', 0.8);
+        flash(w1.pastEnd ? 'ROAD CLOSED' : 'Into the trees!', 0.8);
         sound.hit(into); hitCool = 0.5;
       }
     }
@@ -315,10 +310,10 @@ export function startDrive({ canvas, hud, car, perf, rivalBase, mode, event, dif
     P.sAbs += road.wrapDelta(w2.m.s - P.sAbs);
     const onBranch = w2.kind === 'branch';
     const inYard = home(P.x, P.z) && Math.abs(w2.m.lat) > ROAD_HALF + 2;
-    const eTarget = inYard ? 0 : onBranch ? w2.e : sampleAtS(w2.m.s).e;
+    const offRoad = !inYard && !onBranch && Math.abs(w2.lat) > ROAD_HALF + 0.3;
+    const eTarget = inYard ? 0 : onBranch ? w2.e : offRoad ? world.terrainAt(P.x, P.z).h : sampleAtS(w2.m.s).e;
     P.e += (eTarget - P.e) * (P.eSet ? Math.min(1, dt * 12) : 1); // snaps to the road on the first step
     P.eSet = true;
-    P.onMain = !onBranch && !inYard; // the camera follows the main road ahead only while you're on it
     const gAlong = inYard ? 0 : rs.grade * (fx * rs.tx + fz * rs.tz);
     P.pitch += (Math.atan(gAlong) - P.pitch) * Math.min(1, dt * 6);
     P.roll += (clamp(-vl * 0.012 - P.steer * speed * 0.0015, -0.08, 0.08) - P.roll) * Math.min(1, dt * 5);
@@ -400,7 +395,6 @@ export function startDrive({ canvas, hud, car, perf, rivalBase, mode, event, dif
           r.pass = clamp(r.pass + latSide * penZ * 0.45, -3.2, 3.2);
         }
         else { const sg = Math.sign(lx) || 1; P.x += ch * sg * penX; P.z += sh * sg * penX; }
-        P.vx *= 0.95; P.vz *= 0.95; r.v *= 0.97;
         if (hitCool <= 0) { wear.body += 0.8; hitCool = 0.5; flash('Contact!', 0.6); sound.hit(3); }
       }
     }
@@ -453,20 +447,8 @@ export function startDrive({ canvas, hud, car, perf, rivalBase, mode, event, dif
     }
     if (world.fire) world.fire.light.intensity = 26 + Math.sin(time * 13) * 6 + Math.sin(time * 7.7) * 4;
 
-    // Chase camera: swings smoothly toward the road ahead (and snaps on big jumps like a reset).
-    const wrapA = (a) => Math.atan2(Math.sin(a), Math.cos(a));
-    let aimH = P.h;
-    if (P.onMain) {
-      const here = sampleAtS(P.sAbs);
-      const dir = Math.cos(P.h - Math.atan2(here.tz, here.tx)) >= 0 ? 1 : -1;
-      const T = sampleAtS(P.sAbs + dir * (CAM.look + Math.hypot(P.vx, P.vz) * CAM.lookPerMps));
-      const dev = clamp(wrapA(Math.atan2(T.z - P.z, T.x - P.x) - P.h), -CAM.maxSwing, CAM.maxSwing);
-      aimH = P.h + dev * CAM.aim;
-    }
-    if (camH === null) camH = aimH;
-    let dh = wrapA(aimH - camH);
-    camH = Math.abs(dh) > 2 ? aimH : camH + dh * Math.min(1, CAM.lag * frameDt);
-    const cx = Math.cos(camH), cz = Math.sin(camH);
+    // Locked camera: rigidly behind the car.
+    const cx = Math.cos(P.h), cz = Math.sin(P.h);
     camera.position.set(P.x - cx * CAM.back, P.e + CAM.height, P.z - cz * CAM.back);
     camera.lookAt(P.x + cx * CAM.ahead, P.e, P.z + cz * CAM.ahead);
     world.follow(camera);
@@ -580,7 +562,6 @@ export function startDrive({ canvas, hud, car, perf, rivalBase, mode, event, dif
       if (engineBlown) { blownT -= dt; if (blownT <= 0) finish(true); }
       if (race && !done && progress() >= route.to - route.from) { place = 1 + rivals.filter((r) => r.finished).length; finish(false); }
     }
-    frameDt = Math.min(0.1, Math.max(0, realDt) * steps);
     render();
     updateHud();
     if (!done) raf = requestAnimationFrame(loop);

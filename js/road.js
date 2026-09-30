@@ -8,7 +8,6 @@ import { seeded } from './draw.js';
 
 export const U = 0.088;           // meters per map unit (a 50-unit car on the map = 4.4 m)
 export const ROAD_HALF = 4.2;     // two 4.2 m lanes
-export const RAIL_OFFSET = 0.9;   // guardrail distance beyond the road edge
 export const BRANCH_HALF = 3.2;   // side roads are narrower
 const STEP = 1;                   // sample spacing (m)
 
@@ -326,13 +325,8 @@ export function nearestOnBranch(br, x, z) {
   return br.nearest(x, z, -1);
 }
 
-// Guardrails on the mountain (with gaps where side roads leave), open shoulders in the valley.
-const homeRailed = (s) => s > 60 && s < ROAD.marks.close + 40;
-const gapAt = (s, side) => BRANCHES.some((b) => b.side === side && Math.abs(s - b.junctionS) < 9);
-
 export const HOME_NET = {
   id: 'home', home: true, road: ROAD, branches: BRANCHES,
-  isRailed: (s, side = 0) => homeRailed(s) && !(side && gapAt(s, side)),
   lines: [ROAD.startLineS],
 };
 
@@ -420,7 +414,6 @@ function buildCourse({ id, name, segments, seed, targetLen, minGap }) {
   const startS = 30, finishS = road.length - 30;
   return {
     id, name, home: false, road, branches: [],
-    isRailed: () => true,
     lines: [startS, finishS],
     startS, finishS,
     hairpins: segs.filter((x) => x.name === 'Hairpin').length,
