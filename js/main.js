@@ -6,11 +6,15 @@ import {
   spend, earn, nextDay, money, clamp, uid,
 } from './state.js';
 import { startRace, fmtTime } from './race.js';
+import { createMap, PARKING } from './map.js';
 
 const screen = document.getElementById('screen');
 const modalEl = document.getElementById('modal');
 const toastEl = document.getElementById('toast');
 const ui = { app: 'home', tab: 'buy' };
+const phoneWrap = document.getElementById('phone-wrap');
+const worldEl = document.getElementById('world');
+const spotsFull = () => state.cars.length >= PARKING.length;
 
 // ---------- helpers ----------
 
@@ -110,7 +114,7 @@ function renderHome() {
       <div class="small" style="margin-top:8px;color:${issues ? 'var(--bad)' : 'var(--good)'}">${issues ? `⚠️ ${issues} major problem${issues > 1 ? 's' : ''}` : '✓ Ready to run'}</div>
     </div>`;
   } else {
-    carCard = `<div class="hint">You've got <b>${money(state.money)}</b> and no car. Open <b>Marketplace</b> and find something in your budget. Cheap usually means broken — that's the point.</div>`;
+    carCard = `<div class="hint">You've got <b>${money(state.money)}</b>, a cabin in the woods, and no car. Open <b>Marketplace</b> and find something in your budget. Cheap usually means broken — that's the point.</div>`;
   }
   const apps = [
     ['market', '🚗', 'Marketplace'], ['parts', '🔧', 'Parts Shop'], ['garage', '🏠', 'Garage'], ['races', '🏁', 'Races'],
@@ -147,11 +151,12 @@ function renderMarket() {
         <div class="btns">
           ${l.inspected ? '<button class="btn" disabled>✓ Inspected</button>'
             : `<button class="btn" data-action="inspect" data-arg="${l.id}">🔍 Inspect ${money(INSPECTION_COST)}</button>`}
-          <button class="btn primary" data-action="buy" data-arg="${l.id}" ${l.price > state.money ? 'disabled' : ''}>Buy</button>
+          <button class="btn primary" data-action="buy" data-arg="${l.id}" ${l.price > state.money || spotsFull() ? 'disabled' : ''}>${spotsFull() ? 'No room' : 'Buy'}</button>
         </div>
       </div>`;
     }).join('') || '<div class="empty"><div class="big">🕸️</div>Nothing listed today. Sleep and check tomorrow.</div>';
-    body = `<div class="hint">New listings every day. Sellers don't always mention the bad stuff — an inspection reveals everything.</div>` + body;
+    const room = `Parking at the cabin: <b>${state.cars.length}/${PARKING.length}</b>${spotsFull() ? ' — full. Sell a car to make room.' : ''}`;
+    body = `<div class="hint">New listings every day. Sellers don't always mention the bad stuff — an inspection reveals everything.<br>${room}</div>` + body;
   } else {
     body = state.cars.map((car) => {
       const offer = Math.round(carValue(car) * 0.85 / 50) * 50;
@@ -285,6 +290,7 @@ function renderMsgs() {
   const car = activeCar();
   const msgs = [
     ['Kenji', `Yo. Heard you finally scraped together ${money(5000)}. Don't blow it on something shiny.`],
+    ['Kenji', 'Cabin\'s all yours. One spot under the tent, two on the driveway. That\'s your whole garage.'],
     ['Kenji', 'Check Marketplace. Cheap cars are cheap for a reason — pay for an inspection if the seller is being shady.'],
     ['Kenji', 'Buy parts for anything marked ⚠️ in the Parts Shop, then install them in the Garage before you run it hard. A bad engine WILL let go.'],
     ['Kenji', 'Parking Lot Meet behind the grocery store is where everyone starts. Win some cash, then mod it or flip it for something faster.'],
@@ -304,7 +310,60 @@ function render() {
   render.keepScroll = false;
   document.querySelector('[data-sb-day]').textContent = `Day ${state.day}`;
   document.querySelector('[data-sb-money]').textContent = money(state.money);
+  renderMapHud();
 }
+
+function renderMapHud() {
+  document.querySelector('[data-map-day]').textContent = state.day;
+  document.querySelector('[data-map-money]').textContent = money(state.money);
+  document.querySelector('[data-phone-dot]').hidden = !state.inventory.length;
+  document.getElementById('phone-btn').classList.toggle('pulse', !state.cars.length);
+  document.querySelector('[data-map-hint]').textContent = !state.cars.length
+    ? 'No car yet. Pull out your phone and check the Marketplace.'
+    : state.inventory.length
+      ? 'Parts are waiting in your trunk. Tap a car to install them.'
+      : 'Tap a car to work on it · tap the cabin to sleep';
+}
+
+// ---------- phone + map ----------
+
+function openPhone(app) {
+  if (app) ui.app = app;
+  phoneWrap.hidden = false;
+  screen.scrollTop = 0;
+  render();
+}
+
+function closePhone() {
+  phoneWrap.hidden = true;
+  renderMapHud();
+}
+
+async function sleepAtCabin() {
+  const ok = await confirmBox(`<h2>Call it a night?</h2><p>Sleep until Day ${state.day + 1}. New cars get listed on the Marketplace in the morning.</p>`, 'Sleep');
+  if (!ok) return;
+  nextDay();
+  save();
+  toast(`Day ${state.day}. Fresh listings on Marketplace.`);
+  render();
+}
+
+function onMapTap(hit) {
+  if (hit.type === 'cabin') return sleepAtCabin();
+  if (hit.type === 'spot') return openPhone('market');
+  if (hit.type === 'car') {
+    state.activeCarId = hit.carId; // tapping a car pulls it into the tent as your ride
+    save();
+    openPhone('garage');
+  }
+}
+
+const map = createMap(document.getElementById('map-canvas'), {
+  getCars: () => state.cars,
+  getActiveId: () => state.activeCarId,
+  onTap: onMapTap,
+});
+window.__kmap = map; // debug/testing hook
 
 function go(app) {
   ui.app = app;
@@ -317,6 +376,8 @@ function go(app) {
 
 const ACTIONS = {
   home: () => go('home'),
+  phone: () => openPhone(),
+  closephone: () => closePhone(),
   open: (arg) => go(arg),
   tab: (arg) => { ui.tab = arg; render(); },
   sleep: () => {
@@ -340,6 +401,7 @@ const ACTIONS = {
     const l = state.listings.find((x) => x.id === id);
     if (!l) return;
     if (l.price > state.money) return toast('Not enough cash.');
+    if (spotsFull()) return toast(`No room at the cabin (${PARKING.length} cars max). Sell one first.`);
     const warn = !l.inspected && l.hidden.length ? '<p class="small" style="color:var(--warn)">You haven\'t inspected it. Some systems are unknown.</p>' : '';
     const ok = await confirmBox(`<h2>Buy it?</h2><p>${esc(carName(l.car))} for <b>${money(l.price)}</b>.</p>${warn}`, 'Buy');
     if (!ok) return;
@@ -441,6 +503,8 @@ const ACTIONS = {
   },
 };
 
+phoneWrap.addEventListener('click', (e) => { if (e.target === phoneWrap) closePhone(); });
+
 document.body.addEventListener('click', (e) => {
   const el = e.target.closest('[data-action]');
   if (!el || el.closest('#modal')) return;
@@ -471,7 +535,9 @@ function installItem(itemId) {
 
 function runRace(car, ev) {
   const raceEl = document.getElementById('race');
-  document.getElementById('phone-wrap').hidden = true;
+  phoneWrap.hidden = true;
+  worldEl.hidden = true;
+  map.stop();
   raceEl.hidden = false;
   startRace({
     canvas: document.getElementById('race-canvas'),
@@ -508,11 +574,13 @@ async function finishRace(car, ev, res) {
       <div class="stat"><b>${money(payout - ev.entry)}</b><small>Net</small></div></div>
     <h3 class="small muted" style="margin:14px 0 4px">WEAR &amp; TEAR</h3>
     <ul class="problems">${wearHtml || '<li style="color:var(--muted)">Barely a scratch.</li>'}</ul>`,
-  [{ label: 'Back to phone', value: true, cls: 'primary' }]);
+  [{ label: 'Back to the cabin', value: true, cls: 'primary' }]);
 
   document.getElementById('race').hidden = true;
-  document.getElementById('phone-wrap').hidden = false;
-  go('home');
+  worldEl.hidden = false;
+  map.start();
+  ui.app = 'home';
+  closePhone();
 }
 
 // ---------- boot ----------
@@ -522,4 +590,5 @@ if (!load()) {
   save();
 }
 render();
-setInterval(() => { if (ui.app === 'home' && modalEl.hidden) render(); }, 30000);
+map.start();
+setInterval(() => { if (ui.app === 'home' && modalEl.hidden && !phoneWrap.hidden) render(); }, 30000);

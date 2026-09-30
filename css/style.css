@@ -29,8 +29,35 @@ body {
 button { font: inherit; color: inherit; cursor: pointer; }
 [hidden] { display: none !important; }
 
+/* ---------- Home map ---------- */
+#world { position: fixed; inset: 0; background: #18221a; }
+#map-canvas { width: 100%; height: 100%; display: block; touch-action: manipulation; }
+.map-hud { position: absolute; top: calc(12px + var(--safe-top)); left: 12px; right: 12px; display: flex; justify-content: space-between; pointer-events: none; }
+.map-pill { background: rgba(8,12,9,0.72); border: 1px solid rgba(255,255,255,0.12); border-radius: 20px; padding: 7px 14px; font-size: 15px; backdrop-filter: blur(6px); }
+.map-pill small { color: var(--muted); font-size: 10px; letter-spacing: 1.5px; }
+.map-pill.money b { color: var(--good); font-variant-numeric: tabular-nums; }
+.map-hint {
+  position: absolute; left: 16px; right: 16px; bottom: calc(92px + var(--safe-bottom)); margin: 0 auto; max-width: 340px;
+  text-align: center; font-size: 13px; background: rgba(8,12,9,0.72); border-radius: 12px; padding: 8px 12px; pointer-events: none;
+}
+.map-hint:empty { display: none; }
+#phone-btn {
+  position: absolute; left: 50%; bottom: calc(22px + var(--safe-bottom)); transform: translateX(-50%);
+  display: flex; align-items: center; gap: 8px; padding: 13px 26px; border-radius: 30px;
+  background: var(--accent); color: #111; font-weight: 800; font-size: 17px; border: 0;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+}
+#phone-btn .pb-ico { font-size: 20px; }
+#phone-btn .pb-dot { position: absolute; top: -4px; right: -4px; width: 16px; height: 16px; border-radius: 8px; background: var(--bad); border: 2px solid #fff; }
+#phone-btn.pulse { animation: pulse 1.6s ease-in-out infinite; }
+@keyframes pulse { 50% { box-shadow: 0 0 0 10px rgba(255,211,42,0.25), 0 10px 30px rgba(0,0,0,0.5); } }
+
 /* ---------- Phone shell ---------- */
-#phone-wrap { height: 100%; display: flex; align-items: center; justify-content: center; }
+#phone-wrap { position: fixed; inset: 0; z-index: 10; display: flex; align-items: center; justify-content: center; background: rgba(0,0,0,0.45); }
+#phone-wrap:not([hidden]) #phone { animation: phone-up 0.22s ease-out; }
+@keyframes phone-up { from { transform: translateY(40px); opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { #phone-wrap:not([hidden]) #phone { animation: none; } #phone-btn.pulse { animation: none; } }
+.sb-away { background: rgba(255,255,255,0.1); border: 0; border-radius: 12px; padding: 4px 12px; font-size: 12px; font-weight: 700; color: var(--text); }
 #phone {
   position: relative;
   width: 100%; height: 100%;
@@ -52,7 +79,6 @@ button { font: inherit; color: inherit; cursor: pointer; }
   padding: calc(10px + var(--safe-top)) 20px 8px;
   font-size: 13px; font-weight: 600;
 }
-.sb-title { letter-spacing: 3px; color: var(--muted); font-size: 11px; }
 [data-sb-money] { color: var(--good); }
 #screen { flex: 1; overflow-y: auto; overflow-x: hidden; -webkit-overflow-scrolling: touch; }
 #homebar { height: calc(22px + var(--safe-bottom)); display: flex; justify-content: center; padding-top: 8px; cursor: pointer; }

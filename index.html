@@ -9,12 +9,23 @@
   <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
-  <!-- The phone: your whole world outside of races -->
-  <div id="phone-wrap">
+  <!-- Home map: the cabin in the woods -->
+  <div id="world">
+    <canvas id="map-canvas"></canvas>
+    <div class="map-hud">
+      <span class="map-pill"><small>DAY</small> <b data-map-day></b></span>
+      <span class="map-pill money"><b data-map-money></b></span>
+    </div>
+    <div class="map-hint" data-map-hint></div>
+    <button id="phone-btn" data-action="phone"><span class="pb-ico">📱</span> Phone<span class="pb-dot" data-phone-dot hidden></span></button>
+  </div>
+
+  <!-- The phone: pulled out of your pocket over the map -->
+  <div id="phone-wrap" hidden>
     <div id="phone">
       <div id="statusbar">
         <span data-sb-day></span>
-        <span class="sb-title">KANSEI</span>
+        <button class="sb-away" data-action="closephone">▾ Put away</button>
         <span data-sb-money></span>
       </div>
       <div id="screen"></div>

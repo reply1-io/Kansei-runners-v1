@@ -1,6 +1,7 @@
 // Top-down race: arcade car physics, AI opponents on a speed profile, wear tracking.
 import { TRACKS, PROBLEM_THRESHOLD } from './data.js';
 import { clamp, rand } from './state.js';
+import { drawCar } from './draw.js';
 
 const TRACK_SCALE = 2.2;
 const SAMPLE_SPACING = 8;
@@ -350,36 +351,7 @@ export function startRace({ canvas, hud, car, perf, event, onFinish }) {
   }
 
   // ---- rendering ----
-  function drawCar(x, y, h, color, isPlayer) {
-    ctx.save();
-    ctx.translate(x, y);
-    ctx.rotate(h);
-    ctx.fillStyle = 'rgba(0,0,0,0.35)';
-    ctx.fillRect(-CAR_LEN / 2 + 3, -CAR_WID / 2 + 3, CAR_LEN, CAR_WID);
-    ctx.fillStyle = color;
-    roundRect(-CAR_LEN / 2, -CAR_WID / 2, CAR_LEN, CAR_WID, 5);
-    ctx.fill();
-    ctx.fillStyle = 'rgba(20,30,45,0.85)'; // windshield + rear glass
-    ctx.fillRect(2, -CAR_WID / 2 + 3, 8, CAR_WID - 6);
-    ctx.fillRect(-13, -CAR_WID / 2 + 3, 5, CAR_WID - 6);
-    ctx.fillStyle = '#fff7c2';
-    ctx.fillRect(CAR_LEN / 2 - 3, -CAR_WID / 2 + 2, 3, 4);
-    ctx.fillRect(CAR_LEN / 2 - 3, CAR_WID / 2 - 6, 3, 4);
-    ctx.fillStyle = input.brake && isPlayer ? '#ff2020' : '#8a1010';
-    ctx.fillRect(-CAR_LEN / 2, -CAR_WID / 2 + 2, 2, 4);
-    ctx.fillRect(-CAR_LEN / 2, CAR_WID / 2 - 6, 2, 4);
-    ctx.restore();
-  }
-
-  function roundRect(x, y, w, h, r) {
-    ctx.beginPath();
-    ctx.moveTo(x + r, y);
-    ctx.arcTo(x + w, y, x + w, y + h, r);
-    ctx.arcTo(x + w, y + h, x, y + h, r);
-    ctx.arcTo(x, y + h, x, y, r);
-    ctx.arcTo(x, y, x + w, y, r);
-    ctx.closePath();
-  }
+  const car2d = (x, y, h, color, isPlayer) => drawCar(ctx, x, y, h, color, { len: CAR_LEN, wid: CAR_WID, braking: isPlayer && input.brake });
 
   function trackPath() {
     ctx.beginPath();
@@ -438,8 +410,8 @@ export function startRace({ canvas, hud, car, perf, event, onFinish }) {
       ctx.beginPath(); ctx.arc(d.x, d.y, d.r, 0, 7); ctx.fill();
     }
 
-    for (const r of rivals) { const p = rivalPos(r); drawCar(p.x, p.y, p.h, r.color, false); }
-    drawCar(player.x, player.y, player.h, car.color, true);
+    for (const r of rivals) { const p = rivalPos(r); car2d(p.x, p.y, p.h, r.color, false); }
+    car2d(player.x, player.y, player.h, car.color, true);
 
     for (const s of smoke) {
       ctx.fillStyle = `rgba(220,220,220,${s.a})`;
