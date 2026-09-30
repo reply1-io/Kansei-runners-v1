@@ -70,16 +70,17 @@ export const SELLER_NOTES = [
 
 export const COLORS = ['#e8e8e8', '#d63031', '#0984e3', '#2d3436', '#fdcb6e', '#00b894', '#6c5ce7', '#e17055', '#b2bec3', '#fab1a0'];
 
-// Touge races, all on the road in front of the cabin (see js/road.js).
-// dir: 'up' = cabin -> summit, 'down' = summit -> cabin. rivals: 1-2 AI cars.
-// aiPace scales rival top speed, acceleration and cornering; 1.0 is roughly a well-driven stock 240S.
+// Touge races, all on the loop in front of the cabin (see js/road.js).
+// route: 'up' (cabin -> summit), 'down' (summit -> cabin via the east side), 'loop' (all the way around).
+// Rivals always match YOUR car's power-to-weight. What changes is how well they drive (skill: share of
+// the grip they dare to use), and their tires/brakes (grip, brakes), so handling mods still matter.
 export const EVENTS = [
-  { id: 'kid-up',   name: 'Local Kid',          dir: 'up',   rivals: ['Kenta'],          aiPace: 0.56, entry: 50,   purse: [650, 0],
-    desc: 'The kid from down the road thinks his wagon can make it to the summit first.' },
-  { id: 'iketani-down', name: 'Downhill Dare',  dir: 'down', rivals: ['Iketani'],        aiPace: 0.74, entry: 200,  purse: [1800, 0],
-    desc: 'Summit to your driveway. Downhill means brakes and nerve.' },
-  { id: 'ryo-up',   name: 'Night Hillclimb',    dir: 'up',   rivals: ['Ryo', 'Shingo'],  aiPace: 0.95, entry: 800,  purse: [6000, 1500],
-    desc: 'Two of the valley\'s best, full throttle up all five hairpins.' },
-  { id: 'king-down',name: 'Kansei Downhill King',dir: 'down', rivals: ['The Ghost'],     aiPace: 1.2, entry: 3000, purse: [30000, 0],
-    desc: 'Nobody has seen his face. Beat him down the mountain and the road is yours.' },
+  { id: 'kid-up', name: 'Local Kid', route: 'up', rivals: ['Kenta'], skill: 0.9, grip: 0.97, brakes: 0.97,
+    entry: 50, purse: [650, 0], desc: 'The kid from down the road bets you can\'t beat him to the summit.' },
+  { id: 'iketani-down', name: 'Downhill Dare', route: 'down', rivals: ['Iketani'], skill: 0.93, grip: 1.04, brakes: 1.04,
+    entry: 200, purse: [1800, 0], desc: 'Summit to your driveway, three hairpins on the east face. Brakes and nerve.' },
+  { id: 'ryo-loop', name: 'Night Loop', route: 'loop', night: true, rivals: ['Ryo', 'Shingo'], skill: 0.95, grip: 1.12, brakes: 1.12,
+    entry: 800, purse: [6000, 1500], desc: 'All the way around the mountain in the dark. Two of the valley\'s best.' },
+  { id: 'ghost-down', name: 'Kansei Downhill King', route: 'down', night: true, rivals: ['The Ghost'], skill: 0.98, grip: 1.22, brakes: 1.2,
+    entry: 3000, purse: [30000, 0], desc: 'Nobody has seen his face. Beat him down the mountain at midnight.' },
 ];

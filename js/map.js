@@ -1,7 +1,7 @@
 // Home map: a cabin in a clearing deep in the forest, a carport tent, a two-car driveway,
 // and a winding two-lane road out front. Top-down, drawn procedurally on a canvas.
 import { drawCar, roundRectPath, seeded } from './draw.js';
-import { ROAD, ROAD_HALF, U } from './road.js';
+import { ROAD, ROAD_HALF, U, BRANCHES } from './road.js';
 
 // ---- Layout (world units). Tweak positions here. ----
 export const HOME = {
@@ -47,9 +47,10 @@ export function parkingAssignments(cars, activeId) {
 export function createMap(canvas, { getCars, getActiveId, onTap, onSelect, buttonsEl }) {
   const ctx = canvas.getContext('2d');
   const road = ROAD.samples.map((p) => ({ x: p.x / U, y: p.z / U, nx: p.nx, ny: p.nz, tx: p.tx, ty: p.tz, d: p.s / U }));
-  const roadLen = road[road.length - 1].d;
+  const roadLen = ROAD.length / U; // closed loop
+  const branches = BRANCHES.map((b) => b.samples.map((p) => ({ x: p.x / U, y: p.z / U, nx: p.nx, ny: p.nz })));
   const homeD = ROAD.homeS / U;
-  const trees = makeTrees(road);
+  const trees = makeTrees(road, branches);
   const staticLayer = document.createElement('canvas');
   const cam = { s: 1, cx: 0, cy: 0, W: 0, H: 0, dpr: 1 };
   const smoke = [];
@@ -127,9 +128,17 @@ export function createMap(canvas, { getCars, getActiveId, onTap, onSelect, butto
     const strokeRoad = (offset, width, color, dash) => {
       c.beginPath();
       road.forEach((p, i) => { const x = p.x + p.nx * offset, y = p.y + p.ny * offset; i ? c.lineTo(x, y) : c.moveTo(x, y); });
+      c.closePath();
       c.strokeStyle = color; c.lineWidth = width; c.setLineDash(dash || []); c.stroke(); c.setLineDash([]);
     };
     c.lineJoin = 'round'; c.lineCap = 'round';
+    // Side roads (gravel) first, so the main road draws over the junctions.
+    for (const b of branches) {
+      c.beginPath();
+      b.forEach((p, i) => (i ? c.lineTo(p.x, p.y) : c.moveTo(p.x, p.y)));
+      c.strokeStyle = PALETTE.gravelDark; c.lineWidth = (2 * 3.2) / U + 10; c.stroke();
+      c.strokeStyle = PALETTE.gravel; c.lineWidth = (2 * 3.2) / U; c.stroke();
+    }
     strokeRoad(0, ROAD_W + 22, PALETTE.shoulder);
     strokeRoad(0, ROAD_W, PALETTE.asphalt);
     strokeRoad(-ROAD_W / 2 + 5, 2.5, PALETTE.line);
@@ -225,9 +234,10 @@ export function createMap(canvas, { getCars, getActiveId, onTap, onSelect, butto
 
   // ---------- dynamic layer ----------
   function sampleRoad(d) {
+    d = ((d % roadLen) + roadLen) % roadLen;
     let lo = 0, hi = road.length - 1;
     while (lo < hi) { const m = (lo + hi + 1) >> 1; if (road[m].d <= d) lo = m; else hi = m - 1; }
-    const a = road[lo], b = road[Math.min(lo + 1, road.length - 1)];
+    const a = road[lo], b = road[(lo + 1) % road.length];
     const t = b.d > a.d ? (d - a.d) / (b.d - a.d) : 0;
     return { x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t, tx: a.tx, ty: a.ty, nx: a.nx, ny: a.ny };
   }
@@ -255,7 +265,7 @@ export function createMap(canvas, { getCars, getActiveId, onTap, onSelect, butto
       });
     }
     for (const t of traffic) t.d += t.dir * t.speed * dt;
-    for (let i = traffic.length - 1; i >= 0; i--) if (Math.abs(traffic[i].d - homeD) > 1200 || traffic[i].d < 0 || traffic[i].d > roadLen) traffic.splice(i, 1);
+    for (let i = traffic.length - 1; i >= 0; i--) if (Math.abs(traffic[i].d - homeD) > 1200) traffic.splice(i, 1);
 
     for (const r of ripples) r.t += dt;
     while (ripples.length && ripples[0].t > 0.6) ripples.shift();
@@ -394,7 +404,7 @@ export function createMap(canvas, { getCars, getActiveId, onTap, onSelect, butto
 }
 
 // Dense forest everywhere except the clearing, the road and the lane.
-function makeTrees(road) {
+function makeTrees(road, branches = []) {
   const rnd = seeded(1337);
   const trees = [];
   const cl = HOME.clearing, half = ROAD_W / 2;
@@ -411,6 +421,9 @@ function makeTrees(road) {
       for (let i = 0; i < road.length; i += 2) {
         const dx = road[i].x - x, dy = road[i].y - y;
         if (dx * dx + dy * dy < (half + 16 + r * 0.4) ** 2) { near = true; break; }
+      }
+      for (const b of branches) for (let i = 0; i < b.length && !near; i += 2) {
+        if ((b[i].x - x) ** 2 + (b[i].y - y) ** 2 < (3.2 / U + 16 + r * 0.4) ** 2) near = true;
       }
       if (near) continue;
       trees.push({ x, y, r, kind: rnd() < 0.8 ? 'pine' : 'leafy', shade: 0.8 + rnd() * 0.35, rot: rnd() * 6.28 });

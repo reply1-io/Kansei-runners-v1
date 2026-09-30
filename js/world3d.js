@@ -1,17 +1,17 @@
 // 3D world for driving: terrain shaped around the touge, the road itself, guardrails, forest,
 // and the cabin/tent/driveway. Built once and reused for every drive.
 import * as THREE from '../lib/three.module.min.js';
-import { ROAD, ROAD_HALF, RAIL_OFFSET, U } from './road.js';
+import { ROAD, ROAD_HALF, RAIL_OFFSET, U, BRANCHES, BRANCH_HALF } from './road.js';
 import { HOME } from './map.js';
 import { seeded } from './draw.js';
 
 const S = ROAD.samples;
+const ALL = [...S, ...BRANCHES.flatMap((b) => b.samples)]; // every road sample, for shaping terrain
 const m = (v) => v * U; // map units -> meters
 
-// Guardrails (and hard road edges) only on the mountain section; around the cabin and in the
-// valley the shoulder is open dirt.
-export const RAILED_FROM_S = ROAD.homeS + 45;
-export const isRailed = (s) => s > RAILED_FROM_S;
+// Guardrails line the mountain, with gaps where side roads leave. The valley near the cabin is open.
+const gapAt = (s, side) => BRANCHES.some((b) => b.side === side && Math.abs(s - b.junctionS) < 9);
+export const isRailed = (s, side = 0) => ROAD.railed(s) && !(side && gapAt(s, side));
 
 // Drivable areas at the cabin, in meters (car center limits). They overlap so you can drive between them.
 export const HOME_ZONES = [
@@ -24,12 +24,12 @@ export const inHome = (x, z) => HOME_ZONES.some((r) => x > r.x0 && x < r.x1 && z
 // ---------- terrain height ----------
 const CELL = 12;
 const grid = new Map();
-for (const p of S) {
+for (const p of ALL) {
   const k = `${Math.floor(p.x / CELL)},${Math.floor(p.z / CELL)}`;
   if (!grid.has(k)) grid.set(k, []);
   grid.get(k).push(p);
 }
-const coarse = S.filter((_, i) => i % 6 === 0);
+const coarse = ALL.filter((_, i) => i % 7 === 0);
 const noise = (x, z) => Math.sin(x * 0.045) * Math.cos(z * 0.039) * 2.2 + Math.sin(x * 0.13 + z * 0.07) * 0.9 + Math.cos(z * 0.21 - x * 0.05) * 0.4;
 const smooth = (a, b, v) => { const t = Math.max(0, Math.min(1, (v - a) / (b - a))); return t * t * (3 - 2 * t); };
 const CL = { x: m(HOME.clearing.x), z: m(HOME.clearing.y), rx: m(HOME.clearing.rx), rz: m(HOME.clearing.ry) };
@@ -78,9 +78,10 @@ function roadTexture() {
   return t;
 }
 
-function ribbon(offsetA, offsetB, yA, yB, every = 1, withUV = false) {
+function ribbon(offsetA, offsetB, yA, yB, every = 1, withUV = false, samples = S, closed = true) {
   const pos = [], uv = [], idx = [];
-  const pts = S.filter((_, i) => i % every === 0 || i === S.length - 1);
+  const pts = samples.filter((_, i) => i % every === 0 || i === samples.length - 1);
+  if (closed) pts.push({ ...pts[0], s: ROAD.length });
   pts.forEach((p, i) => {
     pos.push(p.x + p.nx * offsetA, p.e + yA, p.z + p.nz * offsetA);
     pos.push(p.x + p.nx * offsetB, p.e + yB, p.z + p.nz * offsetB);
@@ -99,9 +100,9 @@ function ribbon(offsetA, offsetB, yA, yB, every = 1, withUV = false) {
 function railGeometry(side) {
   const pos = [], idx = [];
   let n = 0, prevOk = false;
-  for (let i = 0; i < S.length; i += 2) {
-    const p = S[i];
-    const ok = isRailed(p.s);
+  for (let i = 0; i <= S.length; i += 2) {
+    const p = S[i % S.length];
+    const ok = isRailed(p.s, side);
     if (!ok) { prevOk = false; continue; }
     const o = side * (ROAD_HALF + RAIL_OFFSET);
     pos.push(p.x + p.nx * o, p.e + 0.45, p.z + p.nz * o, p.x + p.nx * o, p.e + 0.8, p.z + p.nz * o);
@@ -121,16 +122,17 @@ export function buildWorld() {
   const sky = new THREE.Color('#7d8fa8');
   scene.background = sky;
   scene.fog = new THREE.Fog(sky, 60, 300);
-  scene.add(new THREE.HemisphereLight('#c3d0ea', '#2c3a22', 1.25));
+  const hemi = new THREE.HemisphereLight('#c3d0ea', '#2c3a22', 1.25);
+  scene.add(hemi);
   const sun = new THREE.DirectionalLight('#ffe0b5', 1.5);
   sun.position.set(-120, 160, 60);
   scene.add(sun);
 
   // Terrain grid covering the road plus a margin.
   let minX = Infinity, maxX = -Infinity, minZ = Infinity, maxZ = -Infinity;
-  for (const p of S) { minX = Math.min(minX, p.x); maxX = Math.max(maxX, p.x); minZ = Math.min(minZ, p.z); maxZ = Math.max(maxZ, p.z); }
-  minX -= 170; maxX += 170; minZ -= 170; maxZ += 170;
-  const STEPT = 4;
+  for (const p of ALL) { minX = Math.min(minX, p.x); maxX = Math.max(maxX, p.x); minZ = Math.min(minZ, p.z); maxZ = Math.max(maxZ, p.z); }
+  minX -= 150; maxX += 150; minZ -= 150; maxZ += 150;
+  const STEPT = 5;
   const nx = Math.ceil((maxX - minX) / STEPT) + 1, nz = Math.ceil((maxZ - minZ) / STEPT) + 1;
   const pos = new Float32Array(nx * nz * 3), col = new Float32Array(nx * nz * 3);
   const rnd = seeded(11);
@@ -165,37 +167,41 @@ export function buildWorld() {
   for (const side of [-1, 1]) scene.add(new THREE.Mesh(railGeometry(side), railMat));
   const postGeo = new THREE.BoxGeometry(0.14, 0.85, 0.14);
   const posts = [];
-  for (let i = 0; i < S.length; i += 4) if (isRailed(S[i].s)) posts.push(S[i]);
-  const postMesh = new THREE.InstancedMesh(postGeo, new THREE.MeshLambertMaterial({ color: '#8a8f96' }), posts.length * 2);
+  for (let i = 0; i < S.length; i += 4) for (const side of [-1, 1]) if (isRailed(S[i].s, side)) posts.push([S[i], side]);
+  const postMesh = new THREE.InstancedMesh(postGeo, new THREE.MeshLambertMaterial({ color: '#8a8f96' }), posts.length);
   const mtx = new THREE.Matrix4();
-  posts.forEach((p, i) => {
-    for (const [k, side] of [[0, -1], [1, 1]]) {
-      const o = side * (ROAD_HALF + RAIL_OFFSET);
-      mtx.makeTranslation(p.x + p.nx * o, p.e + 0.42, p.z + p.nz * o);
-      postMesh.setMatrixAt(i * 2 + k, mtx);
-    }
+  posts.forEach(([p, side], i) => {
+    const o = side * (ROAD_HALF + RAIL_OFFSET);
+    mtx.makeTranslation(p.x + p.nx * o, p.e + 0.42, p.z + p.nz * o);
+    postMesh.setMatrixAt(i, mtx);
   });
   scene.add(postMesh);
+
+  // Side roads: narrower gravel with a "Road closed" barrier at the end.
+  const branchMat = new THREE.MeshLambertMaterial({ color: '#7d7466' });
+  for (const b of BRANCHES) {
+    scene.add(new THREE.Mesh(ribbon(-b.half, b.half, 0.0, 0.0, 1, false, b.samples.slice(3), false), branchMat));
+    scene.add(barrier(b.samples[b.samples.length - 1], b.half));
+  }
 
   // Start/finish lines (checkered strips across the road).
   for (const s of [ROAD.startLineS, ROAD.summitS]) scene.add(checkerLine(s));
 
+  const lights = { hemi, sun, sky, fog: scene.fog };
+
   // Forest: instanced cones on a jittered grid, kept off the road and out of the clearing.
   const trees = [];
   const trnd = seeded(99);
-  const TS = 7.5;
+  const TS = 8.5;
   for (let z = minZ; z < maxZ; z += TS) for (let x = minX; x < maxX; x += TS) {
     const tx = x + (trnd() - 0.5) * TS * 0.9, tz = z + (trnd() - 0.5) * TS * 0.9;
     const t = terrainAt(tx, tz);
-    if (t.dRoad < ROAD_HALF + 5 + trnd() * 3 || t.clearing < 1.12) continue;
+    if (t.dRoad < ROAD_HALF + 4 + trnd() * 3 || t.clearing < 1.12) continue;
     trees.push({ x: tx, z: tz, y: t.h, hgt: 9 + trnd() * 10, r: 2.2 + trnd() * 1.6, shade: 0.75 + trnd() * 0.4 });
   }
   const coneGeo = new THREE.ConeGeometry(1, 1, 7);
   coneGeo.translate(0, 0.5, 0);
   const treeMesh = new THREE.InstancedMesh(coneGeo, new THREE.MeshLambertMaterial({ color: '#ffffff' }), trees.length);
-  const trunkGeo = new THREE.CylinderGeometry(0.25, 0.3, 1, 5);
-  trunkGeo.translate(0, 0.5, 0);
-  const trunkMesh = new THREE.InstancedMesh(trunkGeo, new THREE.MeshLambertMaterial({ color: '#3b2a1c' }), trees.length);
   const color = new THREE.Color();
   const q = new THREE.Quaternion();
   trees.forEach((t, i) => {
@@ -203,13 +209,67 @@ export function buildWorld() {
     treeMesh.setMatrixAt(i, mtx);
     color.setRGB(0.12 * t.shade, 0.3 * t.shade, 0.16 * t.shade);
     treeMesh.setColorAt(i, color);
-    mtx.compose(new THREE.Vector3(t.x, t.y - 0.2, t.z), q, new THREE.Vector3(1, 2.2, 1));
-    trunkMesh.setMatrixAt(i, mtx);
   });
-  scene.add(treeMesh, trunkMesh);
+  scene.add(treeMesh);
 
   const fire = buildHome(scene);
-  return { scene, fire };
+  const skids = makeSkids(scene);
+  return { scene, fire, skids, setNight: (on) => setNight(lights, on) };
+}
+
+// Day vs night: night is dark blue with short fog, so headlights do the work.
+function setNight({ hemi, sun, sky, fog }, on) {
+  hemi.intensity = on ? 0.32 : 1.25;
+  hemi.color.set(on ? '#5d6f9c' : '#c3d0ea');
+  sun.intensity = on ? 0.18 : 1.5;
+  sun.color.set(on ? '#9fb3ff' : '#ffe0b5');
+  sky.set(on ? '#0b1020' : '#7d8fa8');
+  fog.color.copy(sky);
+  fog.near = on ? 25 : 60;
+  fog.far = on ? 150 : 300;
+}
+
+function barrier(p, half) {
+  const g = new THREE.Group();
+  const c = document.createElement('canvas');
+  c.width = 64; c.height = 16;
+  const x = c.getContext('2d');
+  for (let i = -2; i < 12; i++) { x.fillStyle = i % 2 ? '#f2f2f2' : '#d22'; x.beginPath(); x.moveTo(i * 8, 16); x.lineTo(i * 8 + 8, 16); x.lineTo(i * 8 + 16, 0); x.lineTo(i * 8 + 8, 0); x.fill(); }
+  const tex = new THREE.CanvasTexture(c);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  const board = new THREE.Mesh(new THREE.BoxGeometry(0.15, 0.5, half * 2), [0, 1, 2, 3, 4, 5].map((i) => new THREE.MeshLambertMaterial(i === 0 || i === 1 ? { map: tex } : { color: '#ddd' })));
+  board.position.y = 0.9;
+  g.add(board);
+  for (const side of [-1, 1]) { const leg = new THREE.Mesh(new THREE.BoxGeometry(0.1, 1.1, 0.1), new THREE.MeshLambertMaterial({ color: '#333' })); leg.position.set(0, 0.55, side * (half - 0.3)); g.add(leg); }
+  g.position.set(p.x, p.e, p.z);
+  g.rotation.y = -Math.atan2(p.tz, p.tx);
+  return g;
+}
+
+// Skid marks: a ring buffer of small dark quads laid on the road.
+function makeSkids(scene) {
+  const MAX = 900;
+  const geo = new THREE.PlaneGeometry(1, 0.28);
+  geo.rotateX(-Math.PI / 2);
+  const mesh = new THREE.InstancedMesh(geo, new THREE.MeshBasicMaterial({ color: '#0c0c0c', transparent: true, opacity: 0.5, depthWrite: false }), MAX);
+  mesh.count = 0;
+  mesh.frustumCulled = false;
+  scene.add(mesh);
+  let next = 0;
+  const mtx = new THREE.Matrix4(), q = new THREE.Quaternion(), up = new THREE.Vector3(0, 1, 0), v = new THREE.Vector3(), sc = new THREE.Vector3();
+  return {
+    add(x1, z1, x2, z2, y) {
+      const len = Math.hypot(x2 - x1, z2 - z1);
+      if (len < 0.05 || len > 3) return;
+      q.setFromAxisAngle(up, -Math.atan2(z2 - z1, x2 - x1));
+      mtx.compose(v.set((x1 + x2) / 2, y + 0.06, (z1 + z2) / 2), q, sc.set(len, 1, 1));
+      mesh.setMatrixAt(next, mtx);
+      next = (next + 1) % MAX;
+      mesh.count = Math.max(mesh.count, next === 0 ? MAX : next);
+      mesh.instanceMatrix.needsUpdate = true;
+    },
+    clear() { mesh.count = 0; next = 0; },
+  };
 }
 
 function checkerLine(s) {
@@ -297,6 +357,11 @@ export function makeCarMesh(color) {
   const head = new THREE.MeshBasicMaterial({ color: '#fff4cc' });
   add(new THREE.BoxGeometry(0.06, 0.16, 0.36), head, 2.21, 0.72, 0.6);
   add(new THREE.BoxGeometry(0.06, 0.16, 0.36), head, 2.21, 0.72, -0.6);
+  // Headlights (only switched on at night).
+  const beam = new THREE.SpotLight('#fff1cf', 0, 70, 0.55, 0.5, 1.2);
+  beam.position.set(2.0, 0.9, 0);
+  beam.target.position.set(14, -1.5, 0);
+  g.add(beam, beam.target);
   const tail = new THREE.MeshBasicMaterial({ color: '#6a0c0c' });
   add(new THREE.BoxGeometry(0.06, 0.14, 0.4), tail, -2.21, 0.75, 0.6);
   add(new THREE.BoxGeometry(0.06, 0.14, 0.4), tail, -2.21, 0.75, -0.6);
@@ -304,5 +369,5 @@ export function makeCarMesh(color) {
   const sh = new THREE.Mesh(new THREE.PlaneGeometry(4.8, 2.2), new THREE.MeshBasicMaterial({ color: '#000', transparent: true, opacity: 0.35, depthWrite: false }));
   sh.rotation.x = -Math.PI / 2; sh.position.y = 0.06; g.add(sh);
   g.rotation.order = 'YZX';
-  return { group: g, tail };
+  return { group: g, tail, beam };
 }

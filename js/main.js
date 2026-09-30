@@ -8,7 +8,8 @@ import {
 } from './state.js';
 import { startDrive, fmtTime } from './drive.js';
 import { createMap, PARKING, parkingAssignments } from './map.js';
-import { U } from './road.js';
+import { U, ROUTES, ROAD } from './road.js';
+import { unlockAudio } from './audio.js';
 
 const screen = document.getElementById('screen');
 const modalEl = document.getElementById('modal');
@@ -247,8 +248,9 @@ function renderRaces() {
   const car = activeCar();
   const perf = car && performance(car);
   const cards = EVENTS.map((ev) => {
-    const stars = Math.round(clamp((ev.aiPace - 0.5) / 0.13, 1, 5));
-    const route = ev.dir === 'up' ? '⬆️ Uphill · cabin → summit' : '⬇️ Downhill · summit → cabin';
+    const stars = Math.round(clamp((ev.skill - 0.82) / 0.03, 1, 5));
+    const r = ROUTES[ev.route];
+    const route = `${ev.route === 'up' ? '⬆️' : ev.route === 'down' ? '⬇️' : '🔁'} ${r.name} · ${r.desc} · ${((r.to - r.from) / 1000).toFixed(1)} km${ev.night ? ' · 🌙 night' : ''}`;
     return `<div class="card">
       <div class="row between"><h2>${ev.name}</h2><span>${'★'.repeat(stars)}<span class="muted">${'★'.repeat(5 - stars)}</span></span></div>
       <div class="small muted">${route} · vs ${ev.rivals.map(esc).join(' & ')}</div>
@@ -266,7 +268,7 @@ function renderRaces() {
         ${canRun(car) ? `<div class="small" style="color:var(--bad);margin-top:6px">🚫 ${canRun(car)}</div>` : ''}</div>`
     : '<div class="hint">You need a car to race.</div>';
   return `<div class="app">${header('Touge')}
-    <div class="hint">Every race runs on the mountain road in front of your cabin: 1.1 km, 5 hairpins, 75 m of climb. Driving hard wears parts and bad engines can blow mid-run. Entry fees are non-refundable.</div>
+    <div class="hint">Every race runs on the mountain loop in front of your cabin (${(ROAD.length / 1000).toFixed(1)} km, 7 hairpins). Rivals get a car with the same power-to-weight as yours, so it comes down to driving, tires and brakes. Use the handbrake in the hairpins. Entry fees are non-refundable.</div>
     ${carInfo}${cards}</div>`;
 }
 
@@ -300,7 +302,7 @@ function renderMsgs() {
     ['Kenji', 'Kenta from down the road races uphill for cash. Beat him, then mod your car or flip it for something faster.'],
   ];
   if (car && Object.keys(car.problems).length) msgs.push(['Kenji', `That ${modelOf(car).name}... you gonna fix it or just pray?`]);
-  if (state.stats.wins >= 3) msgs.push(['Ryo', 'People are talking about you. Night hillclimb, your road. Prove it.']);
+  if (state.stats.wins >= 3) msgs.push(['Ryo', 'People are talking about you. Night loop, all the way around your mountain. Prove it.']);
   if (state.stats.wins >= 6) msgs.push(['???', 'Summit. Midnight. Downhill. Don\'t embarrass yourself.']);
   return `<div class="app">${header('Messages')}${msgs.map(([from, m]) => `<div class="msg-bubble"><small>${from}</small>${esc(m)}</div>`).join('')}</div>`;
 }
@@ -495,9 +497,9 @@ const ACTIONS = {
     if (ev.entry > state.money) return toast('Can\'t cover the entry fee.');
     const nProb = Object.keys(car.problems).length;
     const risky = nProb ? `<p class="small" style="color:var(--warn)">⚠️ Your car has ${nProb} major problem${nProb > 1 ? 's' : ''}. Things might break.</p>` : '';
-    const route = ev.dir === 'up' ? 'Uphill from your cabin to the summit' : 'Downhill from the summit to your cabin';
+    const route = `${ROUTES[ev.route].name}: ${ROUTES[ev.route].desc}${ev.night ? ', at night' : ''}`;
     const ok = await confirmBox(`<h2>${ev.name}</h2><p>${route} vs ${ev.rivals.map(esc).join(' & ')}. Entry fee <b>${money(ev.entry)}</b>.</p>${risky}
-      <p class="small muted">Controls: ◀ ▶ steer, GAS / BRAKE. Keyboard: arrows or WASD.</p>`, 'Race!');
+      <p class="small muted">Controls: ◀ ▶ steer, GAS, BRAKE, HANDBRAKE. Keyboard: arrows/WASD, space = handbrake.</p>`, 'Race!');
     if (!ok) return;
     spend(ev.entry);
     runDrive('race', car, ev);
@@ -511,6 +513,8 @@ const ACTIONS = {
 };
 
 phoneWrap.addEventListener('click', (e) => { if (e.target === phoneWrap) closePhone(); });
+// Browsers only allow sound after a tap.
+document.addEventListener('pointerdown', unlockAudio, { passive: true });
 
 document.body.addEventListener('click', (e) => {
   const el = e.target.closest('[data-action]');
@@ -559,6 +563,8 @@ function runDrive(mode, car, ev) {
       canvas: document.getElementById('race-canvas'),
       hud: document.getElementById('hud'),
       car, perf: performance(car), mode, event: ev,
+      // Rivals match your car's power-to-weight as if it were healthy (a sick engine is still your problem).
+      rivalBase: performance({ ...car, cond: { ...car.cond, engine: 100, trans: 100 } }),
       parked: all.filter((p) => p !== mine),
       spot: mine,
       onExit: (res) => (mode === 'race' ? finishRace(car, ev, res) : finishCruise(car, res)),

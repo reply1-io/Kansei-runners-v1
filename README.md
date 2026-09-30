@@ -7,29 +7,38 @@ A mobile-friendly browser game. Buy a junk car with $5,000, fix what's broken, d
 You start at **your cabin, deep in the forest**, shown top-down. It has a carport tent for one car, a gravel driveway in front of it for 2 more, and a mountain road out front. That's 3 parking spots, so you can own up to 3 cars.
 
 **On the map:**
-- **Select** (the yellow button next to each car) puts you in that car and switches to a close 3/4 chase view. Drive down the lane onto the road and go wherever you like. Tap **🏠 Park** to go home.
+- **Select** (the yellow button next to each car) puts you in that car. The camera is locked behind the car, almost straight down, with just enough tilt to see its rear. Drive down the lane onto the road and go anywhere, including the side roads. Tap **🏠 Park** to go home.
 - **Tap a parked car** to open it in the Garage.
 - **Tap an empty spot** to open the Marketplace.
 - **Tap the cabin** to sleep until tomorrow, which brings new listings.
 - **📱 Phone** pulls out your phone. **▾ Put away** puts it back.
 
-**The road** is a touge: 1.1 km from the cabin to the summit, with 5 hairpins (the tightest is 9.5 m radius), grades up to 10%, and 75 m of climb. Guardrails line the mountain section. Gravity is simulated, so uphill slows you and downhill pulls you into the hairpins.
+**The road** is a 2.7 km touge loop around the mountain, with no straights:
+- From the cabin it climbs the west face through 4 switchback hairpins (the tightest is 9.5 m radius) and sweeps up to the ridge.
+- It runs the ridge over the summit (about 60 m up), drops down the east face through 3 more hairpins, and comes back through the valley past your cabin.
+- Guardrails line the mountain sections. Gravity is simulated, so uphill slows you and downhill pulls you into the hairpins.
+- **Side roads** branch off at the summit (lookout), the east face (old logging road) and the valley (road to town). They're drivable gravel for now and end at a "Road closed" barrier, ready to be opened up later.
 
 **The loop:**
 1. **Marketplace:** 6–10 used cars under $5k each day, with a price, factory specs (hp, handling, weight) and condition. Striped `??` bars are hidden problems, so tap **Inspect ($80)** before you buy.
 2. **Parts Shop:** buy parts for anything marked ⚠️, plus performance mods. They go in your trunk.
 3. **Garage:** tap **Install** / **Install all**.
-4. **Touge app:** street races on your road, **uphill** (cabin → summit) or **downhill** (summit → cabin), against 1–2 rivals:
-   - **Kenta** (uphill): a stock beater can beat him.
-   - **Iketani** (downhill): needs a few mods, or clean driving.
-   - **Ryo & Shingo** (uphill night hillclimb): needs a properly modded car.
-   - **The Ghost** (downhill): needs a serious, grip-focused build.
-5. **Drive:**
+4. **Touge app:** street races on your loop against 1–2 rivals:
+   - **Kenta:** uphill, cabin → summit
+   - **Iketani:** downhill, summit → east face → cabin
+   - **Ryo & Shingo:** the full loop at night
+   - **The Ghost:** downhill at midnight
+5. **Rivals race hard.** They always get **the same power-to-weight as your car**, so you can't buy your way past them with power:
+   - They drive a computed racing line (wide, apex, wide) and pull the handbrake through the tightest hairpins.
+   - They follow closely and try to go around you.
+   - Later rivals are better drivers on stickier tires with stronger brakes, so tires, coilovers and brakes are the mods that matter.
+   - Expect to need a few tries.
+6. **Drive:**
    - **◀ ▶** steer
-   - **GAS / BRAKE**
-   - On a keyboard, use the arrow keys or WASD.
-   - The HUD shows your position, gap to the rival, time, meters to go and a minimap.
-6. Every drive wears the car. Throttle wears the engine and transmission, sliding wears tires, brakes wear on downhills, and guardrails and contact damage the body. A worn engine can blow. Spend your winnings on repairs and mods, or sell and move up.
+   - **GAS**, **BRAKE** and **HAND BRAKE**; pull the handbrake to swing the rear around hairpins.
+   - On a keyboard, use arrows/WASD, with space for the handbrake.
+   - 🔊 toggles sound (engine, tire squeal, impacts). Night races are lit by headlights.
+7. Every drive wears the car. Throttle wears the engine and transmission, sliding wears tires, brakes wear on downhills, and guardrails and contact damage the body. A worn engine can blow. Spend your winnings on repairs and mods, or sell and move up.
 
 Progress saves automatically in the browser (localStorage).
 
@@ -49,11 +58,12 @@ python3 -m http.server 8000
 
 | File | What's in it | Add… |
 |---|---|---|
-| `js/data.js` | Content and balance numbers | **Cars** → `MODELS`, **repair parts** → `COMPONENTS`, **mods** → `UPGRADES`, **touge races** → `EVENTS` (direction, rivals, pace, entry, purse) |
-| `js/road.js` | The touge, built from straights and arcs with a grade each (`MOUNTAIN` / `VALLEY` lists) | New hairpins or sections: edit the segment lists. The map, 3D world, races and AI all follow automatically |
+| `js/data.js` | Content and balance numbers | **Cars** → `MODELS`, **repair parts** → `COMPONENTS`, **mods** → `UPGRADES`, **touge races** → `EVENTS` (route, night, rivals, rival skill/tires/brakes, entry, purse) |
+| `js/road.js` | The road network: the loop (`LOOP`, a list of arcs with a grade each), side roads (`BRANCH_DEFS`), race routes (`ROUTES`), and the racing line the rivals drive | Reshape the loop or add side roads. The map, 3D world, races and AI all follow automatically |
 | `js/state.js` | Game state, save/load, car generation, pricing, performance math (condition + mods → hp/grip/brakes) | New stats or economy rules |
-| `js/drive.js` | Driving in 3D: car physics (grip, drift, slope gravity), rival AI, chase camera, HUD, controls, wear/failures | Race and driving mechanics |
-| `js/world3d.js` | The 3D scene: terrain shaped around the road, road surface, guardrails, forest, cabin/tent/driveway, car model | Scenery and props |
+| `js/drive.js` | Driving in 3D: car physics (grip, drift, handbrake, slope gravity), rival AI on the racing line, locked camera, HUD, controls, wear/failures | Race and driving mechanics |
+| `js/audio.js` | Synthesized engine, tire squeal and impact sounds (Web Audio, no sound files) | Sounds |
+| `js/world3d.js` | The 3D scene: terrain shaped around the roads, road surfaces, guardrails, barriers, forest, cabin/tent/driveway, day/night lighting, skid marks, car model with headlights | Scenery and props |
 | `js/map.js` | Top-down home map: layout (`HOME`), parking spots (`PARKING`), Select buttons, traffic, tap targets | Home layout, more parking spots |
 | `js/main.js` | Phone UI and every app, plus the flow between the map, phone and driving | New apps or screens |
 | `js/draw.js` | Shared 2D canvas helpers | |

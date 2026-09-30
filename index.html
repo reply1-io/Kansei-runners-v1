@@ -42,6 +42,7 @@
         <div class="hud-box race-only"><small>POS</small><b data-pos></b></div>
         <div class="hud-box race-only"><small>GAP</small><b data-gap></b></div>
         <div class="hud-box race-only"><small>TIME</small><b data-time></b></div>
+        <button class="hud-exit" data-mute aria-label="Sound on or off">🔊</button>
         <button class="hud-exit" data-exit>Retire</button>
       </div>
       <canvas class="minimap" data-minimap></canvas>
@@ -55,7 +56,10 @@
           <button class="ctl" data-ctl="right">▶</button>
         </div>
         <div class="ctl-group">
-          <button class="ctl brake" data-ctl="brake">BRAKE</button>
+          <div class="ctl-stack">
+            <button class="ctl brake" data-ctl="brake">BRAKE</button>
+            <button class="ctl hb" data-ctl="hb">HAND<br>BRAKE</button>
+          </div>
           <button class="ctl gas" data-ctl="gas">GAS</button>
         </div>
       </div>
