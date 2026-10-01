@@ -475,7 +475,6 @@ export function startDrive({ canvas, hud, car, perf, rivalBase, mode, event, dif
   function stepRivals(dt) {
     if (time <= 0) { for (const r of rivals) placeRival(r, 0); return; }
     const playerLat = road.nearest(P.x, P.z, P.hint).lat;
-    playerLatNow = playerLat;
     const playerV = Math.hypot(P.vx, P.vz);
     for (const r of rivals) {
       const { i } = lineIndexAt(r.line, r.d);
@@ -551,8 +550,6 @@ export function startDrive({ canvas, hud, car, perf, rivalBase, mode, event, dif
     }
   }
 
-  // Where you are across the road, for the rivals' "never turn into you" rule.
-  let playerLatNow = 0;
   function placeRival(r, dt) {
     const LP = r.line.pts, LN = LP.length;
     const { i, t } = lineIndexAt(r.line, r.d);
@@ -562,20 +559,7 @@ export function startDrive({ canvas, hud, car, perf, rivalBase, mode, event, dif
     const blend = clamp((r.sAbs - (route.from - 2)) / 40, 0, 1);
     const lineLat = a.off + (b.off - a.off) * t;
     const wob = r.wander.reduce((sum, w) => sum + w.amp * Math.sin((r.d / w.len) * Math.PI * 2 + w.ph), 0);
-    let lat = clamp((1 - blend) * r.startLat + blend * (lineLat + wob) + r.pass, -ROAD_HALF + 1, ROAD_HALF - 1);
-    // Never turn into you: while you're alongside, or close behind with your nose to one side of its
-    // rear (going for the inside), a rival holds its side of the road. It can move away from you but
-    // never closer than a car's width, and never any closer than it already was, so it won't shut the
-    // door on a pass. Right behind it in its own wheel tracks doesn't count.
-    // Measured in real metres along the rival's heading (road distance is misleading inside tight hairpins).
-    const along = (P.x - r.x) * Math.cos(r.h) + (P.z - r.z) * Math.sin(r.h), beside = Math.abs(r.curLat - playerLatNow) > 1.2;
-    if (race && time > 0 && ((along > -9 && along < 5.5 && beside) || (r.sideLock && along > -9 && along < 5.5))) {
-      const side = r.sideLock || (r.curLat >= playerLatNow ? 1 : -1);
-      r.sideLock = side;
-      const gapNow = (r.curLat - playerLatNow) * side, minGap = Math.min(2.4, Math.max(gapNow, 0));
-      const want = (lat - playerLatNow) * side;
-      if (want < minGap) lat = clamp(playerLatNow + side * minGap, -ROAD_HALF + 0.6, ROAD_HALF - 0.6);
-    } else r.sideLock = 0;
+    const lat = clamp((1 - blend) * r.startLat + blend * (lineLat + wob) + r.pass, -ROAD_HALF + 1, ROAD_HALF - 1);
     r.curLat = lat;
     r.x = c.x + (c2.x - c.x) * t + c.nx * lat;
     r.z = c.z + (c2.z - c.z) * t + c.nz * lat;
