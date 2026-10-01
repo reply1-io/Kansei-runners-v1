@@ -256,3 +256,12 @@ export function envCube() {
   env.needsUpdate = true;
   return env;
 }
+
+// Falling water: bright vertical streaks over blue-white, scrolled downwards every frame.
+export const waterfallTex = () => tex('waterfall', 16, 32, (g, w, h, rnd) => {
+  g.fillStyle = '#9fc6dc'; g.fillRect(0, 0, w, h);
+  for (let i = 0; i < 70; i++) {
+    g.fillStyle = ['#e8f4fb', '#ffffff', '#7fb0cc', '#c9e3f1'][Math.floor(rnd() * 4)];
+    g.fillRect(Math.floor(rnd() * w), Math.floor(rnd() * h), 1, 2 + Math.floor(rnd() * 6));
+  }
+});

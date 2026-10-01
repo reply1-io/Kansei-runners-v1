@@ -5,7 +5,7 @@ import * as THREE from '../lib/three.module.min.js';
 import { ROAD_HALF, U, apexesOf } from './road.js';
 import { HOME } from './map.js';
 import { seeded } from './draw.js';
-import { roadTex, shoulderTex, grassTex, rockTex, treeTex, treeTopTex, skyTex, logTex, roofTex, canvasTex, gravelTex } from './textures.js';
+import { roadTex, shoulderTex, grassTex, rockTex, treeTex, treeTopTex, skyTex, logTex, roofTex, canvasTex, gravelTex, waterfallTex } from './textures.js';
 export { makeCarMesh } from './carmodel.js';
 
 const m = (v) => v * U; // map units -> meters
@@ -20,6 +20,8 @@ export const inHome = (x, z) => HOME_ZONES.some((r) => x > r.x0 && x < r.x1 && z
 
 // ---------- terrain height ----------
 const noise = (x, z) => Math.sin(x * 0.045) * Math.cos(z * 0.039) * 2.2 + Math.sin(x * 0.13 + z * 0.07) * 0.9 + Math.cos(z * 0.21 - x * 0.05) * 0.4;
+// Big rolling hills away from the roads (they fade out within ~20 m of a road, so driving is unchanged).
+const hills = (x, z) => 9 * Math.sin(x * 0.011 + 1.3) * Math.cos(z * 0.013 - 0.4) + 6 * Math.sin((x + z) * 0.008 + 2.1) + 4 * Math.cos(x * 0.021 - z * 0.017) + 7;
 const smooth = (a, b, v) => { const t = Math.max(0, Math.min(1, (v - a) / (b - a))); return t * t * (3 - 2 * t); };
 
 // Returns terrainAt(x, z) for a network: flattened next to its roads, slopes blended between road
@@ -51,7 +53,7 @@ function makeTerrain(net) {
     }
     const dc = Math.sqrt(cmin);
     const dn = Math.min(Math.sqrt(nd), dc);
-    const far = es / ws + noise(x, z) * smooth(8, 40, dc) + 0.22 * Math.max(0, dc - 18);
+    const far = es / ws + noise(x, z) * smooth(8, 40, dc) + 0.22 * Math.max(0, dc - 18) + hills(x, z) * smooth(20, 90, dc);
     let h = nd < Infinity && dn < 30 ? ne + (far - ne) * smooth(ROAD_HALF + 1.2, ROAD_HALF + 16, dn) - 0.3 * (1 - smooth(ROAD_HALF, ROAD_HALF + 3, dn)) : far;
     let r = 9;
     if (CL) {
@@ -96,7 +98,17 @@ export function getWorld(net) {
 function buildWorld(net) {
   const S = net.road.samples;
   const cutMat = new THREE.MeshLambertMaterial({ map: gravelTex(), color: '#b08a5a', side: THREE.DoubleSide });
-  const terrainAt = makeTerrain(net);
+  const baseTerrain = makeTerrain(net);
+  // Ponds and plunge pools are carved into the ground (filled in below, once the bounds are known).
+  let carves = [];
+  const terrainAt = (x, z) => {
+    const t = baseTerrain(x, z);
+    for (const c of carves) {
+      const d = Math.hypot(x - c.x, z - c.z);
+      if (d < c.r + 8) t.h = Math.min(t.h, d < c.r ? c.level - c.depth * (1 - (d / c.r) ** 2) : c.level + (d - c.r) * 0.35);
+    }
+    return t;
+  };
   const scene = new THREE.Scene();
   const sky = new THREE.Color('#c9d9ea'); // horizon haze
   scene.background = sky;
@@ -118,6 +130,8 @@ function buildWorld(net) {
   let minX = Infinity, maxX = -Infinity, minZ = Infinity, maxZ = -Infinity;
   for (const p of [...S, ...net.branches.flatMap((b) => b.samples)]) { minX = Math.min(minX, p.x); maxX = Math.max(maxX, p.x); minZ = Math.min(minZ, p.z); maxZ = Math.max(maxZ, p.z); }
   minX -= 130; maxX += 130; minZ -= 130; maxZ += 130;
+  const water = findWaterSites(net, baseTerrain, { minX, maxX, minZ, maxZ });
+  carves = [...water.ponds.map((p) => ({ ...p, depth: 1.4 })), ...water.falls.map((f) => ({ x: f.bot.x, z: f.bot.z, r: 4.5, level: f.bot.h + 0.15, depth: 1.0 }))];
   const STEPT = 5;
   const nx = Math.ceil((maxX - minX) / STEPT) + 1, nz = Math.ceil((maxZ - minZ) / STEPT) + 1;
   const pos = new Float32Array(nx * nz * 3), col = new Float32Array(nx * nz * 3), tuv = new Float32Array(nx * nz * 2);
@@ -217,7 +231,8 @@ function buildWorld(net) {
     const t = terrainAt(tx, tz);
     if (t.dRoad < ROAD_HALF + 2.8 + trnd() * 1.2 || t.dRoad > TREE_REACH || t.clearing < 1.12) continue;
     if (apexCuts.some((c) => (c.x - tx) ** 2 + (c.z - tz) ** 2 < 64)) continue; // keep the apex cut-throughs clear
-    trees.push({ x: tx, z: tz, y: t.h, hgt: Math.min(9 + trnd() * 10, 2.5 + (t.dRoad - ROAD_HALF) * 0.8), r: 2.4 + trnd() * 1.4, shade: 0.75 + trnd() * 0.4 });
+    if (nearWater(water, tx, tz, 10)) continue; // and an open glade round the ponds and waterfalls
+    trees.push({ x: tx, z: tz, y: t.h, hgt: Math.min(9 + trnd() * 10, 2.5 + (t.dRoad - ROAD_HALF) * 0.55), r: 2.4 + trnd() * 1.4, shade: 0.75 + trnd() * 0.4 });
   }
   // Crossed-quad sprite trees, the classic late-90s way.
   const quad = (rot) => { const p = new THREE.PlaneGeometry(1, 1); p.translate(0, 0.5, 0); p.rotateY(rot); return p; };
@@ -247,6 +262,10 @@ function buildWorld(net) {
   });
   scene.add(tops);
 
+  const waterFx = buildWater(scene, water, terrainAt);
+  buildRocks(scene, terrainAt, water, apexCuts, { minX, maxX, minZ, maxZ });
+  const mountains = buildMountains(scene);
+
 
   const fire = net.home ? buildHome(scene) : null;
   const skids = makeSkids(scene);
@@ -254,7 +273,12 @@ function buildWorld(net) {
     scene, fire, skids, terrainAt,
     setNight: (on) => { setNight(lights, on); skyMat.color.set(on ? '#1b2440' : '#ffffff'); },
     // Keep the sky panorama centered on the camera.
-    follow: (cam) => skyMesh.position.set(cam.position.x, cam.position.y + 40, cam.position.z),
+    follow: (cam) => {
+      skyMesh.position.set(cam.position.x, cam.position.y + 40, cam.position.z);
+      mountains.position.set(cam.position.x, cam.position.y, cam.position.z);
+    },
+    // Per-frame animation (waterfalls flowing). t in seconds.
+    update: (t) => waterFx.update(t),
   };
 }
 
@@ -396,4 +420,140 @@ function buildHome(scene) {
   const light = new THREE.PointLight('#ff8a3a', 30, 22, 1.6);
   light.position.set(m(f.x), 1.5, m(f.y)); scene.add(light);
   return { flame, light };
+}
+
+// ---------- natural features: ponds, waterfalls, rocks, distant mountains ----------
+
+// Ponds sit on flat ground 15-40 m off a road; waterfalls on the steepest drops 12-45 m off a road.
+function findWaterSites(net, terrainAt, { minX, maxX, minZ, maxZ }) {
+  const rnd = seeded(net.id === 'home' ? 31 : net.id.length * 17 + 3);
+  const ponds = [], falls = [];
+  const ok = (t) => t.clearing > 1.4;
+  const far = (list, x, z, d) => list.every((p) => Math.hypot(p.x - x, p.z - z) > d);
+  for (let tries = 0; tries < 6000 && (ponds.length < 3 || falls.length < 2); tries++) {
+    const x = minX + rnd() * (maxX - minX), z = minZ + rnd() * (maxZ - minZ);
+    const t = terrainAt(x, z);
+    if (!ok(t)) continue;
+    if (ponds.length < 3 && t.dRoad > 13 && t.dRoad < 28 && far(ponds, x, z, 110)) {
+      const r = 6 + rnd() * 5;
+      let lo = Infinity, hi = -Infinity;
+      for (let a = 0; a < 6.28; a += 0.8) { const h = terrainAt(x + Math.cos(a) * r, z + Math.sin(a) * r).h; lo = Math.min(lo, h); hi = Math.max(hi, h); }
+      if (hi - lo < 2.2) { ponds.push({ x, z, r, level: lo + 0.1 }); continue; }
+    }
+    if (falls.length < 2 && t.dRoad > 12 && t.dRoad < 32 && far(falls, x, z, 140) && far(ponds, x, z, 25)) {
+      // Look for a big drop within 14 m in any direction.
+      let best = null;
+      for (let a = 0; a < 6.28; a += 0.4) {
+        const bx = x + Math.cos(a) * 14, bz = z + Math.sin(a) * 14, tb = terrainAt(bx, bz);
+        const drop = t.h - tb.h;
+        if (drop > 4 && tb.dRoad > 9 && (!best || drop > best.drop)) best = { drop, bx, bz, h: tb.h };
+      }
+      if (best) falls.push({ x, z, top: { x, z, h: t.h }, bot: { x: best.bx, z: best.bz, h: best.h } });
+    }
+  }
+  return { ponds, falls };
+}
+
+function nearWater(water, x, z, pad) {
+  for (const p of water.ponds) if (Math.hypot(p.x - x, p.z - z) < p.r + pad) return true;
+  for (const f of water.falls) {
+    const ax = f.top.x, az = f.top.z, bx = f.bot.x, bz = f.bot.z;
+    const L2 = (bx - ax) ** 2 + (bz - az) ** 2 || 1;
+    const u = Math.max(0, Math.min(1, ((x - ax) * (bx - ax) + (z - az) * (bz - az)) / L2));
+    if (Math.hypot(x - (ax + u * (bx - ax)), z - (az + u * (bz - az))) < 3 + pad) return true;
+    if (Math.hypot(x - bx, z - bz) < 4.5 + pad) return true;
+  }
+  return false;
+}
+
+function buildWater(scene, water, terrainAt) {
+  const pondMat = new THREE.MeshPhongMaterial({ color: '#2f6178', specular: '#bcd8ee', shininess: 90, transparent: true, opacity: 0.9 });
+  const disc = (x, z, r, y) => { const g = new THREE.CircleGeometry(r, 18); g.rotateX(-Math.PI / 2); const m = new THREE.Mesh(g, pondMat); m.position.set(x, y, z); scene.add(m); };
+  for (const p of water.ponds) disc(p.x, p.z, p.r + 3, p.level);
+  const fallTex = waterfallTex();
+  fallTex.wrapS = fallTex.wrapT = THREE.RepeatWrapping;
+  const fallMat = new THREE.MeshBasicMaterial({ map: fallTex, side: THREE.DoubleSide });
+  const foamMat = new THREE.MeshBasicMaterial({ color: '#eef6fb', transparent: true, opacity: 0.75 });
+  for (const f of water.falls) {
+    // A ribbon of falling water hugging the slope from the lip down into its plunge pool.
+    const N = 10, W = 3.2, pos = [], uv = [], idx = [];
+    const dx = f.bot.x - f.top.x, dz = f.bot.z - f.top.z, L = Math.hypot(dx, dz) || 1, nx = -dz / L, nz = dx / L;
+    let along = 0, prev = null;
+    for (let i = 0; i <= N; i++) {
+      const u = i / N, x = f.top.x + dx * u, z = f.top.z + dz * u;
+      const y = Math.max(terrainAt(x, z).h, f.bot.h) + 0.45;
+      if (prev) along += Math.hypot(x - prev.x, y - prev.y, z - prev.z);
+      prev = { x, y, z };
+      pos.push(x - nx * W / 2, y, z - nz * W / 2, x + nx * W / 2, y, z + nz * W / 2);
+      uv.push(0, along / 3, 1, along / 3);
+      if (i) { const a = (i - 1) * 2; idx.push(a, a + 1, a + 2, a + 1, a + 3, a + 2); }
+    }
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+    g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
+    g.setIndex(idx); g.computeVertexNormals();
+    scene.add(new THREE.Mesh(g, fallMat));
+    disc(f.bot.x, f.bot.z, 5.5, f.bot.h + 0.15);
+    const foam = new THREE.Mesh(new THREE.RingGeometry(0.6, 2.4, 14), foamMat);
+    foam.rotation.x = -Math.PI / 2; foam.position.set(f.bot.x, f.bot.h + 0.2, f.bot.z); scene.add(foam);
+  }
+  return { update: (t) => { fallTex.offset.y = (t * 1.6) % 1; } };
+}
+
+// Boulders: scattered through the forest (more on steep ground), round the ponds and beside the falls.
+// Always outside the drivable area, so you never drive through one.
+function buildRocks(scene, terrainAt, water, apexCuts, { minX, maxX, minZ, maxZ }) {
+  const rnd = seeded(5), rocks = [];
+  const add = (x, z, s) => { const t = terrainAt(x, z); if (t.dRoad > ROAD_HALF + 5.4 && t.clearing > 1.15) rocks.push({ x, z, y: t.h, s }); };
+  for (let z = minZ; z < maxZ; z += 10) for (let x = minX; x < maxX; x += 10) {
+    const rx = x + (rnd() - 0.5) * 9, rz = z + (rnd() - 0.5) * 9;
+    const t = terrainAt(rx, rz);
+    if (t.dRoad > TREE_REACH + 40) continue;
+    const slope = Math.abs(terrainAt(rx + 3, rz).h - terrainAt(rx - 3, rz).h) + Math.abs(terrainAt(rx, rz + 3).h - terrainAt(rx, rz - 3).h);
+    if (rnd() < 0.05 + Math.min(0.5, slope * 0.08)) add(rx, rz, 0.5 + rnd() * (slope > 3 ? 2.6 : 1.4));
+  }
+  for (const p of water.ponds) for (let i = 0; i < 10; i++) { const a = rnd() * 6.28, d = p.r + 0.6 + rnd() * 2.5; add(p.x + Math.cos(a) * d, p.z + Math.sin(a) * d, 0.5 + rnd() * 1.1); }
+  for (const f of water.falls) for (let i = 0; i < 14; i++) {
+    const u = rnd(), side = rnd() < 0.5 ? -1 : 1;
+    const dx = f.bot.x - f.top.x, dz = f.bot.z - f.top.z, L = Math.hypot(dx, dz) || 1;
+    add(f.top.x + dx * u - (dz / L) * side * (2.4 + rnd() * 2), f.top.z + dz * u + (dx / L) * side * (2.4 + rnd() * 2), 0.8 + rnd() * 1.8);
+  }
+  const geo = new THREE.IcosahedronGeometry(1, 0);
+  const mesh = new THREE.InstancedMesh(geo, new THREE.MeshLambertMaterial({ map: rockTex(), flatShading: true }), Math.max(1, rocks.length));
+  const mtx = new THREE.Matrix4(), q = new THREE.Quaternion(), e = new THREE.Euler(), color = new THREE.Color();
+  rocks.forEach((r, i) => {
+    q.setFromEuler(e.set(rnd() * 0.5, rnd() * 6.28, rnd() * 0.5));
+    mtx.compose(new THREE.Vector3(r.x, r.y + r.s * 0.15, r.z), q, new THREE.Vector3(r.s * (0.8 + rnd() * 0.5), r.s * (0.5 + rnd() * 0.4), r.s * (0.8 + rnd() * 0.5)));
+    mesh.setMatrixAt(i, mtx);
+    color.setScalar(0.75 + rnd() * 0.35);
+    mesh.setColorAt(i, color);
+  });
+  mesh.count = rocks.length;
+  scene.add(mesh);
+}
+
+// A hazy ring of snow-capped mountains on the horizon. It follows the camera (like the sky), so it
+// always sits in the far distance.
+function buildMountains(scene) {
+  const rnd = seeded(77), group = new THREE.Group();
+  const haze = new THREE.Color('#a9c3de'), rock = new THREE.Color('#5d6b7c'), snow = new THREE.Color('#f2f6fa');
+  const mat = new THREE.MeshLambertMaterial({ vertexColors: true, flatShading: true, fog: false });
+  for (let i = 0; i < 22; i++) {
+    const a = (i / 22) * Math.PI * 2 + rnd() * 0.15, h = 170 + rnd() * 110, rad = 110 + rnd() * 100;
+    const g = new THREE.ConeGeometry(rad, h, 6 + Math.floor(rnd() * 3), 3).toNonIndexed();
+    const pos = g.attributes.position, col = [];
+    for (let k = 0; k < pos.count; k++) {
+      const y = pos.getY(k) / h + 0.5; // 0 base .. 1 peak
+      const c = (y > 0.72 ? snow.clone() : rock.clone().lerp(haze, 0.35 + (1 - y) * 0.4));
+      col.push(c.r, c.g, c.b);
+    }
+    g.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
+    g.computeVertexNormals();
+    const m = new THREE.Mesh(g, mat);
+    m.position.set(Math.cos(a) * (580 + rnd() * 60), -150 + h / 2, Math.sin(a) * (580 + rnd() * 60));
+    m.rotation.y = rnd() * 6.28;
+    group.add(m);
+  }
+  scene.add(group);
+  return group;
 }

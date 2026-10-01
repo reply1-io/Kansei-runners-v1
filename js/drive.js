@@ -31,7 +31,7 @@ const HB_RADIUS = 15; // rivals pull the handbrake where their line is tighter t
 // Locked chase camera: fixed high up behind the car with a wide 90° view, looking down the road over the
 // treetops so you can see the next corners (a narrower view loses bends off the sides of a tall phone screen).
 // It never swings or lags; it turns exactly with the car. The car sits low in the frame, above the pedals.
-const CAM = { height: 20, back: 5.7, ahead: 10, fov: 90, fovLandscape: 70 };
+const CAM = { height: 20, back: 9.5, ahead: 12.7, fov: 90, fovLandscape: 70 };
 
 let retro = null, world = null, camera = null;
 
@@ -549,6 +549,7 @@ export function startDrive({ canvas, hud, car, perf, rivalBase, mode, event, dif
     camera.position.set(P.x - cx * CAM.back, P.e + CAM.height, P.z - cz * CAM.back);
     camera.lookAt(P.x + cx * CAM.ahead, P.e, P.z + cz * CAM.ahead);
     world.follow(camera);
+    world.update(performance.now() / 1000);
     retro.render(scene, camera);
     drawMinimap();
     sound.update({ speed: Math.hypot(P.vx, P.vz), top: spec.top, throttle: input.gas && time > 0 && !engineBlown ? 1 : 0, slip: P.slip });

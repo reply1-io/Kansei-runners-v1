@@ -120,6 +120,7 @@ export function createHomeView({ canvas, overlay, getCars, getActiveId, onTap, o
     updateTraffic(dt);
     if (world.fire) world.fire.light.intensity = 26 + Math.sin(time * 13) * 6 + Math.sin(time * 7.7) * 4;
     world.follow(camera);
+    world.update(performance.now() / 1000);
     retro.render(scene, camera);
     syncButtons(spots);
     if (running) raf = requestAnimationFrame(loop);
