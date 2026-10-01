@@ -266,7 +266,7 @@ function renderRaces() {
     const c = COURSES[race.course];
     const diffs = Object.entries(DIFFICULTIES).map(([key, d]) => {
       const best = state.records[`${race.id}:${key}`];
-      return `<button class="diff diff-${key}" data-action="race" data-arg="${race.id}:${key}" ${!car || d.entry > state.money ? 'disabled' : ''}>
+      return `<button class="diff diff-${key}" data-action="race" data-arg="${race.id}:${key}" ${!car ? 'disabled' : ''}>
         <b>${d.label}</b><span>${money(d.entry)} → ${money(d.purse[0])}</span><small>${best ? `🏁 ${fmtTime(best)}` : '&nbsp;'}</small></button>`;
     }).join('');
     // Hot lap: no rivals, free entry, paid by lap time (best tier you beat) plus a bonus for a new record.
@@ -335,6 +335,7 @@ function render() {
   render.keepScroll = false;
   document.querySelector('[data-sb-day]').textContent = `Day ${state.day}`;
   document.querySelector('[data-sb-money]').textContent = money(state.money);
+  document.querySelector('[data-sb-money]').style.color = state.money < 0 ? 'var(--bad)' : '';
   const tt = screen.querySelector('[data-turntable]');
   if (tt && !phoneWrap.hidden && activeCar()) mountTurntable(tt, activeCar()); else unmountTurntable();
   renderMapHud();
@@ -348,6 +349,7 @@ function render() {
 function renderMapHud() {
   document.querySelector('[data-map-day]').textContent = state.day;
   document.querySelector('[data-map-money]').textContent = money(state.money);
+  document.querySelector('[data-map-money]').style.color = state.money < 0 ? 'var(--bad)' : '';
   document.querySelector('[data-phone-dot]').hidden = !state.inventory.length;
   document.getElementById('phone-btn').classList.toggle('pulse', !state.cars.length);
   document.querySelector('[data-map-hint]').textContent = !state.cars.length
@@ -542,10 +544,10 @@ const ACTIONS = {
     if (!car) return;
     const dead = canRun(car);
     if (dead) return modal(`<h2>Not happening</h2><p>${dead}</p><p class="small muted">Buy parts in the Parts Shop, then install them in the Garage.</p>`);
-    if (ev.entry > state.money) return toast('Can\'t cover the entry fee.');
     const nProb = Object.keys(car.problems).length;
     const risky = nProb ? `<p class="small" style="color:var(--warn)">⚠️ Your car has ${nProb} major problem${nProb > 1 ? 's' : ''}. Things might break.</p>` : '';
     const ok = await confirmBox(`<h2>${ev.name} · ${diff.label}</h2><p>${ev.style} vs ${ev.rivals.map(esc).join(', ')}, same car numbers as yours. You start behind them. Entry fee <b>${money(ev.entry)}</b>, win <b>${money(ev.purse[0])}</b>.</p>${risky}
+      ${ev.entry > state.money ? `<p class="small" style="color:var(--warn)">You're ${money(ev.entry - state.money)} short of the entry fee. You can race anyway: your balance goes below $0 until you win it back.</p>` : ''}
       <p class="small muted">Controls: ◀ ▶ steer, GAS, BRAKE, HANDBRAKE. Keyboard: arrows/WASD, space = handbrake.</p>`, 'Race!');
     if (!ok) return;
     spend(ev.entry);
