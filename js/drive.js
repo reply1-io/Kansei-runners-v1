@@ -25,6 +25,7 @@ function rivalColors(mine) {
 const APEX_BONUS = 50, CONTACT_FINE = 25, APEX_HIT = 2.0;
 const APEX_GEM = new THREE.OctahedronGeometry(0.45, 0);
 const APEX_RING = new THREE.RingGeometry(1.2, 1.6, 20);
+const TOUCH_SLOP = 36; // px: touches this close to a control count for it
 const HB_RADIUS = 15; // rivals pull the handbrake where their line is tighter than this
 
 // Locked chase camera: fixed high up behind the car with a wide 90° view, looking down the road over the
@@ -214,11 +215,42 @@ export function startDrive({ canvas, hud, car, perf, rivalBase, mode, event, dif
     for (const k of pointers.values()) input[k] = true;
     ctlButtons.forEach((b) => b.classList.toggle('on', input[b.dataset.ctl]));
   };
-  const down = (e) => { const b = e.target.closest('[data-ctl]'); if (!b) return; e.preventDefault(); pointers.set(e.pointerId, b.dataset.ctl); syncInput(); };
+  // Mouse/pen: track each pointer. Touch is handled separately below.
+  const down = (e) => { if (e.pointerType === 'touch') return; const b = e.target.closest('[data-ctl]'); if (!b) return; e.preventDefault(); pointers.set(e.pointerId, b.dataset.ctl); syncInput(); };
   const up = (e) => { if (pointers.delete(e.pointerId)) syncInput(); };
   hud.addEventListener('pointerdown', down);
   window.addEventListener('pointerup', up);
   window.addEventListener('pointercancel', up);
+  // Touch: on every touch change, work out which controls are held from ALL fingers currently on the
+  // screen. A missed "finger up" (iOS gestures, going full screen, app switching) can't leave a pedal
+  // stuck: the next touch change corrects it, and lifting every finger releases everything. A touch
+  // that lands just outside a control (within TOUCH_SLOP px) counts for the nearest one.
+  const onTouch = (e) => {
+    const rects = [...ctlButtons].map((b) => ({ k: b.dataset.ctl, r: b.getBoundingClientRect() }));
+    const held = new Set();
+    let ours = false;
+    for (const t of e.touches) {
+      let best = null, bd = Infinity;
+      for (const z of rects) {
+        const dx = Math.max(z.r.left - t.clientX, 0, t.clientX - z.r.right), dy = Math.max(z.r.top - t.clientY, 0, t.clientY - z.r.bottom);
+        const d = Math.hypot(dx, dy);
+        if (d < bd) { bd = d; best = z; }
+      }
+      if (best && bd <= TOUCH_SLOP) held.add(best.k);
+    }
+    for (const t of e.changedTouches) {
+      for (const z of rects) if (t.clientX > z.r.left - TOUCH_SLOP && t.clientX < z.r.right + TOUCH_SLOP && t.clientY > z.r.top - TOUCH_SLOP && t.clientY < z.r.bottom + TOUCH_SLOP) ours = true;
+    }
+    if (ours && e.cancelable) e.preventDefault(); // no scrolling/zooming/long-press menus from the pedals
+    for (const k of ['left', 'right', 'gas', 'brake', 'hb']) input[k] = held.has(k);
+    for (const k of pointers.values()) input[k] = true; // a mouse button can still be held on desktop
+    ctlButtons.forEach((b) => b.classList.toggle('on', input[b.dataset.ctl]));
+  };
+  for (const type of ['touchstart', 'touchmove', 'touchend', 'touchcancel']) window.addEventListener(type, onTouch, { passive: false });
+  // Leaving the app or the tab releases every control.
+  const releaseAll = () => { pointers.clear(); syncInput(); };
+  window.addEventListener('blur', releaseAll);
+  document.addEventListener('visibilitychange', releaseAll);
   const exitBtn = hud.querySelector('[data-exit]');
   exitBtn.textContent = race ? 'Retire' : '🏠 Park';
   const onExitBtn = () => finish(race);
@@ -653,6 +685,9 @@ export function startDrive({ canvas, hud, car, perf, rivalBase, mode, event, dif
     window.removeEventListener('keyup', onKey);
     window.removeEventListener('pointerup', up);
     window.removeEventListener('pointercancel', up);
+    for (const type of ['touchstart', 'touchmove', 'touchend', 'touchcancel']) window.removeEventListener(type, onTouch);
+    window.removeEventListener('blur', releaseAll);
+    document.removeEventListener('visibilitychange', releaseAll);
     window.removeEventListener('resize', resize);
     hud.removeEventListener('pointerdown', down);
     exitBtn.removeEventListener('click', onExitBtn);

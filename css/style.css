@@ -243,19 +243,19 @@ button { font: inherit; color: inherit; cursor: pointer; }
 .tach { position: absolute; right: 4px; bottom: calc(var(--ctl-h) + 30px + var(--safe-bottom)); width: 150px; height: 112px; }
 /* Controls scale with the screen: they share the full width (left, right, brake, handbrake/gas) and grow
    taller on bigger or full-screen displays. */
-#race { --ctl-h: clamp(120px, 21vh, 200px); --ctl-w: calc((100vw - 58px) / 4); }
+#race { --ctl-h: clamp(120px, 21vh, 200px); --ctl-w: calc((100vw - 58px) / 4.15); }
 .controls { position: absolute; left: 0; right: 0; bottom: calc(12px + var(--safe-bottom)); display: flex; justify-content: space-between; gap: 10px; padding: 0 10px; }
 .ctl-group { display: flex; gap: 10px; }
 .ctl {
-  pointer-events: auto; touch-action: none; width: min(calc(var(--ctl-w) * 0.95), 150px); height: var(--ctl-h); border-radius: var(--radius);
+  pointer-events: auto; touch-action: none; width: min(calc(var(--ctl-w) * 1.18), 190px); -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; height: var(--ctl-h); border-radius: var(--radius);
   background: linear-gradient(rgba(220,228,245,0.28), rgba(120,135,170,0.22)); border: 1px solid rgba(220,228,245,0.55);
   font-size: clamp(28px, 4.5vh, 44px); font-weight: 900; font-style: italic; color: #fff; text-shadow: 1px 1px 0 #000;
 }
 /* Brake: the biggest pedal. Handbrake sits right above the gas. */
-.ctl.brake { width: min(calc(var(--ctl-w) * 1.1), 170px); font-size: clamp(16px, 2.6vh, 24px); background: linear-gradient(rgba(255,77,61,0.4), rgba(150,30,20,0.32)); border-color: rgba(255,77,61,0.85); }
+.ctl.brake { width: min(calc(var(--ctl-w) * 0.98), 160px); font-size: clamp(16px, 2.6vh, 24px); background: linear-gradient(rgba(255,77,61,0.4), rgba(150,30,20,0.32)); border-color: rgba(255,77,61,0.85); }
 .ctl-stack { display: flex; flex-direction: column; gap: 8px; height: var(--ctl-h); }
-.ctl.hb { width: min(var(--ctl-w), 160px); height: auto; flex: 0 0 38%; font-size: min(1.6vh, 3.2vw, 16px); letter-spacing: 0; padding: 0 2px; white-space: nowrap; background: linear-gradient(rgba(255,163,26,0.4), rgba(160,90,0,0.32)); border-color: rgba(255,163,26,0.85); }
-.ctl.gas { width: min(var(--ctl-w), 160px); height: auto; flex: 1 1 auto; font-size: clamp(18px, 3vh, 28px); background: linear-gradient(rgba(92,240,122,0.4), rgba(30,140,60,0.32)); border-color: rgba(92,240,122,0.85); }
+.ctl.hb { width: min(calc(var(--ctl-w) * 0.81), 140px); height: auto; flex: 0 0 38%; font-size: min(1.5vh, 3vw, 15px); letter-spacing: 0; padding: 0 2px; white-space: normal; line-height: 1.1; background: linear-gradient(rgba(255,163,26,0.4), rgba(160,90,0,0.32)); border-color: rgba(255,163,26,0.85); }
+.ctl.gas { width: min(calc(var(--ctl-w) * 0.81), 140px); height: auto; flex: 1 1 auto; font-size: clamp(18px, 3vh, 28px); background: linear-gradient(rgba(92,240,122,0.4), rgba(30,140,60,0.32)); border-color: rgba(92,240,122,0.85); }
 .ctl.on { transform: scale(0.94); filter: brightness(1.6); }
 
 /* ---------- Modal + toast ---------- */
