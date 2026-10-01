@@ -2,7 +2,7 @@
 // around the roads, road surfaces, barriers, forest, and (at home) the cabin/tent/driveway.
 // Each world is built the first time it's needed and then reused.
 import * as THREE from '../lib/three.module.min.js';
-import { ROAD_HALF, U } from './road.js';
+import { ROAD_HALF, U, apexesOf } from './road.js';
 import { HOME } from './map.js';
 import { seeded } from './draw.js';
 import { roadTex, shoulderTex, grassTex, rockTex, treeTex, treeTopTex, skyTex, logTex, roofTex, canvasTex, gravelTex } from './textures.js';
@@ -83,6 +83,9 @@ function ribbon(samples, offsetA, offsetB, yA, yB, { every = 1, withUV = false, 
 
 // ---------- world ----------
 const worlds = new Map();
+// How far the dirt cut-through on the inside of each apex reaches past the road edge (m).
+export const APEX_CUT = 4.2;
+
 export function getWorld(net) {
   if (!worlds.has(net.id)) worlds.set(net.id, buildWorld(net));
   return worlds.get(net.id);
@@ -90,6 +93,7 @@ export function getWorld(net) {
 
 function buildWorld(net) {
   const S = net.road.samples;
+  const cutMat = new THREE.MeshLambertMaterial({ map: gravelTex(), color: '#b08a5a', side: THREE.DoubleSide });
   const terrainAt = makeTerrain(net);
   const scene = new THREE.Scene();
   const sky = new THREE.Color('#c9d9ea'); // horizon haze
@@ -157,6 +161,30 @@ function buildWorld(net) {
   scene.add(new THREE.Mesh(ribbon(S, -ROAD_HALF - 1.1, ROAD_HALF + 1.1, -0.02, -0.02, { every: 2, closed, length, withUV: true, uAcross: 3, vPer: 3 }), new THREE.MeshLambertMaterial({ map: shoulderTex() })));
   scene.add(new THREE.Mesh(ribbon(S, -ROAD_HALF, ROAD_HALF, 0.03, 0.03, { withUV: true, closed, length, vPer: 10 }), new THREE.MeshLambertMaterial({ map: roadTex() })));
 
+  // Dirt cut-throughs on the inside of every apex: packed dirt you can clip to cut the corner.
+  // Widest (APEX_CUT m) at the apex, tapering to nothing 14 m either side.
+  const apexCuts = apexesOf(net.road).map((a) => {
+    const pos = [], uv = [], idx = [];
+    let n = 0;
+    for (let ds = -14; ds <= 14; ds += 2) {
+      const q = net.road.sampleAtS(a.s + ds), w = APEX_CUT * (1 - (ds / 14) ** 2);
+      for (const off of [ROAD_HALF - 0.05, ROAD_HALF + 0.05 + w]) {
+        const x = q.x + q.nx * off * a.inside, z = q.z + q.nz * off * a.inside;
+        pos.push(x, Math.max(terrainAt(x, z).h, q.e - 0.25) + 0.07, z);
+        uv.push(off / 2, (a.s + ds) / 2);
+      }
+      if (n) { const b = (n - 1) * 2; idx.push(b, b + 1, b + 2, b + 1, b + 3, b + 2); }
+      n++;
+    }
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+    g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
+    g.setIndex(idx); g.computeVertexNormals();
+    scene.add(new THREE.Mesh(g, cutMat));
+    const q = net.road.sampleAtS(a.s), off = (ROAD_HALF + APEX_CUT / 2) * a.inside;
+    return { x: q.x + q.nx * off, z: q.z + q.nz * off };
+  });
+
   // Side roads: narrower gravel with a "Road closed" barrier at the end.
   const branchMat = new THREE.MeshLambertMaterial({ map: gravelTex() });
   for (const b of net.branches) {
@@ -183,6 +211,7 @@ function buildWorld(net) {
     const tx = x + (trnd() - 0.5) * TS * 0.9, tz = z + (trnd() - 0.5) * TS * 0.9;
     const t = terrainAt(tx, tz);
     if (t.dRoad < ROAD_HALF + 4 + trnd() * 3 || t.clearing < 1.12) continue;
+    if (apexCuts.some((c) => (c.x - tx) ** 2 + (c.z - tz) ** 2 < 64)) continue; // keep the apex cut-throughs clear
     trees.push({ x: tx, z: tz, y: t.h, hgt: Math.min(9 + trnd() * 10, 2.5 + (t.dRoad - ROAD_HALF) * 0.8), r: 2.2 + trnd() * 1.6, shade: 0.75 + trnd() * 0.4 });
   }
   // Crossed-quad sprite trees, the classic late-90s way.

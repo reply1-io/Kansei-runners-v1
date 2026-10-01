@@ -188,6 +188,7 @@ button { font: inherit; color: inherit; cursor: pointer; }
 .list-item .sub { font-size: 12px; color: var(--muted); }
 
 .stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-top: 10px; }
+.stats.four { grid-template-columns: repeat(2, 1fr); }
 .stat { background: #050b22; border: 1px solid #2c3c6c; border-radius: 2px; padding: 7px 6px; text-align: center; }
 .stat b { display: block; font-size: 17px; color: var(--accent); font-variant-numeric: tabular-nums; }
 .stat small { color: var(--muted); font-size: 10px; text-transform: uppercase; letter-spacing: 1px; font-weight: 700; }
@@ -235,7 +236,7 @@ button { font: inherit; color: inherit; cursor: pointer; }
 }
 #hud.cruise .race-only { display: none; }
 .minimap { position: absolute; top: calc(66px + var(--safe-top)); right: 10px; width: 104px; height: 120px; background: rgba(5,11,34,0.65); border: 1px solid var(--line); border-radius: var(--radius); }
-.hud-togo { position: absolute; top: calc(192px + var(--safe-top)); right: 10px; width: 104px; text-align: center; font-size: 12px; font-weight: 800; font-style: italic; color: #fff; text-shadow: 1px 1px 0 #000; }
+.hud-togo { white-space: pre-line; position: absolute; top: calc(192px + var(--safe-top)); right: 10px; width: 104px; text-align: center; font-size: 12px; font-weight: 800; font-style: italic; color: #fff; text-shadow: 1px 1px 0 #000; }
 .hud-msg { position: absolute; top: 28%; left: 0; right: 0; text-align: center; font-family: var(--display); font-style: italic; font-weight: 900; font-size: 26px; color: #fff; text-shadow: 3px 3px 0 #000, -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000; }
 .hud-msg.big { font-size: 64px; color: var(--accent); }
 .hud-warn { position: absolute; top: calc(110px + var(--safe-top)); left: 12px; color: var(--bad); font-weight: 800; font-style: italic; font-size: 13px; text-shadow: 1px 1px 0 #000; }

@@ -98,5 +98,5 @@ export const DIFFICULTIES = {
   easy:       { label: 'Easy',       line: 0.65, mistakeEvery: 24, rivals: ['Kenta', 'Itsuki'],    entry: 50,   purse: [500, 100] },
   medium:     { label: 'Medium',     line: 0.8,  mistakeEvery: 36, rivals: ['Iketani', 'Kenji'],   entry: 150,  purse: [1200, 250] },
   hard:       { label: 'Hard',       line: 0.97, mistakeEvery: 90, rivals: ['Ryo', 'Keisuke'],     entry: 400,  purse: [3500, 700] },
-  impossible: { label: 'Impossible', line: 1.0,  mistakeEvery: 1e9, equalPair: true, rivals: ['The Ghost', 'Bunta'], entry: 1000, purse: [12000, 2000] },
+  impossible: { label: 'Impossible', line: 1.0,  mistakeEvery: 1e9, equalPair: true, catchUp: true, rivals: ['The Ghost', 'Bunta'], entry: 1000, purse: [12000, 2000] },
 };

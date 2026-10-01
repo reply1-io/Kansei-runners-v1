@@ -426,3 +426,28 @@ export const COURSES = {
 };
 
 ROAD.bestLine = optimalOffsets(ROAD);
+
+// Apexes: the tightest point of each real corner (radius under ~45 m), at least 30 m apart.
+// `inside` is +1 when the corner turns towards the road's left normal (+lat), -1 otherwise.
+// Used for the dirt cut-throughs (world3d) and the apex bonus markers (races).
+export function apexesOf(road) {
+  if (road.apexes) return road.apexes;
+  const P = road.samples, N = P.length, out = [];
+  for (let i = 0; i < N; i++) {
+    const k = P[i].k;
+    if (k < 1 / 45) continue;
+    if (!road.loop && (P[i].s < 25 || P[i].s > road.length - 25)) continue;
+    let peak = true;
+    for (let j = -6; j <= 6 && peak; j++) {
+      if (!j) continue;
+      const q = road.loop ? P[(i + j + N) % N] : P[Math.max(0, Math.min(N - 1, i + j))];
+      if (q.k > k || (q.k === k && j < 0)) peak = false;
+    }
+    if (!peak) continue;
+    const last = out[out.length - 1];
+    if (last && P[i].s - last.s < 30) { if (k > last.k) out[out.length - 1] = { s: P[i].s, i, k, inside: Math.sign(P[i].kSigned) || 1 }; continue; }
+    out.push({ s: P[i].s, i, k, inside: Math.sign(P[i].kSigned) || 1 });
+  }
+  road.apexes = out;
+  return out;
+}

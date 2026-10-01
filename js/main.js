@@ -655,15 +655,19 @@ async function finishRace(car, ev, res) {
   const newBest = !res.dnf && (!prevBest || res.time < prevBest);
   if (newBest) state.records[ev.key] = res.time;
   if (payout) earn(payout);
+  // Apex bonuses and contact fines from the race itself.
+  const bonus = res.bonus || 0;
+  if (bonus > 0) earn(bonus); else if (bonus < 0) spend(-bonus);
   addLog(`${ev.name} (${ev.diffLabel}): ${res.dnf ? 'DNF' : `P${res.place}`}${payout ? ` (+${money(payout)})` : ''}`);
   nextDay();
   save();
 
   await modal(`<div class="result-place">${title}</div>
     <p style="text-align:center" class="muted">${ev.name} · ${ev.diffLabel}${res.dnf ? '' : ` · ${fmtTime(res.time)}${newBest ? ' · 🏁 new best' : ''}`}</p>
-    <div class="stats"><div class="stat"><b>${money(-ev.entry)}</b><small>Entry</small></div>
+    <div class="stats four"><div class="stat"><b>${money(-ev.entry)}</b><small>Entry</small></div>
       <div class="stat"><b style="color:var(--good)">${money(payout)}</b><small>Prize</small></div>
-      <div class="stat"><b>${money(payout - ev.entry)}</b><small>Net</small></div></div>
+      <div class="stat"><b style="color:${bonus < 0 ? 'var(--bad)' : 'var(--good)'}">${money(bonus)}</b><small>Apex ${res.apexHits || 0}/${res.apexTotal || 0} · Hits ${res.contacts || 0}</small></div>
+      <div class="stat"><b>${money(payout + bonus - ev.entry)}</b><small>Net</small></div></div>
     <h3 class="small muted" style="margin:14px 0 4px">WEAR &amp; TEAR</h3>
     <ul class="problems">${wearList(report) || '<li style="color:var(--muted)">Barely a scratch.</li>'}</ul>`,
   [{ label: 'Back to the cabin', value: true, cls: 'primary' }]);

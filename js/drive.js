@@ -3,7 +3,7 @@
 //   race:   touge battle on a race course vs rivals in cars with exactly your car's numbers;
 //           difficulty only changes how good their racing line is and how hard they commit to it
 import * as THREE from '../lib/three.module.min.js';
-import { ROAD_HALF, HOME_NET, COURSES, lineVariant } from './road.js';
+import { ROAD_HALF, HOME_NET, COURSES, lineVariant, apexesOf } from './road.js';
 import { getWorld, makeCarMesh, inHome } from './world3d.js';
 import { PROBLEM_THRESHOLD, MODELS } from './data.js';
 import { clamp } from './state.js';
@@ -21,6 +21,10 @@ function rivalColors(mine) {
   const m = rgb(mine);
   return RIVAL_COLORS.filter((c) => { const r = rgb(c); return Math.hypot(r[0] - m[0], r[1] - m[1], r[2] - m[2]) > 120; });
 }
+// Apex bonus markers and contact fines (races).
+const APEX_BONUS = 50, CONTACT_FINE = 25, APEX_HIT = 2.0;
+const APEX_GEM = new THREE.OctahedronGeometry(0.45, 0);
+const APEX_RING = new THREE.RingGeometry(1.2, 1.6, 20);
 const HB_RADIUS = 15; // rivals pull the handbrake where their line is tighter than this
 
 // Locked chase camera: fixed high up behind the car with a wide 90° view, looking down the road over the
@@ -143,7 +147,11 @@ export function startDrive({ canvas, hud, car, perf, rivalBase, mode, event, dif
       mesh.beam.intensity = night ? 400 : 0;
       addMesh(mesh.group);
       const s0 = route.from - 2 - i * 5.5; // staggered grid: the second rival starts a car length back, so they run nose to tail instead of tangling
+      // Every race each rival drifts around the racing line in its own way (two slow random waves),
+      // so their lines differ from race to race and leave gaps to pass without contact.
+      const wander = [0, 1].map((k) => ({ amp: (k ? 0.5 : 1.0) + Math.random() * (k ? 0.5 : 0.7), len: k ? 35 + Math.random() * 25 : 90 + Math.random() * 70, ph: Math.random() * Math.PI * 2 }));
       rivals.push({
+        wander, boost: false,
         name, spec: rs, skill: brakeCommit, line, prof: speedProfile(line, rs, commit, brakeCommit), mesh,
         d: lineDAtS(line, s0), sAbs: s0, v: 0, pass: 0, passTarget: 0, startLat: i === 0 ? -2.1 : 2.1, curLat: 0,
         yawOff: 0, finished: false, finishT: 0, x: 0, z: 0, e: 0, h: 0, hb: false, lastL: null, lastR: null,
@@ -158,6 +166,33 @@ export function startDrive({ canvas, hud, car, perf, rivalBase, mode, event, dif
   let time = race ? -3.2 : 0.01;
   let done = false, raf = 0, last = performance.now();
   let message = '', messageT = 0, noPowerT = 0, engineBlown = false, blownT = 0, hitCool = 0, place = 0;
+  let bonus = 0, apexHits = 0, contacts = 0; // race money: +$ per apex clipped, -$ per contact with a rival
+
+  // ---- apex markers (races): clip the inside of each apex for a bonus ----
+  const apexMarks = race ? apexesOf(road).filter((a) => a.s > route.from + 5 && a.s < route.to - 5).map((a) => {
+    const q = sampleAtS(a.s), lat = a.inside * (ROAD_HALF - 0.9);
+    const x = q.x + q.nx * lat, z = q.z + q.nz * lat;
+    const g = new THREE.Group();
+    const gem = new THREE.Mesh(APEX_GEM, new THREE.MeshBasicMaterial({ color: '#ffd200' }));
+    gem.position.y = 1.1; g.add(gem);
+    const ring = new THREE.Mesh(APEX_RING, new THREE.MeshBasicMaterial({ color: '#ffd200', transparent: true, opacity: 0.8, side: THREE.DoubleSide }));
+    ring.rotation.x = -Math.PI / 2; ring.position.y = 0.06; g.add(ring);
+    g.position.set(x, q.e, z);
+    addMesh(g);
+    return { s: a.s, x, z, g, gem, ring, state: 'open' };
+  }) : [];
+  function checkApexes() {
+    for (const m of apexMarks) {
+      if (m.state !== 'open') continue;
+      if (Math.hypot(P.x - m.x, P.z - m.z) < APEX_HIT) {
+        m.state = 'hit'; bonus += APEX_BONUS; apexHits++;
+        m.gem.material.color.set('#2ecc71'); m.ring.material.color.set('#2ecc71');
+        flash(`APEX +$${APEX_BONUS}`, 0.9);
+      } else if (P.sAbs - m.s > 6) {
+        m.state = 'missed'; m.gem.visible = false; m.ring.material.opacity = 0.25; m.ring.material.color.set('#888');
+      }
+    }
+  }
   const flash = (msg, t = 1.5) => { message = msg; messageT = t; };
   if (!race) flash('Drive down the lane to the road', 2.5);
   const sound = carSound({ cyl: MODELS.find((m) => m.id === car.modelId)?.cyl });
@@ -371,6 +406,13 @@ export function startDrive({ canvas, hud, car, perf, rivalBase, mode, event, dif
           if (Math.hypot(r.x - P.x, r.z - P.z) < 45) flash(`${r.name} ran wide!`, 1.2);
         }
         if (r.mistakeT > 0) target *= 0.82;
+        // Impossible: get 50 m clear and they find more power to come back at you (until within 15 m).
+        if (difficulty.catchUp && time > 1) {
+          const lead = P.sAbs - r.sAbs;
+          if (!r.boost && lead > 50) { r.boost = true; flash(`${r.name} is coming back at you!`, 1.4); }
+          else if (r.boost && lead < 15) r.boost = false;
+        }
+        if (r.boost) target *= 1.15;
         // Don't drive through whoever is in front: follow, and look for a way past.
         const ahead = [{ sAbs: P.sAbs, lat: playerLat, v: playerV }, ...rivals.filter((o) => o !== r).map((o) => ({ sAbs: o.sAbs, lat: o.curLat, v: o.v }))];
         r.passTarget = 0;
@@ -387,7 +429,8 @@ export function startDrive({ canvas, hud, car, perf, rivalBase, mode, event, dif
           }
         }
         if (r.mistakeT > 0) r.passTarget += r.mistakeOff;
-        const a = r.spec.accel * Math.max(0, 1 - (r.v / r.spec.top) ** 2) - G * S[i].grade - 0.012 * r.v;
+        const pw = r.boost ? 1.8 : 1, top = r.spec.top * (r.boost ? 1.15 : 1);
+        const a = r.spec.accel * pw * Math.max(0, 1 - (r.v / top) ** 2) - G * S[i].grade - 0.012 * r.v;
         if (r.v < target) r.v = Math.min(target, r.v + Math.max(a, 0.3) * dt);
         else r.v = Math.max(target, r.v - r.spec.brake * r.skill * dt);
         r.v = Math.max(0, r.v);
@@ -410,7 +453,7 @@ export function startDrive({ canvas, hud, car, perf, rivalBase, mode, event, dif
           r.pass = clamp(r.pass + latSide * penZ * 0.45, -3.2, 3.2);
         }
         else { const sg = Math.sign(lx) || 1; P.x += ch * sg * penX; P.z += sh * sg * penX; }
-        if (hitCool <= 0) { wear.body += 0.8; hitCool = 0.5; flash('Contact!', 0.6); sound.hit(3); }
+        if (hitCool <= 0) { wear.body += 0.8; hitCool = 0.5; bonus -= CONTACT_FINE; contacts++; flash(`Contact! −$${CONTACT_FINE}`, 0.9); sound.hit(3); }
       }
     }
   }
@@ -423,7 +466,8 @@ export function startDrive({ canvas, hud, car, perf, rivalBase, mode, event, dif
     // Start grid: blend from the grid slot onto the racing line over the first ~40 m.
     const blend = clamp((r.sAbs - (route.from - 2)) / 40, 0, 1);
     const lineLat = a.off + (b.off - a.off) * t;
-    const lat = clamp((1 - blend) * r.startLat + blend * lineLat + r.pass, -ROAD_HALF + 1, ROAD_HALF - 1);
+    const wob = r.wander.reduce((sum, w) => sum + w.amp * Math.sin((r.d / w.len) * Math.PI * 2 + w.ph), 0);
+    const lat = clamp((1 - blend) * r.startLat + blend * (lineLat + wob) + r.pass, -ROAD_HALF + 1, ROAD_HALF - 1);
     r.curLat = lat;
     r.x = c.x + (c2.x - c.x) * t + c.nx * lat;
     r.z = c.z + (c2.z - c.z) * t + c.nz * lat;
@@ -454,6 +498,7 @@ export function startDrive({ canvas, hud, car, perf, rivalBase, mode, event, dif
   }
 
   function render() {
+    for (const m of apexMarks) if (m.state === 'open') m.gem.rotation.y = time * 3;
     place3D(playerMesh.group, P.x, P.e, P.z, P.h, P.pitch, P.roll);
     playerMesh.tail.color.set(input.brake || input.hb ? '#ffffff' : night ? '#c07070' : '#8a5a5a');
     for (const r of rivals) {
@@ -554,7 +599,7 @@ export function startDrive({ canvas, hud, car, perf, rivalBase, mode, event, dif
       $('[data-gap]').textContent = gap > 0 ? `-${Math.round(gap)}m` : `+${Math.round(-gap)}m`;
       $('[data-gap]').style.color = gap > 0 ? 'var(--bad)' : 'var(--good)';
       $('[data-time]').textContent = time > 0 ? fmtTime(time) : '0:00.0';
-      $('[data-togo]').textContent = `${Math.max(0, Math.round(route.to - route.from - my))} m to go`;
+      $('[data-togo]').textContent = `${Math.max(0, Math.round(route.to - route.from - my))} m to go\n${bonus < 0 ? '−' : '+'}$${Math.abs(bonus)} apex bonus`;
     }
     const msg = $('[data-msg]');
     if (race && time <= 0) msg.textContent = time < -2.2 ? '3' : time < -1.2 ? '2' : time < -0.2 ? '1' : 'GO!';
@@ -577,6 +622,7 @@ export function startDrive({ canvas, hud, car, perf, rivalBase, mode, event, dif
       if (engineBlown) { blownT -= dt; if (blownT <= 0) finish(true); }
       if (race && !done && progress() >= route.to - route.from) { place = 1 + rivals.filter((r) => r.finished).length; finish(false); }
     }
+    if (race && time > 0) checkApexes();
     render();
     updateHud();
     if (!done) raf = requestAnimationFrame(loop);
@@ -587,7 +633,7 @@ export function startDrive({ canvas, hud, car, perf, rivalBase, mode, event, dif
     done = true;
     cancelAnimationFrame(raf);
     cleanup();
-    onExit({ mode, dnf: race ? dnf : false, place: dnf ? null : place, time, engineBlown, wear });
+    onExit({ mode, dnf: race ? dnf : false, place: dnf ? null : place, time, engineBlown, wear, bonus, apexHits, apexTotal: apexMarks.length, contacts });
   }
 
   function cleanup() {
@@ -605,7 +651,7 @@ export function startDrive({ canvas, hud, car, perf, rivalBase, mode, event, dif
   }
 
   // Test/debug hook.
-  window.__kr = { player: P, rivals, input, spec, wear, race, route, road, net, bestLine: road.bestLine && getLine(road, net.id, 1), sampleAtS, progress };
+  window.__kr = { money: () => ({ bonus, apexHits, contacts }), apexMarks, player: P, rivals, input, spec, wear, race, route, road, net, bestLine: road.bestLine && getLine(road, net.id, 1), sampleAtS, progress };
   raf = requestAnimationFrame(loop);
 }
 

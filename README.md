@@ -35,6 +35,10 @@ You start at **your cabin, deep in the forest**, shown top-down. It has a carpor
    - **Easy** rivals mostly keep to their lane, brake early and make mistakes, so the other lane is open to pass.
    - Each level up drives a cleaner racing line, which uses the whole road and closes the doors. They also commit harder in corners, brake later, and run wide less often.
    - Measured rival times (average of the two), Easy / Medium / Hard / Impossible: **Kansei Pass** about 1:41 / 1:34 / 1:29 / 1:24.5, **Switchback Ladder** about 1:35 / 1:29 / 1:24 / 1:20 (the same percentage faster than a flawless drive on each course). A flawless drive in your stock car is about 1:42 on the Pass and 1:37 on the Ladder, so rivals keep your power-to-weight but get **extra grip and braking** that grows with the level: you win by out-braking them into corners, getting past and holding them off.
+   - **Apex bonus:** every corner has a gold marker on the inside of its apex. Clip it for **+$50**. Every contact with a rival costs **−$25**. The running total shows under the minimap, and the result screen pays it out.
+   - **Dirt cut-throughs:** each apex has a patch of packed dirt on the inside. Clip it to cut the corner a little when a rival is defending the inside.
+   - **Rivals never drive the same line twice.** Each race they drift around the racing line in their own way, so gaps open in different places.
+   - **Impossible fights back:** get 50 m clear of a rival and it finds extra power to chase you down, until it's back within 15 m.
    - You start behind two rivals and have to get past. They pull the handbrake through the tightest hairpins, give you racing room when you're alongside, and go for gaps themselves.
 6. **Drive:**
    - **◀ ▶** steer
