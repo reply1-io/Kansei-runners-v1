@@ -85,6 +85,8 @@ function ribbon(samples, offsetA, offsetB, yA, yB, { every = 1, withUV = false, 
 const worlds = new Map();
 // How far the dirt cut-through on the inside of each apex reaches past the road edge (m).
 export const APEX_CUT = 4.2;
+// Real trees are planted out to this far from any road (m); beyond it the ground is shaded as canopy.
+const TREE_REACH = 48;
 
 export function getWorld(net) {
   if (!worlds.has(net.id)) worlds.set(net.id, buildWorld(net));
@@ -127,9 +129,12 @@ function buildWorld(net) {
     const k = (j * nx + i) * 3;
     pos[k] = x; pos[k + 1] = t.h; pos[k + 2] = z;
     tuv[(j * nx + i) * 2] = x / 7; tuv[(j * nx + i) * 2 + 1] = z / 7;
-    // Gentle light/dark variation across the ground; darker under the forest.
-    const v = (0.82 + rnd() * 0.22) * (t.clearing < 1.05 ? 1.08 : 0.9);
-    col[k] = v; col[k + 1] = v; col[k + 2] = v;
+    // Gentle light/dark variation across the ground; shaded forest floor under the trees. Far from the
+    // roads (where no trees are planted, see TREE_REACH) it fades to dark canopy green, so the forest
+    // still looks unbroken into the distance.
+    const v = (0.82 + rnd() * 0.22) * (t.clearing < 1.05 ? 1.08 : 0.72);
+    const far = t.clearing < 1.05 ? 0 : Math.min(1, Math.max(0, (t.dRoad - (TREE_REACH - 12)) / 12));
+    col[k] = v * (1 - far * 0.55); col[k + 1] = v * (1 - far * 0.25); col[k + 2] = v * (1 - far * 0.6);
     info.push(t);
   }
   // Each triangle is grass, rock (steep cuts and banks) or dirt (road shoulders): hard edges, PS1 style.
@@ -206,13 +211,13 @@ function buildWorld(net) {
   // Trees near the road are shorter, so the chase camera can see over them into the next corner.
   const trees = [];
   const trnd = seeded(99);
-  const TS = 8.5;
+  const TS = 3.6; // dense: the canopy closes over almost all the ground
   for (let z = minZ; z < maxZ; z += TS) for (let x = minX; x < maxX; x += TS) {
     const tx = x + (trnd() - 0.5) * TS * 0.9, tz = z + (trnd() - 0.5) * TS * 0.9;
     const t = terrainAt(tx, tz);
-    if (t.dRoad < ROAD_HALF + 4 + trnd() * 3 || t.clearing < 1.12) continue;
+    if (t.dRoad < ROAD_HALF + 2.8 + trnd() * 1.2 || t.dRoad > TREE_REACH || t.clearing < 1.12) continue;
     if (apexCuts.some((c) => (c.x - tx) ** 2 + (c.z - tz) ** 2 < 64)) continue; // keep the apex cut-throughs clear
-    trees.push({ x: tx, z: tz, y: t.h, hgt: Math.min(9 + trnd() * 10, 2.5 + (t.dRoad - ROAD_HALF) * 0.8), r: 2.2 + trnd() * 1.6, shade: 0.75 + trnd() * 0.4 });
+    trees.push({ x: tx, z: tz, y: t.h, hgt: Math.min(9 + trnd() * 10, 2.5 + (t.dRoad - ROAD_HALF) * 0.8), r: 2.4 + trnd() * 1.4, shade: 0.75 + trnd() * 0.4 });
   }
   // Crossed-quad sprite trees, the classic late-90s way.
   const quad = (rot) => { const p = new THREE.PlaneGeometry(1, 1); p.translate(0, 0.5, 0); p.rotateY(rot); return p; };
@@ -235,7 +240,7 @@ function buildWorld(net) {
   const tops = new THREE.InstancedMesh(topGeo, new THREE.MeshLambertMaterial({ map: treeTopTex(), alphaTest: 0.5 }), trees.length);
   trees.forEach((t, i) => {
     q.setFromAxisAngle(up, i * 0.7);
-    mtx.compose(new THREE.Vector3(t.x, t.y + t.hgt * 0.62, t.z), q, new THREE.Vector3(t.r * 2.0, 1, t.r * 2.0));
+    mtx.compose(new THREE.Vector3(t.x, t.y + t.hgt * 0.62, t.z), q, new THREE.Vector3(t.r * 2.6, 1, t.r * 2.6));
     tops.setMatrixAt(i, mtx);
     color.setScalar(t.shade);
     tops.setColorAt(i, color);

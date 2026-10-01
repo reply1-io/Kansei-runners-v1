@@ -755,4 +755,12 @@ if (!load()) {
 }
 render();
 map.start();
+// VHS tape counter in the camcorder overlay.
+{
+  const t0 = window.performance.now(), tc = document.querySelector('[data-tc]');
+  setInterval(() => {
+    const s = Math.floor((window.performance.now() - t0) / 1000);
+    tc.textContent = `${Math.floor(s / 3600)}:${String(Math.floor(s / 60) % 60).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`;
+  }, 1000);
+}
 setInterval(() => { if (ui.app === 'home' && modalEl.hidden && !phoneWrap.hidden) render(); }, 30000);

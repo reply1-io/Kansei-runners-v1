@@ -9,6 +9,8 @@ It's styled after **Gran Turismo 2** on the original PlayStation:
 - **Menus:** GT-style chrome buttons, steel-blue panels and italic type.
 - **Garage:** a spinning turntable showing your car.
 
+**Look:** PlayStation-era graphics (Gran Turismo 2 style) seen through a Sony VX1000 / VHS camcorder: slight fisheye, colour fringing and bleed, line wobble, a rolling tracking band, tape grain, scanlines, vignette and a ▶ PLAY / tape-counter display. Dense pine forest everywhere. (`setVhs(false)` in `js/ps1.js` turns the camcorder effect off.)
+
 ## How to play
 
 You start at **your cabin, deep in the forest**, shown top-down. It has a carport tent for one car, a gravel driveway in front of it for 2 more, and a mountain road out front. That's 3 parking spots, so you can own up to 3 cars.

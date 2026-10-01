@@ -289,3 +289,16 @@ button { font: inherit; color: inherit; cursor: pointer; }
 /* Marketplace listing photo (the car in the seller's driveway). */
 .listing-photo { display: block; width: calc(100% + 24px); aspect-ratio: 16 / 10; margin: -12px -12px 10px; object-fit: cover; background: #0a1638; border-bottom: 2px solid var(--accent); image-rendering: pixelated; }
 .tiers { margin: 8px 0; padding-left: 20px; line-height: 1.6; }
+
+/* VHS / VX1000 camcorder look over the whole game (the 3D views also get lens, colour bleed and tape
+   wobble in the PS1 post shader). */
+#vhs { position: fixed; inset: 0; z-index: 1000; pointer-events: none;
+  background:
+    radial-gradient(ellipse at center, transparent 58%, rgba(0,0,0,0.5) 100%),
+    repeating-linear-gradient(to bottom, rgba(0,0,0,0.16) 0 1px, transparent 1px 3px); }
+.vhs-osd { position: absolute; left: 16px; top: calc(128px + var(--safe-top)); font: 700 15px/1.25 'Courier New', ui-monospace, monospace;
+  color: #f4f4f4; text-shadow: 2px 0 rgba(255,40,40,0.6), -2px 0 rgba(40,140,255,0.6), 0 0 3px #000; letter-spacing: 1px; opacity: 0.85; }
+.vhs-osd b { display: block; animation: vhsblink 1.6s steps(1) infinite; }
+@keyframes vhsblink { 50% { opacity: 0.25; } }
+#phone-wrap:not([hidden]) ~ #vhs .vhs-osd { display: none; }
+@media (prefers-reduced-motion: reduce) { .vhs-osd b { animation: none; } }
