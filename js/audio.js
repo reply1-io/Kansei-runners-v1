@@ -156,35 +156,43 @@ export function carSound({ cyl = 4, turbo = false } = {}) {
   const srcs = [...loops.map((l) => l.src), intake, tire];
   for (const o of srcs) o.start(t0);
 
-  // Turbo flutter: a cute, soft, unhurried "stu... tu... tu... tu". A tiny breath of air, then a few
-  // rounded puffs (slow swell in and out, no sharp edges), each gliding down a little in pitch like a
-  // soft "tu". Rolled off above ~1.6 kHz.
+  // Turbo flutter, modelled on a real recording: a pitched "tu" tone that starts around 530 Hz and sinks
+  // to ~220 Hz, with airy hiss (1-6.5 kHz) riding on it. Chopped about 10 times a second (each
+  // "tu" ~70% on, dips to ~25% between, never silent), speeding up slightly as it fades over ~1.6 s.
   function flutter(strength) {
-    const now = ctx.currentTime, src = noise();
-    const tu = ctx.createBiquadFilter(); tu.type = 'bandpass'; tu.Q.value = 1.6;
-    const soft = ctx.createBiquadFilter(); soft.type = 'lowpass'; soft.frequency.value = 1600; soft.Q.value = 0.4;
-    const tuG = ctx.createGain(), g = ctx.createGain();
-    tuG.gain.value = 2.6; g.gain.value = 0;
-    src.connect(tu); tu.connect(tuG); tuG.connect(soft); soft.connect(g); g.connect(out);
-    // "s": a tiny, soft breath first.
-    const hiss = noise(), hb = ctx.createBiquadFilter(), hg = ctx.createGain();
-    hb.type = 'bandpass'; hb.frequency.value = 1500; hb.Q.value = 0.7; hg.gain.value = 0;
-    hiss.connect(hb); hb.connect(hg); hg.connect(out);
-    hg.gain.setValueAtTime(0, now); hg.gain.linearRampToValueAtTime(0.025 * strength, now + 0.04); hg.gain.setTargetAtTime(0, now + 0.05, 0.03);
-    hiss.start(now); hiss.stop(now + 0.25);
-    // "tu... tu... tu...": slow, rounded puffs.
-    let t = now + 0.09, gap = 0.13;
-    const n = 4 + Math.round(strength * 2);
-    for (let k = 0; k < n; k++) {
-      const a = (0.32 + 0.22 * strength) * (1 - k / (n + 1.5));
-      const f = 900 - k * 45;
-      tu.frequency.setValueAtTime(f * 1.12, t); tu.frequency.exponentialRampToValueAtTime(f * 0.78, t + gap * 0.7);
-      g.gain.setValueAtTime(0, t); g.gain.setTargetAtTime(a, t, 0.018); g.gain.setTargetAtTime(0, t + 0.05, 0.03);
-      t += gap; gap *= 1.07;
+    const now = ctx.currentTime, DUR = 1.6;
+    const toneSrc = noise(), airSrc = noise();
+    const tone = ctx.createBiquadFilter(); tone.type = 'bandpass'; tone.Q.value = 5;
+    const tone2 = ctx.createBiquadFilter(); tone2.type = 'bandpass'; tone2.Q.value = 5;
+    const airHp = ctx.createBiquadFilter(); airHp.type = 'highpass'; airHp.frequency.value = 3000;
+    const airLp = ctx.createBiquadFilter(); airLp.type = 'lowpass'; airLp.frequency.value = 6500;
+    const mid = ctx.createBiquadFilter(); mid.type = 'bandpass'; mid.frequency.value = 1200; mid.Q.value = 1.1;
+    const midG = ctx.createGain(); midG.gain.value = 0.5;
+    const toneG = ctx.createGain(), airG = ctx.createGain(), chop = ctx.createGain(), fade = ctx.createGain();
+    toneG.gain.value = 4.4; airG.gain.value = 0.1; chop.gain.value = 0; fade.gain.value = 0;
+    toneSrc.connect(tone); tone.connect(tone2); tone2.connect(toneG); toneG.connect(chop);
+    airSrc.connect(airHp); airHp.connect(airLp); airLp.connect(airG); airG.connect(chop);
+    airSrc.connect(mid); mid.connect(midG); midG.connect(chop);
+    chop.connect(fade); fade.connect(out);
+    // Pitch: ~530 Hz sinking to ~300 Hz by 0.6 s, ~240 Hz by the end.
+    for (const f of [tone.frequency, tone2.frequency]) {
+      f.setValueAtTime(530, now); f.exponentialRampToValueAtTime(300, now + 0.6); f.exponentialRampToValueAtTime(240, now + DUR);
     }
-    src.start(now); src.stop(t + 0.15);
-    engG.gain.cancelScheduledValues(now); engG.gain.setValueAtTime(engG.gain.value * 0.85, now);
-    duckUntil = now + 0.25;
+    // Overall level: strong for the first ~0.45 s, then a long quieter tail.
+    const lvl = 0.5 + 0.5 * strength;
+    fade.gain.setValueAtTime(0, now); fade.gain.linearRampToValueAtTime(lvl, now + 0.03);
+    fade.gain.setValueAtTime(lvl, now + 0.42); fade.gain.exponentialRampToValueAtTime(lvl * 0.35, now + 0.65);
+    fade.gain.exponentialRampToValueAtTime(lvl * 0.08, now + DUR); fade.gain.linearRampToValueAtTime(0, now + DUR + 0.05);
+    // The flutter itself: ~70% "tu", then a dip, about 10 a second, quickening to ~13 a second.
+    let t = now, period = 0.098;
+    while (t < now + DUR) {
+      chop.gain.setTargetAtTime(1, t, 0.008);
+      chop.gain.setTargetAtTime(0.25, t + period * 0.7, 0.007);
+      t += period; period = Math.max(0.074, period * 0.985);
+    }
+    toneSrc.start(now); airSrc.start(now); toneSrc.stop(now + DUR + 0.1); airSrc.stop(now + DUR + 0.1);
+    engG.gain.cancelScheduledValues(now); engG.gain.setValueAtTime(engG.gain.value * 0.7, now);
+    duckUntil = now + 0.5;
   }
   let duckUntil = 0;
   let boost = 0, lastT = t0, lastThr = 0;
