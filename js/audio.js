@@ -166,17 +166,17 @@ export function carSound({ cyl = 4, turbo = false } = {}) {
     const tone2 = ctx.createBiquadFilter(); tone2.type = 'bandpass'; tone2.Q.value = 5;
     const airHp = ctx.createBiquadFilter(); airHp.type = 'highpass'; airHp.frequency.value = 3000;
     const airLp = ctx.createBiquadFilter(); airLp.type = 'lowpass'; airLp.frequency.value = 6500;
-    const mid = ctx.createBiquadFilter(); mid.type = 'bandpass'; mid.frequency.value = 1200; mid.Q.value = 1.1;
+    const mid = ctx.createBiquadFilter(); mid.type = 'bandpass'; mid.frequency.value = 2000; mid.Q.value = 1.1;
     const midG = ctx.createGain(); midG.gain.value = 0.5;
     const toneG = ctx.createGain(), airG = ctx.createGain(), chop = ctx.createGain(), fade = ctx.createGain();
-    toneG.gain.value = 4.4; airG.gain.value = 0.1; chop.gain.value = 0; fade.gain.value = 0;
+    toneG.gain.value = 3.4; airG.gain.value = 0.1; chop.gain.value = 0; fade.gain.value = 0;
     toneSrc.connect(tone); tone.connect(tone2); tone2.connect(toneG); toneG.connect(chop);
     airSrc.connect(airHp); airHp.connect(airLp); airLp.connect(airG); airG.connect(chop);
     airSrc.connect(mid); mid.connect(midG); midG.connect(chop);
     chop.connect(fade); fade.connect(out);
-    // Pitch: ~530 Hz sinking to ~300 Hz by 0.6 s, ~240 Hz by the end.
+    // Pitch: ~950 Hz sinking to ~600 Hz by 0.6 s, ~480 Hz by the end (higher than the recording, by request).
     for (const f of [tone.frequency, tone2.frequency]) {
-      f.setValueAtTime(530, now); f.exponentialRampToValueAtTime(300, now + 0.6); f.exponentialRampToValueAtTime(240, now + DUR);
+      f.setValueAtTime(950, now); f.exponentialRampToValueAtTime(600, now + 0.6); f.exponentialRampToValueAtTime(480, now + DUR);
     }
     // Overall level: strong for the first ~0.45 s, then a long quieter tail.
     const lvl = 0.5 + 0.5 * strength;
