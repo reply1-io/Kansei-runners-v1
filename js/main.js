@@ -739,7 +739,7 @@ async function finishRace(car, ev, res) {
   await modal(`<div class="result-place">${title}</div>
     <p style="text-align:center" class="muted">${ev.name} · ${ev.diffLabel}${res.dnf ? '' : ` · ${fmtTime(res.time)}${newBest ? ' · 🏁 new best' : ''}`}</p>
     <div class="stats"><div class="stat"><b style="color:var(--good)">${money(payout)}</b><small>${ev.isHotLap ? `Lap ${money(lapReward)}${recordBonus ? ` + record ${money(recordBonus)}` : ''}` : 'Prize'}</small></div>
-      <div class="stat"><b style="color:${bonus < 0 ? 'var(--bad)' : 'var(--good)'}">${money(bonus)}</b><small>Apex ${res.apexHits || 0}/${res.apexTotal || 0} · Hits ${res.contacts || 0}</small></div>
+      <div class="stat"><b style="color:${bonus < 0 ? 'var(--bad)' : 'var(--good)'}">${money(bonus)}</b><small>Apex bonus ${res.apexHits || 0}/${res.apexTotal || 0}</small></div>
       <div class="stat"><b>${money(payout + bonus)}</b><small>Total</small></div></div>
     <h3 class="small muted" style="margin:14px 0 4px">WEAR &amp; TEAR</h3>
     <ul class="problems">${wearList(report) || '<li style="color:var(--muted)">Barely a scratch.</li>'}</ul>`,
