@@ -14,7 +14,10 @@ export function unlockAudio() {
       ctx = new AC();
       master = ctx.createGain();
       master.gain.value = muted ? 0 : 0.9;
-      master.connect(ctx.destination);
+      // Limiter on the way out, so loud moments (turbo flutter, crashes) never clip and crackle.
+      const limiter = ctx.createDynamicsCompressor();
+      limiter.threshold.value = -1.5; limiter.knee.value = 0; limiter.ratio.value = 20; limiter.attack.value = 0.002; limiter.release.value = 0.12;
+      master.connect(limiter); limiter.connect(ctx.destination);
     }
     if (ctx.state === 'suspended') ctx.resume();
   } catch (e) { /* audio unavailable */ }
@@ -153,22 +156,31 @@ export function carSound({ cyl = 4, turbo = false } = {}) {
   const srcs = [...loops.map((l) => l.src), intake, tire];
   for (const o of srcs) o.start(t0);
 
-  // Turbo flutter: a burst of chopped, band-passed air noise that slows and fades out.
+  // Turbo flutter ("stu-tu-tu-tu"): compressor surge on lift-off. A train of short air pulses, each a
+  // low "chuff" plus a breathy "tu", slowing and fading as the pressure bleeds off. The engine ducks a
+  // little so it cuts through.
   function flutter(strength) {
     const now = ctx.currentTime, src = noise();
-    const bp = ctx.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = 950; bp.Q.value = 1.4;
-    const lp = ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 2400;
-    const g = ctx.createGain(); g.gain.value = 0;
-    src.connect(bp); bp.connect(lp); lp.connect(g); g.connect(out);
-    let t = now + 0.02, gap = 0.038;
-    const n = 7 + Math.round(strength * 4);
+    const tu = ctx.createBiquadFilter(); tu.type = 'bandpass'; tu.frequency.value = 650; tu.Q.value = 0.9;
+    const chuff = ctx.createBiquadFilter(); chuff.type = 'lowpass'; chuff.frequency.value = 320;
+    const tuG = ctx.createGain(), chG = ctx.createGain(), g = ctx.createGain();
+    tuG.gain.value = 4.5; chG.gain.value = 5; g.gain.value = 0;
+    src.connect(tu); tu.connect(tuG); tuG.connect(g);
+    src.connect(chuff); chuff.connect(chG); chG.connect(g);
+    g.connect(out);
+    let t = now + 0.01, gap = 0.052;
+    const n = 9 + Math.round(strength * 5);
     for (let k = 0; k < n; k++) {
-      const a = 0.32 * strength * (1 - k / (n + 1));
-      g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(a, t + 0.006); g.gain.linearRampToValueAtTime(0, t + gap * 0.55);
-      t += gap; gap *= 1.07; // the flutter slows as the pressure bleeds off
+      const a = (0.55 + 0.45 * strength) * (1 - k / (n + 2));
+      g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(a, t + 0.004); g.gain.exponentialRampToValueAtTime(0.001, t + gap * 0.7);
+      t += gap; gap *= 1.05;
     }
-    src.start(now); src.stop(t + 0.1);
+    g.gain.setValueAtTime(0, t);
+    src.start(now); src.stop(t + 0.05);
+    engG.gain.cancelScheduledValues(now); engG.gain.setValueAtTime(engG.gain.value * 0.4, now);
+    duckUntil = t;
   }
+  let duckUntil = 0;
   let boost = 0, lastT = t0, lastThr = 0;
 
   let rpmSm = 900, thrSm = 0;
@@ -182,8 +194,8 @@ export function carSound({ cyl = 4, turbo = false } = {}) {
       if (turbo) {
         const dt = Math.min(0.1, now - lastT);
         // Boost builds on throttle above ~3,000 rpm and leaks away off it.
-        boost = throttle > 0.5 && rpmSm > 3000 ? Math.min(1, boost + dt * 1.4) : Math.max(0, boost - dt * 0.8);
-        if (lastThr > 0.5 && throttle < 0.5 && boost > 0.35) { flutter(boost); boost = 0; }
+        boost = throttle > 0.5 && rpmSm > 2600 ? Math.min(1, boost + dt * 1.6) : Math.max(0, boost - dt * 0.8);
+        if (lastThr > 0.5 && throttle < 0.5 && boost > 0.25) { flutter(boost); boost = 0; }
         lastT = now; lastThr = throttle;
       }
       // Crossfade the two loops either side of the current rpm (equal power, in log-rpm).
@@ -196,7 +208,7 @@ export function carSound({ cyl = 4, turbo = false } = {}) {
         l.src.playbackRate.setTargetAtTime(rpmSm / LOOP_RPMS[i], now, 0.02);
       });
       load.frequency.setTargetAtTime(700 + thrSm * 3800 + rpmSm * 0.15, now, 0.05);
-      engG.gain.setTargetAtTime(0.16 + thrSm * 0.2, now, 0.05);
+      if (now > duckUntil) engG.gain.setTargetAtTime(0.16 + thrSm * 0.2, now, 0.05);
       inBp.frequency.setTargetAtTime(300 + rpmSm * 0.12, now, 0.05);
       inG.gain.setTargetAtTime(thrSm * 0.025 * (rpmSm / 7000), now, 0.08);
       tG.gain.setTargetAtTime(Math.min(1, slip) * Math.min(1, speed / 6) * 0.2, now, 0.05);
