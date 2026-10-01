@@ -160,24 +160,26 @@ export function carSound({ cyl = 4, turbo = false } = {}) {
   // to ~220 Hz, with airy hiss (1-6.5 kHz) riding on it. Chopped about 10 times a second (each
   // "tu" ~70% on, dips to ~25% between, never silent), speeding up slightly as it fades over ~1.6 s.
   // strength: boost built (0..1); rev: how high the revs were when you lifted (0 at ~2,600, 1 at redline).
-  function flutter(strength, rev = 1) {
+  // pitch: where the spool whistle was when you lifted; the flutter starts there and sinks.
+  function flutter(strength, rev = 1, pitch = 950) {
     const now = ctx.currentTime, DUR = 1.6;
     const toneSrc = noise(), airSrc = noise();
     const tone = ctx.createBiquadFilter(); tone.type = 'bandpass'; tone.Q.value = 5;
     const tone2 = ctx.createBiquadFilter(); tone2.type = 'bandpass'; tone2.Q.value = 5;
     const airHp = ctx.createBiquadFilter(); airHp.type = 'highpass'; airHp.frequency.value = 3000;
     const airLp = ctx.createBiquadFilter(); airLp.type = 'lowpass'; airLp.frequency.value = 6500;
-    const mid = ctx.createBiquadFilter(); mid.type = 'bandpass'; mid.frequency.value = 2000; mid.Q.value = 1.1;
-    const midG = ctx.createGain(); midG.gain.value = 0.5;
+    const mid = ctx.createBiquadFilter(); mid.type = 'bandpass'; mid.frequency.value = Math.min(6000, pitch * 2.1); mid.Q.value = 1.1;
+    const midG = ctx.createGain(); midG.gain.value = 0.5 * Math.sqrt(2000 / mid.frequency.value);
     const toneG = ctx.createGain(), airG = ctx.createGain(), chop = ctx.createGain(), fade = ctx.createGain();
-    toneG.gain.value = 3.4; airG.gain.value = 0.1; chop.gain.value = 0; fade.gain.value = 0;
+    toneG.gain.value = 3.4 * Math.sqrt(950 / pitch); // same loudness whatever the pitch
+    airG.gain.value = 0.1; chop.gain.value = 0; fade.gain.value = 0;
     toneSrc.connect(tone); tone.connect(tone2); tone2.connect(toneG); toneG.connect(chop);
     airSrc.connect(airHp); airHp.connect(airLp); airLp.connect(airG); airG.connect(chop);
     airSrc.connect(mid); mid.connect(midG); midG.connect(chop);
     chop.connect(fade); fade.connect(out);
-    // Pitch: ~950 Hz sinking to ~600 Hz by 0.6 s, ~480 Hz by the end (higher than the recording, by request).
+    // Pitch: starts at the spool whistle's pitch, sinks to ~63% by 0.6 s and ~half by the end.
     for (const f of [tone.frequency, tone2.frequency]) {
-      f.setValueAtTime(950, now); f.exponentialRampToValueAtTime(600, now + 0.6); f.exponentialRampToValueAtTime(480, now + DUR);
+      f.setValueAtTime(pitch, now); f.exponentialRampToValueAtTime(pitch * 0.63, now + 0.6); f.exponentialRampToValueAtTime(pitch * 0.5, now + DUR);
     }
     // Overall level: strong for the first ~0.45 s, then a long quieter tail.
     const lvl = (0.5 + 0.5 * strength) * (0.15 + 0.85 * rev); // louder the higher the revs you lift at
@@ -199,7 +201,7 @@ export function carSound({ cyl = 4, turbo = false } = {}) {
   let boost = 0, lastT = t0, lastThr = 0;
   // Spool: a soft turbo whistle (a filtered tone plus a breath of rushing air) that rises in pitch and
   // volume with revs and boost. Cut the moment you lift, when the flutter takes over.
-  let spoolOsc = null, spoolAir = null, spoolG = null, spoolBp = null;
+  let spoolOsc = null, spoolAir = null, spoolG = null, spoolBp = null, spoolPitch = 0;
   if (turbo) {
     spoolOsc = ctx.createOscillator(); spoolOsc.type = 'triangle'; spoolOsc.frequency.value = 1200;
     const oscLp = ctx.createBiquadFilter(); oscLp.type = 'lowpass'; oscLp.frequency.value = 4500;
@@ -226,9 +228,10 @@ export function carSound({ cyl = 4, turbo = false } = {}) {
         // Boost builds on throttle above ~3,000 rpm and leaks away off it.
         boost = throttle > 0.5 && rpmSm > 2600 ? Math.min(1, boost + dt * 1.6) : Math.max(0, boost - dt * 0.8);
         const rev = Math.min(1, Math.max(0, (rpmSm - 2600) / 4600));
-        if (lastThr > 0.5 && throttle < 0.5 && boost > 0.25) { flutter(boost, rev); boost = 0; }
         // Spool whistle follows the revs (pitch) and boost (volume); off throttle it dies away fast.
         const sf = 1100 + rev * 2600 + boost * 500;
+        if (lastThr > 0.5 && throttle < 0.5 && boost > 0.25) { flutter(boost, rev, spoolPitch || sf); boost = 0; }
+        if (throttle > 0.5) spoolPitch = sf; // remember the whistle's pitch while on throttle
         spoolOsc.frequency.setTargetAtTime(sf, now, 0.06);
         spoolBp.frequency.setTargetAtTime(sf, now, 0.06);
         spoolG.gain.setTargetAtTime(throttle > 0.5 ? 0.09 * boost * (0.3 + 0.7 * rev) : 0, now, throttle > 0.5 ? 0.12 : 0.03);
