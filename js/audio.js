@@ -159,7 +159,8 @@ export function carSound({ cyl = 4, turbo = false } = {}) {
   // Turbo flutter, modelled on a real recording: a pitched "tu" tone that starts around 530 Hz and sinks
   // to ~220 Hz, with airy hiss (1-6.5 kHz) riding on it. Chopped about 10 times a second (each
   // "tu" ~70% on, dips to ~25% between, never silent), speeding up slightly as it fades over ~1.6 s.
-  function flutter(strength) {
+  // strength: boost built (0..1); rev: how high the revs were when you lifted (0 at ~2,600, 1 at redline).
+  function flutter(strength, rev = 1) {
     const now = ctx.currentTime, DUR = 1.6;
     const toneSrc = noise(), airSrc = noise();
     const tone = ctx.createBiquadFilter(); tone.type = 'bandpass'; tone.Q.value = 5;
@@ -179,7 +180,7 @@ export function carSound({ cyl = 4, turbo = false } = {}) {
       f.setValueAtTime(950, now); f.exponentialRampToValueAtTime(600, now + 0.6); f.exponentialRampToValueAtTime(480, now + DUR);
     }
     // Overall level: strong for the first ~0.45 s, then a long quieter tail.
-    const lvl = 0.5 + 0.5 * strength;
+    const lvl = (0.5 + 0.5 * strength) * (0.15 + 0.85 * rev); // louder the higher the revs you lift at
     fade.gain.setValueAtTime(0, now); fade.gain.linearRampToValueAtTime(lvl, now + 0.03);
     fade.gain.setValueAtTime(lvl, now + 0.42); fade.gain.exponentialRampToValueAtTime(lvl * 0.35, now + 0.65);
     fade.gain.exponentialRampToValueAtTime(lvl * 0.08, now + DUR); fade.gain.linearRampToValueAtTime(0, now + DUR + 0.05);
@@ -196,6 +197,21 @@ export function carSound({ cyl = 4, turbo = false } = {}) {
   }
   let duckUntil = 0;
   let boost = 0, lastT = t0, lastThr = 0;
+  // Spool: a soft turbo whistle (a filtered tone plus a breath of rushing air) that rises in pitch and
+  // volume with revs and boost. Cut the moment you lift, when the flutter takes over.
+  let spoolOsc = null, spoolAir = null, spoolG = null, spoolBp = null;
+  if (turbo) {
+    spoolOsc = ctx.createOscillator(); spoolOsc.type = 'triangle'; spoolOsc.frequency.value = 1200;
+    const oscLp = ctx.createBiquadFilter(); oscLp.type = 'lowpass'; oscLp.frequency.value = 4500;
+    const oscG = ctx.createGain(); oscG.gain.value = 0.55;
+    spoolAir = noise(); spoolBp = ctx.createBiquadFilter(); spoolBp.type = 'bandpass'; spoolBp.Q.value = 6; spoolBp.frequency.value = 1200;
+    const airG = ctx.createGain(); airG.gain.value = 1.6;
+    spoolG = ctx.createGain(); spoolG.gain.value = 0;
+    spoolOsc.connect(oscLp); oscLp.connect(oscG); oscG.connect(spoolG);
+    spoolAir.connect(spoolBp); spoolBp.connect(airG); airG.connect(spoolG);
+    spoolG.connect(out);
+    spoolOsc.start(t0); spoolAir.start(t0);
+  }
 
   let rpmSm = 900, thrSm = 0;
   return {
@@ -209,7 +225,13 @@ export function carSound({ cyl = 4, turbo = false } = {}) {
         const dt = Math.min(0.1, now - lastT);
         // Boost builds on throttle above ~3,000 rpm and leaks away off it.
         boost = throttle > 0.5 && rpmSm > 2600 ? Math.min(1, boost + dt * 1.6) : Math.max(0, boost - dt * 0.8);
-        if (lastThr > 0.5 && throttle < 0.5 && boost > 0.25) { flutter(boost); boost = 0; }
+        const rev = Math.min(1, Math.max(0, (rpmSm - 2600) / 4600));
+        if (lastThr > 0.5 && throttle < 0.5 && boost > 0.25) { flutter(boost, rev); boost = 0; }
+        // Spool whistle follows the revs (pitch) and boost (volume); off throttle it dies away fast.
+        const sf = 1100 + rev * 2600 + boost * 500;
+        spoolOsc.frequency.setTargetAtTime(sf, now, 0.06);
+        spoolBp.frequency.setTargetAtTime(sf, now, 0.06);
+        spoolG.gain.setTargetAtTime(throttle > 0.5 ? 0.09 * boost * (0.3 + 0.7 * rev) : 0, now, throttle > 0.5 ? 0.12 : 0.03);
         lastT = now; lastThr = throttle;
       }
       // Crossfade the two loops either side of the current rpm (equal power, in log-rpm).
@@ -239,6 +261,7 @@ export function carSound({ cyl = 4, turbo = false } = {}) {
       const now = ctx.currentTime;
       out.gain.setTargetAtTime(0, now, 0.05);
       for (const o of srcs) o.stop(now + 0.3);
+      if (spoolOsc) { spoolOsc.stop(now + 0.3); spoolAir.stop(now + 0.3); }
     },
   };
 }
