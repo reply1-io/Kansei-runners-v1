@@ -229,7 +229,7 @@ export function carSound({ cyl = 4, turbo = false } = {}) {
         boost = throttle > 0.5 && rpmSm > 2600 ? Math.min(1, boost + dt * 1.6) : Math.max(0, boost - dt * 0.8);
         const rev = Math.min(1, Math.max(0, (rpmSm - 2600) / 4600));
         // Spool whistle follows the revs (pitch) and boost (volume); off throttle it dies away fast.
-        const sf = 1100 + rev * 2600 + boost * 500;
+        const sf = 700 + rev * 1500 + boost * 300; // ~700 Hz low in the revs, ~2,500 Hz at the redline
         if (lastThr > 0.5 && throttle < 0.5 && boost > 0.25) { flutter(boost, rev, spoolPitch || sf); boost = 0; }
         if (throttle > 0.5) spoolPitch = sf; // remember the whistle's pitch while on throttle
         spoolOsc.frequency.setTargetAtTime(sf, now, 0.06);
