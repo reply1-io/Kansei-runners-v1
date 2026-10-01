@@ -50,7 +50,7 @@ const LOOP = [
   { r: 40, turn: 50, grade: 0.06 },
   { r: 120, turn: -15, grade: 0.08 },
   { r: 120, turn: 15, grade: 0.08 },
-  { r: 80, turn: 25, grade: 0.07 },
+  { r: 80, turn: 25, grade: 0.07, mark: 'north' },
   { r: 150, turn: -12, grade: 0.08 },
   { r: 150, turn: 12, grade: 0.08 },
   { r: 60, turn: 15, grade: 0.07 },
@@ -101,11 +101,15 @@ const LOOP = [
 // The last stretch back through the valley to the cabin is a smooth curve fitted to close the loop.
 
 // Side roads: where they leave the loop (a named mark, plus meters after it), which side, and shape.
+// Each one leads off to a race course (`to`): drive to its end and you carry on onto that course.
 const BRANCH_DEFS = [
-  { id: 'lookout', name: 'Summit Lookout', at: 'summit', offset: 30, side: -1, segs: [{ r: 40, turn: -25, grade: 0.03 }, { r: 60, turn: 40, grade: 0.02 }, { r: 50, turn: -20, grade: 0.01 }] },
-  { id: 'logging', name: 'Old Logging Road', at: 'logging', offset: 12, side: -1, segs: [{ r: 60, turn: 30, grade: -0.01 }, { r: 45, turn: -45, grade: 0.02 }, { r: 80, turn: 20, grade: 0.01 }] },
-  { id: 'town', name: 'Road to Town', at: 'valley', offset: 10, side: -1, segs: [{ r: 50, turn: -30, grade: -0.02 }, { r: 70, turn: 35, grade: -0.02 }, { r: 60, turn: -15, grade: -0.01 }] },
+  { id: 'lookout', name: 'Summit Lookout', to: 'pass', at: 'summit', offset: 30, side: -1, segs: [{ r: 40, turn: -25, grade: 0.03 }, { r: 60, turn: 40, grade: 0.02 }, { r: 50, turn: -20, grade: 0.01 }, { r: 120, turn: -15, grade: -0.02 }, { len: 60, grade: -0.03 }] },
+  { id: 'logging', name: 'Old Logging Road', to: 'yamabiko', at: 'logging', offset: 12, side: -1, segs: [{ r: 60, turn: 30, grade: -0.01 }, { r: 45, turn: -45, grade: 0.02 }, { r: 80, turn: 20, grade: 0.01 }, { r: 90, turn: -20, grade: 0.03 }, { len: 50, grade: 0.03 }] },
+  { id: 'town', name: 'Road to Town', to: 'canyon', at: 'valley', offset: 10, side: -1, segs: [{ r: 50, turn: -30, grade: -0.02 }, { r: 70, turn: 35, grade: -0.02 }, { r: 60, turn: -15, grade: -0.01 }, { r: 140, turn: 12, grade: 0 }, { len: 70, grade: 0 }] },
+  { id: 'cliff', name: 'Cliff Road', to: 'ladder', at: 'north', offset: 20, side: -1, segs: [{ r: 45, turn: -30, grade: 0.02 }, { r: 70, turn: 30, grade: 0.03 }, { r: 90, turn: -15, grade: 0.02 }, { len: 70, grade: 0.01 }] },
 ];
+// Gateways trigger this far before the end of a side road (where the course's arch stands).
+export const GATEWAY_BACK = 25;
 
 // Segments: { r, turn } is an arc (turn in degrees, + = clockwise on the top-down map),
 // { len } is a straight. grade = climb per meter in the direction of travel.
@@ -120,7 +124,7 @@ function walk(segments, x, z, h, e = 0, marks = null) {
     for (let i = 0; i < n; i++) {
       h += dh / 2; x += Math.cos(h) * ds; z += Math.sin(h) * ds; h += dh / 2;
       e += seg.grade * ds;
-      pts.push({ x, z, e, name: seg.name });
+      pts.push({ x, z, e, name: seg.name, half: seg.half, canyon: seg.canyon ? 1 : 0 });
     }
   }
   return { pts, x, z, h, e };
@@ -167,10 +171,19 @@ function smoothElevation(pts, W, loop) {
   }
 }
 
+// Road width (half, m) and canyon walls (0..1) per sample, eased in and out over ~30/80 m.
+function smoothWidths(pts, defHalf) {
+  const N = pts.length;
+  const half = pts.map((p) => p.half ?? defHalf), can = pts.map((p) => p.canyon || 0);
+  const avg = (arr, W, i) => { let sum = 0, n = 0; for (let j = Math.max(0, i - W); j <= Math.min(N - 1, i + W); j++) { sum += arr[j]; n++; } return sum / n; };
+  for (let i = 0; i < N; i++) { pts[i].half = avg(half, 15, i); pts[i].canyon = avg(can, 40, i); }
+}
+
 // Turn a list of points into a road: distances, tangents, normals, grade, curvature, and lookups.
 export function makeRoad(pts, loop) {
   const N = pts.length;
   const at = (i) => (loop ? pts[(i + N) % N] : pts[Math.max(0, Math.min(N - 1, i))]);
+  for (const p of pts) { if (p.half === undefined) p.half = ROAD_HALF; if (!p.canyon) p.canyon = 0; }
   let s = 0;
   for (let i = 0; i < N; i++) {
     const p = pts[i];
@@ -206,6 +219,7 @@ export function makeRoad(pts, loop) {
       return {
         x: A.x + (B.x - A.x) * t, z: A.z + (B.z - A.z) * t, e: A.e + (B.e - A.e) * t,
         tx: A.tx, tz: A.tz, nx: A.nx, nz: A.nz, grade: A.grade, k: A.k, i: lo, t,
+        half: A.half + (B.half - A.half) * t, canyon: A.canyon,
       };
     },
     // Nearest point, searching near `hint` so stacked switchback legs don't get confused.
@@ -229,7 +243,8 @@ export function makeRoad(pts, loop) {
 // Minimum-curvature line: an "elastic band" relaxed inside the road edges. It naturally goes
 // wide - apex - wide through corners. Returns lateral offsets (m) per sample.
 function optimalOffsets(road, margin = 1.15) {
-  const S = road.samples, N = S.length, lim = ROAD_HALF - margin, loop = road.loop;
+  const S = road.samples, N = S.length, loop = road.loop;
+  const lims = S.map((p) => Math.max(0.3, p.half - margin));
   const idx = (i) => (loop ? (i + N) % N : Math.max(0, Math.min(N - 1, i)));
   const off = new Float64Array(N);
   for (const k of [24, 14, 8, 4]) {
@@ -240,7 +255,7 @@ function optimalOffsets(road, margin = 1.15) {
         const ax = a.x + a.nx * off[ia], az = a.z + a.nz * off[ia];
         const bx = b.x + b.nx * off[ib], bz = b.z + b.nz * off[ib];
         const target = ((ax + bx) / 2 - c.x) * c.nx + ((az + bz) / 2 - c.z) * c.nz;
-        off[i] = Math.max(-lim, Math.min(lim, off[i] + 0.6 * (target - off[i])));
+        off[i] = Math.max(-lims[i], Math.min(lims[i], off[i] + 0.6 * (target - off[i])));
       }
     }
   }
@@ -252,8 +267,8 @@ function optimalOffsets(road, margin = 1.15) {
 // the optimal line uses the whole road, which closes the doors. Worse lines are also slower.
 export function lineVariant(road, q, lane = 2.0) {
   const S = road.samples, N = S.length, loop = road.loop;
-  const best = road.bestLine, lim = ROAD_HALF - 1.1;
-  const off = S.map((_, i) => Math.max(-lim, Math.min(lim, q * best[i] + (1 - q) * lane)));
+  const best = road.bestLine;
+  const off = S.map((p, i) => { const lim = Math.max(0.3, p.half - 1.1); return Math.max(-lim, Math.min(lim, q * best[i] + (1 - q) * Math.min(lane, p.half * 0.48))); });
   const pts = S.map((p, i) => ({ x: p.x + p.nx * off[i], z: p.z + p.nz * off[i], e: p.e, off: off[i] }));
   let d = 0;
   for (let i = 0; i < N; i++) {
@@ -309,7 +324,9 @@ function buildBranches(road) {
     const j = road.sampleAtS(s0);
     const h = Math.atan2(j.tz, j.tx) + d.side * (Math.PI / 2) * 0.85;
     const w = walk(d.segs, j.x, j.z, h, j.e);
-    const br = makeRoad([{ x: j.x, z: j.z, e: j.e }, ...w.pts], false);
+    const bp = [{ x: j.x, z: j.z, e: j.e }, ...w.pts];
+    for (const p of bp) p.half = BRANCH_HALF;
+    const br = makeRoad(bp, false);
     return { ...d, ...br, junctionS: s0, half: BRANCH_HALF };
   });
 }
@@ -331,14 +348,22 @@ export const HOME_NET = {
 };
 
 // ---------- race courses ----------
-// Kansei Pass: generated from blocks (esses, switchback pairs, 90s, sweepers) with a fixed seed so the
-// layout is the same for everyone, and rejected/retried until no part of the road crowds another.
-function windingSegments(rnd, targetLen) {
+// Generated courses are built from blocks with a fixed seed so the layout is the same for everyone,
+// and rejected/retried until no part of the road crowds another.
+
+// Kansei Pass: esses, switchback pairs, 90s and sweepers, downhill all the way.
+// Yamabiko (`climbs`): the same tight blocks on a narrower road that climbs and drops in big stages.
+function windingSegments(rnd, targetLen, { half, climbs = false } = {}) {
   const segs = [];
   let h = 0, len = 0; // heading relative to the course's overall direction
   const R = (a, b) => a + rnd() * (b - a);
-  const add = (seg) => { segs.push(seg); len += seg.len || (Math.abs(seg.turn) * Math.PI / 180) * seg.r; h += (seg.turn || 0); };
-  const grade = () => -R(0.03, 0.09);
+  const add = (seg) => { segs.push(half ? { ...seg, half } : seg); len += seg.len || (Math.abs(seg.turn) * Math.PI / 180) * seg.r; h += (seg.turn || 0); };
+  // Climbs: up, down, up, down in four stages; otherwise always downhill.
+  const grade = () => {
+    if (!climbs) return -R(0.03, 0.09);
+    const f = len / targetLen;
+    return (f < 0.3 || (f > 0.55 && f < 0.72) ? 1 : -1) * R(0.07, 0.13);
+  };
   // Pick a turn direction that tends to bring the heading back toward the course direction.
   const toward = () => (h > 50 ? -1 : h < -50 ? 1 : rnd() < 0.5 ? -1 : 1);
   while (len < targetLen) {
@@ -348,7 +373,7 @@ function windingSegments(rnd, targetLen) {
       let sign = toward();
       const n = 3 + Math.floor(rnd() * 2);
       for (let i = 0; i < n; i++) { add({ r: R(13, 24), turn: sign * R(65, 115), grade: g }); sign = -sign; }
-    } else if (kind < 0.6) {                   // switchback pair: hairpin, short leg, hairpin back
+    } else if (kind < (climbs ? 0.45 : 0.6)) {  // switchback pair: hairpin, short leg, hairpin back
       const sign = rnd() < 0.5 ? -1 : 1;
       add({ r: R(9, 12), turn: sign * 180, grade: g * 0.6, name: 'Hairpin' });
       add({ r: R(50, 80), turn: -sign * R(10, 25), grade: g });
@@ -370,50 +395,115 @@ function windingSegments(rnd, targetLen) {
   return segs;
 }
 
-// Switchback Ladder: nine straights joined by eight hairpins, down the face of the mountain.
-function ladderSegments() {
+// Kuroiwa Canyon: a wide, fast road of long flowing corners and only two hairpins. It climbs into the
+// mountain, runs through a rock canyon in the middle, then drops out the other side.
+function flowingSegments(rnd, targetLen) {
   const segs = [];
-  const legs = [230, 210, 240, 200, 225, 215, 235, 205, 220];
-  const radii = [11, 10.5, 12, 10, 11.5, 10, 11, 10.5];
-  legs.forEach((L, i) => {
-    segs.push({ len: L, grade: -0.06 });
-    if (i < radii.length) segs.push({ r: radii[i], turn: (i % 2 ? -1 : 1) * 180, grade: -0.04, name: 'Hairpin' });
-  });
+  let h = 0, len = 0, hairpins = 0;
+  const R = (a, b) => a + rnd() * (b - a);
+  const add = (seg) => { segs.push(seg); len += seg.len || (Math.abs(seg.turn) * Math.PI / 180) * seg.r; h += (seg.turn || 0); };
+  const toward = () => (h > 80 ? -1 : h < -80 ? 1 : rnd() < 0.5 ? -1 : 1);
+  while (len < targetLen) {
+    const f = len / targetLen;
+    const canyon = f > 0.38 && f < 0.64;
+    const g = f < 0.38 ? R(0.02, 0.05) : canyon ? R(-0.01, 0.015) : -R(0.03, 0.06);
+    const base = { grade: g, ...(canyon ? { canyon: true } : {}) };
+    if (!canyon && hairpins < 2 && ((hairpins === 0 && f > 0.22) || (hairpins === 1 && f > 0.78))) {
+      const sign = toward();                    // one of the two hairpins, with a long run-in
+      add({ len: R(90, 140), ...base });
+      add({ r: R(14, 17), turn: sign * R(150, 170), ...base, grade: g * 0.6, name: 'Hairpin' });
+      add({ r: R(90, 130), turn: -sign * R(50, 70), ...base });
+      hairpins++;
+      continue;
+    }
+    const kind = rnd();
+    if (kind < 0.3) {                           // long sweeper
+      add({ r: R(140, 260), turn: toward() * R(25, 60), ...base });
+    } else if (kind < 0.58) {                   // flowing S: left-right
+      const sign = toward();
+      add({ r: R(70, 140), turn: sign * R(30, 60), ...base });
+      add({ r: R(70, 140), turn: -sign * R(30, 60), ...base });
+    } else if (kind < 0.76) {                   // tightening corner
+      const sign = toward();
+      add({ r: R(130, 200), turn: sign * R(20, 35), ...base });
+      add({ r: R(60, 85), turn: sign * R(35, 60), ...base });
+    } else if (kind < 0.9) {                    // short straight into a fast kink
+      add({ len: R(60, 140), ...base });
+      add({ r: R(200, 320), turn: toward() * R(8, 18), ...base });
+    } else {                                    // long double-apex
+      const sign = toward();
+      add({ r: R(90, 120), turn: sign * R(30, 45), ...base });
+      add({ len: R(20, 40), ...base });
+      add({ r: R(90, 120), turn: sign * R(30, 45), ...base });
+    }
+  }
   return segs;
 }
 
-// Does the road crowd itself anywhere (non-neighboring parts closer than minGap)?
-function crowded(pts, minGap) {
+// Switchback Ladder: a stack of three hairpins, a flowing run of S-bends across the face, a one-lane
+// stretch along the cliff, a second stack (one leg with a fast kink in it), and S-bends to the finish.
+function ladderSegments() {
+  const HP = (r, turn) => ({ r, turn, grade: -0.04, name: 'Hairpin' });
+  const ONE = 2.3; // one lane
+  return [
+    { len: 200, grade: -0.06 }, HP(11, 180),
+    { len: 210, grade: -0.06 }, HP(10.5, -180),
+    { len: 225, grade: -0.06 }, HP(12, 180),
+    { len: 110, grade: -0.05 },
+    // Flowing S-bends down across the face.
+    { r: 55, turn: -90, grade: -0.05 },
+    { r: 120, turn: 35, grade: -0.05 }, { r: 90, turn: -55, grade: -0.05 }, { r: 140, turn: 40, grade: -0.05 }, { r: 100, turn: -20, grade: -0.04 },
+    { r: 65, turn: 90, grade: -0.04 },
+    // One lane along the cliff.
+    { len: 60, grade: -0.04, half: ONE }, { r: 70, turn: 22, grade: -0.05, half: ONE }, { r: 70, turn: -22, grade: -0.05, half: ONE },
+    { len: 70, grade: -0.05, half: ONE }, { r: 85, turn: -16, grade: -0.05, half: ONE }, { r: 85, turn: 16, grade: -0.05, half: ONE }, { len: 60, grade: -0.04 },
+    // Second stack.
+    HP(10.5, -180),
+    { len: 80, grade: -0.06 }, { r: 220, turn: 12, grade: -0.06 }, { r: 220, turn: -12, grade: -0.06 }, { len: 60, grade: -0.06 }, HP(11, 180),
+    { len: 215, grade: -0.06 }, HP(11.5, -180),
+    { len: 200, grade: -0.06 }, HP(10, 180),
+    { len: 120, grade: -0.05 },
+    // S-bends to the finish.
+    { r: 80, turn: -50, grade: -0.04 }, { r: 120, turn: 45, grade: -0.04 }, { r: 150, turn: 5, grade: -0.03 }, { len: 110, grade: -0.02 },
+  ];
+}
+
+// Does the road crowd itself anywhere? Parts more than 250 m apart along the road must stay `minGap`
+// apart; nearby parts (the legs either side of a hairpin) only `nearGap`.
+function crowded(pts, minGap, nearGap = minGap) {
   const CELLG = minGap, grid = new Map();
   pts.forEach((p, i) => { const k = `${Math.floor(p.x / CELLG)},${Math.floor(p.z / CELLG)}`; if (!grid.has(k)) grid.set(k, []); grid.get(k).push(i); });
   for (let i = 0; i < pts.length; i += 2) {
     const p = pts[i], cx = Math.floor(p.x / CELLG), cz = Math.floor(p.z / CELLG);
     for (let a = -1; a <= 1; a++) for (let b = -1; b <= 1; b++) {
       for (const j of grid.get(`${cx + a},${cz + b}`) || []) {
-        if (Math.abs(j - i) < 70) continue;
-        if ((pts[j].x - p.x) ** 2 + (pts[j].z - p.z) ** 2 < minGap * minGap) return true;
+        const sep = Math.abs(j - i);
+        if (sep < 70) continue;
+        const gap = sep < 250 ? nearGap : minGap;
+        if ((pts[j].x - p.x) ** 2 + (pts[j].z - p.z) ** 2 < gap * gap) return true;
       }
     }
   }
   return false;
 }
 
-function buildCourse({ id, name, segments, seed, targetLen, minGap }) {
+function buildCourse({ id, name, segments, generate, seed, targetLen, minGap, nearGap, half = ROAD_HALF, roadStyle }) {
   let segs = segments, pts;
   if (!segs) {
-    for (let attempt = 0; attempt < 500; attempt++) {
-      segs = windingSegments(seeded(seed + attempt * 7919), targetLen);
+    for (let attempt = 0; attempt < 800; attempt++) {
+      segs = generate(seeded(seed + attempt * 7919), targetLen);
       pts = walk(segs, 0, 0, 0, 120).pts;
-      if (!crowded(pts, minGap)) break;
+      if (!crowded(pts, minGap, nearGap)) break;
     }
   } else pts = walk(segs, 0, 0, 0, 120).pts;
   pts = [{ x: 0, z: 0, e: 120 }, ...pts];
   smoothElevation(pts, 10, false);
+  smoothWidths(pts, half);
   const road = makeRoad(pts, false);
   road.bestLine = optimalOffsets(road);
   const startS = 30, finishS = road.length - 30;
   return {
-    id, name, home: false, road, branches: [],
+    id, name, home: false, road, branches: [], roadStyle,
     lines: [startS, finishS],
     startS, finishS,
     hairpins: segs.filter((x) => x.name === 'Hairpin').length,
@@ -421,10 +511,11 @@ function buildCourse({ id, name, segments, seed, targetLen, minGap }) {
 }
 
 export const COURSES = {
-  pass: buildCourse({ id: 'pass', name: 'Kansei Pass', seed: 7, targetLen: 1650, minGap: 20 }),
+  pass: buildCourse({ id: 'pass', name: 'Kansei Pass', generate: windingSegments, seed: 7, targetLen: 1650, minGap: 20 }),
   ladder: buildCourse({ id: 'ladder', name: 'Switchback Ladder', segments: ladderSegments(), minGap: 18 }),
+  canyon: buildCourse({ id: 'canyon', name: 'Kuroiwa Canyon', generate: flowingSegments, seed: 23, targetLen: 8800, minGap: 70, nearGap: 26, half: 5.6 }),
+  yamabiko: buildCourse({ id: 'yamabiko', name: 'Yamabiko Mountain Road', generate: (rnd, L) => windingSegments(rnd, L, { half: 3.3, climbs: true }), seed: 41, targetLen: 4300, minGap: 22, nearGap: 18, half: 3.3, roadStyle: 'narrow' }),
 };
-
 ROAD.bestLine = optimalOffsets(ROAD);
 
 // Apexes: the tightest point of each real corner (radius under ~45 m), at least 30 m apart.

@@ -16,28 +16,47 @@ It's styled after **Gran Turismo 2** on the original PlayStation:
 You start at **your cabin, deep in the forest**, shown top-down. It has a carport tent for one car, a gravel driveway in front of it for 2 more, and a mountain road out front. That's 3 parking spots, so you can own up to 3 cars.
 
 **On the map:**
-- **Select** (the yellow button next to each car) puts you in that car. The camera is locked high up behind the car with a wide 90° field of view, looking down the road over the treetops; it turns exactly with the car and never swings on its own. The car sits just above the pedals so most of the screen is the road ahead. Trees near the road are kept short so they do not hide the next bend. Drive down the lane onto the road and go anywhere, including the side roads. Tap **🏠 Park** to go home.
+- **Select** (the yellow button next to each car) puts you in that car. The camera is locked high up behind the car with a wide 90° field of view, looking down the road over the treetops; it turns exactly with the car and never swings on its own. The car sits just above the pedals so most of the screen is the road ahead. Trees near the road are kept short so they do not hide the next bend. Drive down the lane onto the road and go anywhere, including the side roads, which lead to the race courses. Tap **🏠 Park** to go home.
 - **Tap a parked car** to open it in the Garage.
 - **Tap an empty spot** to open the Marketplace.
 - **Tap the cabin** to sleep until tomorrow, which brings new listings.
 - **📱 Phone** pulls out your phone. **▾ Put away** puts it back.
 
-**The home road** is a 2.7 km touge loop around the mountain in front of the cabin, for free driving. It has 7 hairpins, a ridge over the summit and no guardrails (run wide and you're in the dirt, then the trees), with side roads that end at "Road closed" barriers for now.
+**The home road** is a 2.7 km touge loop around the mountain in front of the cabin, for free driving. It has 7 hairpins, a ridge over the summit and no guardrails (run wide and you're in the dirt, then the trees), with four side roads. Each side road leads to a race course under a wooden arch with the course's name: drive through the arch and the screen fades and you carry on onto that course at the same speed, free driving. Drive off either end of a course (or back past its start) and you're back on the side road heading home.
 
-**Race courses** (from the phone's Touge app). Each takes about 2 minutes:
-- **Kansei Pass:** ultra-winding downhill. It's 1.7 km of hairpins, sharp esses and square 90s with almost no straight road, and the corners are tight enough that passing is hard.
-- **Switchback Ladder:** straight, hairpin, repeat. Nine straights joined by eight hairpins stacked down the mountain, so braking points win it.
+| Side road | Leads to |
+|---|---|
+| Summit Lookout | Kansei Pass |
+| Cliff Road | Switchback Ladder |
+| Road to Town | Kuroiwa Canyon |
+| Old Logging Road | Yamabiko Mountain Road |
+
+**Race courses** (from the phone's Touge app). Each one is different:
+- **Kansei Pass** (about 1:45): ultra-winding downhill. It's 1.7 km of hairpins, sharp esses and square 90s with almost no straight road, and the corners are tight enough that passing is hard.
+- **Switchback Ladder** (about 2 minutes): straight, hairpin, repeat, 2.8 km down the face. A stack of three hairpins, a run of flowing S-bends across the face, a **one-lane** stretch along the cliff, a second stack of four hairpins (one leg has a fast kink in it), then S-bends to the finish. Braking points win it.
+- **Kuroiwa Canyon** (4 to 5 minutes): 8.9 km of **wide** road (two 5.6 m lanes) with long flowing sweepers, S-bends and only **two hairpins**. It climbs into the mountain, runs 2 km through a natural rock canyon with walls nearly 40 m high, then drops out the other side.
+- **Yamabiko Mountain Road** (about 5 minutes): 4.3 km of **narrow** road (two 3.3 m lanes, dashed centre line) with tight esses, square 90s and nine hairpins. It climbs, drops, climbs again and drops to the finish, about 145 m from top to bottom.
+
+The two long courses pay **double** purses.
 
 **The loop:**
 1. **Marketplace:** 6–10 used cars under $5k each day, all real cars: **1980 Volvo 242, Mercedes-Benz 190E 2.3, 1987 BMW 325i (E30), Toyota Supra Turbo (Mk3), Nissan 180SX, Nissan Skyline GTS-t (R32) and 1999 Honda Civic Si hatch (FWD)**. Each has its real factory specs, and a model built from its real dimensions (length, width, height, wheelbase, overhangs, track, tire size and pillar positions). The pricier ones only show up in your budget as project cars. Each listing shows a price, factory specs (hp, handling, weight) and condition. Striped `??` bars are hidden problems, so tap **Inspect ($80)** before you buy.
 2. **Parts Shop:** buy parts for anything marked ⚠️, plus performance mods. They go in your trunk.
 3. **Garage:** tap **Install** / **Install all**. Each car also has a **paint shop**: respray the body or refinish the wheels, $100 per change.
-4. **Touge app:** pick a course and a difficulty: **Easy, Medium, Hard or Impossible**. Every race is free to enter and every difficulty is always open. Winning pays **$750 / $1,500 / $3,000 / $5,000** (Easy to Impossible) and 2nd pays a fifth of that, on top of apex bonuses. Your best time for each shows on its button.
-5. **Hot Lap:** each course also has a free Hot Lap with no rivals. Kansei Pass pays $250 under 1:41, $500 under 1:34, $1,000 under 1:29 and $2,000 under 1:25; Switchback Ladder pays the same under 1:36, 1:29, 1:25 and 1:21. You get the best tier you beat, plus **$500 every time you beat your own hot-lap record**. Apex markers still pay.
+4. **Touge app:** pick a course and a difficulty: **Easy, Medium, Hard or Impossible**. Every race is free to enter and every difficulty is always open. Winning pays **$750 / $1,500 / $3,000 / $5,000** (Easy to Impossible; double on Kuroiwa Canyon and Yamabiko) and 2nd pays a fifth of that, on top of apex bonuses. Your best time for each shows on its button.
+5. **Hot Lap:** each course also has a free Hot Lap with no rivals. The tiers ($250 / $500 / $1,000 / $2,000) are:
+
+| Course | $250 | $500 | $1,000 | $2,000 |
+|---|---|---|---|---|
+| Kansei Pass | 1:41 | 1:34 | 1:29 | 1:25 |
+| Switchback Ladder | 1:52 | 1:44 | 1:39 | 1:35 |
+| Kuroiwa Canyon | 4:07 | 3:50 | 3:39 | 3:29 |
+| Yamabiko | 4:18 | 4:00 | 3:48 | 3:37 |
+ You get the best tier you beat, plus **$500 every time you beat your own hot-lap record**. Apex markers still pay.
 6. **Rivals are always fair.** They drive a car with **exactly your car's numbers** (power-to-weight, grip, brakes). Difficulty only changes how well they drive:
    - **Easy** rivals mostly keep to their lane, brake early and make mistakes, so the other lane is open to pass.
    - Each level up drives a cleaner racing line, which uses the whole road and closes the doors. They also commit harder in corners, brake later, and run wide less often.
-   - Measured rival times (average of all rivals), Easy / Medium / Hard / Impossible: **Kansei Pass** about 1:41 / 1:34 / 1:29 / 1:24.5, **Switchback Ladder** about 1:35 / 1:29 / 1:24 / 1:20 (the same percentage faster than a flawless drive on each course). A flawless drive in your stock car is about 1:42 on the Pass and 1:37 on the Ladder, so rivals keep your power-to-weight but get **extra grip and braking** that grows with the level: you win by out-braking them into corners, getting past and holding them off.
+   - Measured rival times (average of all rivals), Easy / Medium / Hard / Impossible: **Kansei Pass** about 1:41 / 1:34 / 1:29 / 1:24.5, **Switchback Ladder** about 1:51 / 1:43 / 1:37 / 1:30, **Kuroiwa Canyon** about 4:08 / 3:49 / 3:40 / 3:22, **Yamabiko** about 4:17 / 3:58 / 3:49 / 3:30 (about the same percentage faster than a flawless drive on each course). A flawless drive in an E30 is about 1:43 on the Pass, 1:53 on the Ladder, 4:10 in the Canyon and 4:20 on Yamabiko, so rivals keep your power-to-weight but get **extra grip and braking** that grows with the level: you win by out-braking them into corners, getting past and holding them off.
    - **Apex bonus:** every corner has a gold marker on the inside of its apex. Clip it for **+$50**. The running total shows under the minimap, and the result screen pays it out.
    - **Dirt cut-throughs:** each apex has a patch of packed dirt on the inside. Clip it to cut the corner a little when a rival is defending the inside.
    - **Rivals make mistakes on every level** (Impossible too, just rarely): they run wide and lose speed, opening a gap. Contact never shoves you forward.
@@ -76,13 +95,13 @@ python3 -m http.server 8000
 | File | What's in it | Add… |
 |---|---|---|
 | `js/data.js` | Content and balance numbers | **Cars** → `MODELS` (real specs and paint colors), **repair parts** → `COMPONENTS`, **mods** → `UPGRADES`, **races** → `RACES` and `DIFFICULTIES` |
-| `js/road.js` | Road networks: the home loop and side roads, the race courses (`COURSES`), and racing lines | Reshape roads or add a course |
+| `js/road.js` | Road networks: the home loop and side roads (gateways to the courses), the race courses (`COURSES`), road width and canyon sections per point, and racing lines | Reshape roads or add a course |
 | `js/state.js` | Game state, save/load, car generation, pricing, performance math | New stats or economy rules |
 | `js/drive.js` | Driving and racing: physics, rival AI, chase camera, HUD and tachometer, controls, wear | Race and driving mechanics |
 | `js/ps1.js` | The PlayStation-style renderer: low-res buffer, dithering, vertex snapping, affine textures | Tweak the retro look (`lines`, dithering) |
 | `js/textures.js` | Pixel-art textures drawn in code (road, grass, rock, trees, sky, cabin, car details) | New textures |
 | `js/carmodel.js` | Low-poly models of the real cars (`CARS`: real dimensions, profile, grille, lights, taillights, bumpers, wheels), glossy paint | New car models |
-| `js/world3d.js` | One 3D world per road network: terrain, roads, sprite forest, sky, cabin, lighting, skid marks | Scenery and props |
+| `js/world3d.js` | One 3D world per road network: terrain, roads, canyon walls, gateway arches, sprite forest, sky, cabin, lighting, skid marks | Scenery and props |
 | `js/homeview.js` | The 3D home screen: cabin from above, parked cars, traffic, Select buttons, taps | Home screen behavior |
 | `js/turntable.js` | The garage turntable | |
 | `js/map.js` | Home layout (`HOME`) and parking spots (`PARKING`) | Move things at the cabin, more parking |

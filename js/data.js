@@ -78,7 +78,8 @@ export const PAINT_COLORS = ['#f2f2ee', '#141414', '#b3231e', '#e8a317', '#1f4fa
 export const WHEEL_COLORS = [['Silver', '#d8dbe0'], ['Gunmetal', '#5a6068'], ['Black', '#2a2a2a'], ['Gold', '#d4a640'], ['Bronze', '#9c6b3c'], ['White', '#ffffff']];
 export const COLORS = ['#e8e8e8', '#d63031', '#0984e3', '#2d3436', '#fdcb6e', '#00b894', '#6c5ce7', '#e17055', '#b2bec3', '#fab1a0'];
 
-// Two race courses (geometry in js/road.js), each ~2 minutes, each at four difficulties.
+// Four race courses (geometry in js/road.js): two short ones (~2 minutes) and two long ones (4-5
+// minutes, paying double: `purseScale`), each at four difficulties.
 // Rivals ALWAYS drive a car with exactly your car's numbers (power-to-weight, grip, brakes), so it's
 // always fair. Difficulty only changes how well they drive:
 //   line:    how close to the ideal racing line they drive (0 = keeps to one lane, 1 = perfect line
@@ -95,9 +96,17 @@ export const RACES = [
     hotlap: [[101, 250], [94, 500], [89, 1000], [85, 2000]],
     levels: { easy: { commit: 1.16, brake: 1.35 }, medium: { commit: 1.33, brake: 1.6 }, hard: { commit: 1.47, brake: 1.85 }, impossible: { commit: 1.66, brake: 2.1 } } },
   { id: 'ladder', course: 'ladder', name: 'Switchback Ladder', style: 'Straight, hairpin, repeat',
-    desc: 'Flat out down a straight, stand on the brakes, swing it around a hairpin, do it again. Nine times. Braking points win this one.',
-    hotlap: [[96, 250], [89, 500], [85, 1000], [81, 2000]],
+    desc: 'Flat out down a straight, stand on the brakes, swing it around a hairpin, again and again. In between: flowing S-bends across the face and a one-lane stretch along the cliff. Braking points win this one.',
+    hotlap: [[112, 250], [104, 500], [99, 1000], [95, 2000]],
     levels: { easy: { commit: 1.07, brake: 1.3 }, medium: { commit: 1.33, brake: 1.9 }, hard: { commit: 1.62, brake: 2.7 }, impossible: { commit: 2.0, brake: 3.6 } } },
+  { id: 'canyon', course: 'canyon', name: 'Kuroiwa Canyon', style: 'Wide, fast and flowing', purseScale: 2,
+    desc: 'A wide road of long sweepers up into the mountain and through a rock canyon, with just two hairpins. Carry your speed and commit.',
+    hotlap: [[247, 250], [230, 500], [219, 1000], [209, 2000]],
+    levels: { easy: { commit: 1.1, brake: 1.3 }, medium: { commit: 1.31, brake: 1.62 }, hard: { commit: 1.58, brake: 2.0 }, impossible: { commit: 2.02, brake: 2.57 } } },
+  { id: 'yamabiko', course: 'yamabiko', name: 'Yamabiko Mountain Road', style: 'Long, narrow and steep', purseScale: 2,
+    desc: 'A narrow back road that climbs and drops over the mountains: tight esses, hairpins and blind crests for five minutes straight.',
+    hotlap: [[258, 250], [240, 500], [228, 1000], [217, 2000]],
+    levels: { easy: { commit: 1.16, brake: 1.35 }, medium: { commit: 1.33, brake: 1.6 }, hard: { commit: 1.47, brake: 1.85 }, impossible: { commit: 1.72, brake: 2.2 } } },
 ];
 
 // Hot lap: no rivals, just you against the clock. Each race's `hotlap` lists [time in seconds, reward]:

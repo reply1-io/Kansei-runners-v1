@@ -3,7 +3,7 @@
 //   race:   touge battle on a race course vs rivals in cars with exactly your car's numbers;
 //           difficulty only changes how good their racing line is and how hard they commit to it
 import * as THREE from '../lib/three.module.min.js';
-import { ROAD_HALF, HOME_NET, COURSES, lineVariant, apexesOf } from './road.js';
+import { HOME_NET, COURSES, GATEWAY_BACK, lineVariant, apexesOf } from './road.js';
 import { getWorld, makeCarMesh, inHome } from './world3d.js';
 import { PROBLEM_THRESHOLD, MODELS } from './data.js';
 import { clamp } from './state.js';
@@ -72,10 +72,12 @@ function getLine(road, key, q) {
   return lineCache.get(k);
 }
 
-export function startDrive({ canvas, hud, car, perf, rivalBase, mode, event, difficulty, parked = [], spot, onExit }) {
+// Free driving can also be on a race course (`event.course` without racing). `start` ({ x, z, h, v })
+// places the car when you arrive from another road.
+export function startDrive({ canvas, hud, car, perf, rivalBase, mode, event, difficulty, parked = [], spot, start, onExit }) {
   unlockAudio();
   const race = mode === 'race';
-  const net = race ? COURSES[event.course] : HOME_NET;
+  const net = event?.course ? COURSES[event.course] : HOME_NET;
   ensure3D(canvas, net);
   const scene = world.scene;
   const spec = carSpec(perf);
@@ -133,6 +135,14 @@ export function startDrive({ canvas, hud, car, perf, rivalBase, mode, event, dif
     P.h = Math.atan2(st.tz, st.tx);
     P.hint = st.i;
     P.sAbs = gridBack;
+  } else if (start) {
+    P.x = start.x; P.z = start.z; P.h = start.h;
+    P.vx = Math.cos(P.h) * (start.v || 0); P.vz = Math.sin(P.h) * (start.v || 0);
+    P.sAbs = road.nearest(P.x, P.z).s;
+  } else if (!net.home) {
+    const st = sampleAtS(net.startS);
+    P.x = st.x; P.z = st.z; P.h = Math.atan2(st.tz, st.tx); P.hint = st.i; P.sAbs = net.startS;
+    P.vx = st.tx * (event.v || 0); P.vz = st.tz * (event.v || 0); // rolling in from the side road
   } else {
     P.x = spot.x; P.z = spot.z; P.h = Math.PI / 2; // backed in, facing the road
     P.sAbs = road.nearest(P.x, P.z).s;
@@ -140,7 +150,7 @@ export function startDrive({ canvas, hud, car, perf, rivalBase, mode, event, dif
   const playerMesh = makeCarMesh(car.color, car.modelId, { wheels: car.wheelColor });
   playerMesh.beam.intensity = night ? 400 : 0;
   addMesh(playerMesh.group);
-  for (const pc of parked) {
+  for (const pc of net.home ? parked : []) {
     const mm = makeCarMesh(pc.car.color, pc.car.modelId);
     mm.group.position.set(pc.x, 0, pc.z);
     mm.group.rotation.set(0, -Math.PI / 2, 0);
@@ -186,7 +196,7 @@ export function startDrive({ canvas, hud, car, perf, rivalBase, mode, event, dif
 
   // ---- apex markers (races): clip the inside of each apex for a bonus ----
   const apexMarks = race ? apexesOf(road).filter((a) => a.s > route.from + 5 && a.s < route.to - 5).map((a) => {
-    const q = sampleAtS(a.s), lat = a.inside * (ROAD_HALF - 0.9);
+    const q = sampleAtS(a.s), lat = a.inside * (q.half - 0.9);
     const x = q.x + q.nx * lat, z = q.z + q.nz * lat;
     const g = new THREE.Group();
     const gem = new THREE.Mesh(APEX_GEM, new THREE.MeshBasicMaterial({ color: '#ffd200' }));
@@ -210,7 +220,7 @@ export function startDrive({ canvas, hud, car, perf, rivalBase, mode, event, dif
     }
   }
   const flash = (msg, t = 1.5) => { message = msg; messageT = t; };
-  if (!race) flash('Drive down the lane to the road', 2.5);
+  if (!race) flash(start || !net.home ? net.name || 'Home loop' : 'Drive down the lane to the road', 2.5);
   const carModel = MODELS.find((m) => m.id === car.modelId);
   const sound = carSound({ cyl: carModel?.cyl, turbo: !!(carModel?.turbo || car.upgrades?.turbo > 0) });
 
@@ -289,9 +299,10 @@ export function startDrive({ canvas, hud, car, perf, rivalBase, mode, event, dif
   const home = (x, z) => net.home && inHome(x, z);
   function where(x, z) {
     const m = road.nearest(x, z, P.hint);
-    const mainLimit = ROAD_HALF + 4.5;
+    // Dirt and then trees 4.5 m past the edge; in a canyon the rock wall comes in to 1.6 m.
+    const mainLimit = m.p.half + 4.5 - 2.9 * m.p.canyon;
     const mainOk = Math.abs(m.lat) <= mainLimit && m.dist < mainLimit + 2 && !m.pastEnd;
-    let best = { kind: 'main', m, lat: m.lat, dist: m.dist, limit: mainLimit, asphalt: Math.abs(m.lat) <= ROAD_HALF && m.dist < 12, valid: mainOk };
+    let best = { kind: 'main', m, lat: m.lat, dist: m.dist, limit: mainLimit, asphalt: Math.abs(m.lat) <= m.p.half && m.dist < 12, valid: mainOk };
     for (const b of net.branches) {
       const nb = b.nearest(x, z, -1);
       if (nb.dist > 40) continue;
@@ -332,6 +343,7 @@ export function startDrive({ canvas, hud, car, perf, rivalBase, mode, event, dif
 
   // ---- physics ----
   function stepPlayer(dt) {
+    if (done) return;
     const w0 = where(P.x, P.z);
     P.hint = w0.m.i;
     const atHome = home(P.x, P.z);
@@ -431,8 +443,20 @@ export function startDrive({ canvas, hud, car, perf, rivalBase, mode, event, dif
     P.hint = w2.m.i;
     P.sAbs += road.wrapDelta(w2.m.s - P.sAbs);
     const onBranch = w2.kind === 'branch';
-    const inYard = home(P.x, P.z) && Math.abs(w2.m.lat) > ROAD_HALF + 2;
-    const offRoad = !inYard && !onBranch && Math.abs(w2.lat) > ROAD_HALF + 0.3;
+    // Free driving: the side roads lead onto the race courses, and either end of a course leads home.
+    if (!race && time > 0.5) {
+      const v = Math.hypot(P.vx, P.vz), along = P.vx * Math.cos(P.h) + P.vz * Math.sin(P.h);
+      if (onBranch && w2.b.to && w2.nb.s > w2.b.length - GATEWAY_BACK) return transfer({ course: w2.b.to, v });
+      if (!net.home) {
+        const back = P.sAbs < 12, end = P.sAbs > road.length - 12;
+        if (back || end) {
+          const gate = HOME_NET.branches.find((b) => b.to === net.id), q = gate.sampleAtS(gate.length - GATEWAY_BACK - 12);
+          return transfer({ home: true, start: { x: q.x, z: q.z, h: Math.atan2(-q.tz, -q.tx), v: Math.min(v, 12) }, viaEnd: end && along > 0 });
+        }
+      }
+    }
+    const inYard = home(P.x, P.z) && Math.abs(w2.m.lat) > w2.m.p.half + 2;
+    const offRoad = !inYard && !onBranch && Math.abs(w2.lat) > w2.m.p.half + 0.3;
     const eTarget = inYard ? 0 : onBranch ? w2.e : offRoad ? world.terrainAt(P.x, P.z).h : sampleAtS(w2.m.s).e;
     P.e += (eTarget - P.e) * (P.eSet ? Math.min(1, dt * 12) : 1); // snaps to the road on the first step
     P.eSet = true;
@@ -503,7 +527,8 @@ export function startDrive({ canvas, hud, car, perf, rivalBase, mode, event, dif
         // Racing room: if you're alongside, they hold a car's width off you instead of driving into you.
         const side = P.sAbs - r.sAbs;
         if (Math.abs(side) < 4.5 && Math.abs(playerLat - r.curLat) < 2.4) {
-          r.passTarget = clamp(playerLat + (r.curLat >= playerLat ? 2.4 : -2.4), -ROAD_HALF + 1, ROAD_HALF - 1) - (r.curLat - r.pass);
+          const rh = S[i].half;
+          r.passTarget = clamp(playerLat + (r.curLat >= playerLat ? 2.4 : -2.4), -rh + 1, rh - 1) - (r.curLat - r.pass);
         }
         for (const b of ahead) {
           const gap = b.sAbs - r.sAbs;
@@ -559,7 +584,8 @@ export function startDrive({ canvas, hud, car, perf, rivalBase, mode, event, dif
     const blend = clamp((r.sAbs - (route.from - 2)) / 40, 0, 1);
     const lineLat = a.off + (b.off - a.off) * t;
     const wob = r.wander.reduce((sum, w) => sum + w.amp * Math.sin((r.d / w.len) * Math.PI * 2 + w.ph), 0);
-    const lat = clamp((1 - blend) * r.startLat + blend * (lineLat + wob) + r.pass, -ROAD_HALF + 1, ROAD_HALF - 1);
+    const hw = Math.max(1.2, c.half + (c2.half - c.half) * t - 1);
+    const lat = clamp((1 - blend) * r.startLat + blend * (lineLat + wob) + r.pass, -hw, hw);
     r.curLat = lat;
     r.x = c.x + (c2.x - c.x) * t + c.nx * lat;
     r.z = c.z + (c2.z - c.z) * t + c.nz * lat;
@@ -710,7 +736,7 @@ export function startDrive({ canvas, hud, car, perf, rivalBase, mode, event, dif
   }
 
   function loop(now) {
-    const realDt = (now - last) / 1000;
+    const realDt = Math.max(0, (now - last) / 1000); // a frame stamped before startDrive ran can come out negative
     last = now;
     const steps = window.__krSimSpeed || 1; // test hook: run the sim faster than real time
     for (let n = 0; n < steps && !done; n++) {
@@ -722,20 +748,22 @@ export function startDrive({ canvas, hud, car, perf, rivalBase, mode, event, dif
       if (engineBlown) { blownT -= dt; if (blownT <= 0) finish(true); }
       if (race && !done && progress() >= route.to - route.from) { place = 1 + rivals.filter((r) => r.finished).length; finish(false); }
     }
+    if (done) return; // finished (or moved on to another road) during this frame
     updateSmoke(Math.min(0.05, realDt));
     if (race && time > 0) checkApexes();
-    render();
+    if (!window.__krNoRender) render(); // test hook: simulate without drawing
     updateHud();
     if (!done) raf = requestAnimationFrame(loop);
   }
 
-  function finish(dnf) {
+  function finish(dnf, transferTo = null) {
     if (done) return;
     done = true;
     cancelAnimationFrame(raf);
     cleanup();
-    onExit({ mode, dnf: race ? dnf : false, place: dnf ? null : place, time, engineBlown, wear, bonus, apexHits, apexTotal: apexMarks.length, contacts });
+    onExit({ mode, dnf: race ? dnf : false, place: dnf ? null : place, time, engineBlown, wear, bonus, apexHits, apexTotal: apexMarks.length, contacts, transfer: transferTo });
   }
+  function transfer(to) { finish(false, to); }
 
   function cleanup() {
     window.removeEventListener('keydown', onKey);

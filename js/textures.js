@@ -26,12 +26,24 @@ const px = (g, x, y, c) => { g.fillStyle = c; g.fillRect(x, y, 1, 1); };
 const noiseFill = (g, w, h, rnd, colors, n) => { for (let i = 0; i < n; i++) px(g, Math.floor(rnd() * w), Math.floor(rnd() * h), colors[Math.floor(rnd() * colors.length)]); };
 
 // Road: u runs across the road (0..1 = edge to edge), v along it.
-export const roadTex = () => tex('road', 32, 64, (g, w, h, rnd) => {
+// Road surfaces: 'two' lanes (double yellow), 'narrow' mountain road (dashed white centre line),
+// 'lane' (single lane, no centre line).
+export const roadTex = (kind = 'two') => tex(kind === 'two' ? 'road' : `road-${kind}`, 32, 64, (g, w, h, rnd) => {
   g.fillStyle = '#56565a'; g.fillRect(0, 0, w, h);
   noiseFill(g, w, h, rnd, ['#4b4b50', '#616166', '#44444a', '#6a6a6e'], 900);
-  g.fillStyle = '#e8e8e0'; g.fillRect(1, 0, 1, h); g.fillRect(30, 0, 1, h);        // edge lines
-  g.fillStyle = '#e8b830'; g.fillRect(14, 0, 1, h); g.fillRect(17, 0, 1, h);       // double yellow
-  for (let y = 0; y < h; y += 7) px(g, 14 + Math.floor(rnd() * 4), y, '#56565a');  // worn paint
+  if (kind === 'two') {
+    g.fillStyle = '#e8e8e0'; g.fillRect(1, 0, 1, h); g.fillRect(30, 0, 1, h);        // edge lines
+    g.fillStyle = '#e8b830'; g.fillRect(14, 0, 1, h); g.fillRect(17, 0, 1, h);       // double yellow
+    for (let y = 0; y < h; y += 7) px(g, 14 + Math.floor(rnd() * 4), y, '#56565a');  // worn paint
+  } else if (kind === 'narrow') {
+    g.fillStyle = '#d8d8cc'; g.fillRect(1, 0, 1, h); g.fillRect(30, 0, 1, h);
+    g.fillRect(15, 0, 2, 26);                                                        // dashed centre line
+    for (let y = 0; y < h; y += 5) { px(g, 1, y, '#56565a'); px(g, 30, y + 2, '#56565a'); px(g, 15 + Math.floor(rnd() * 2), Math.floor(rnd() * 26), '#56565a'); }
+  } else {
+    g.fillStyle = '#cfcfc4'; g.fillRect(1, 0, 1, h); g.fillRect(30, 0, 1, h);
+    for (let y = 0; y < h; y += 4) { px(g, 1, y, '#56565a'); px(g, 30, y + 1, '#56565a'); }
+    for (let i = 0; i < 40; i++) px(g, 4 + Math.floor(rnd() * 24), Math.floor(rnd() * h), '#3c3c40'); // patched cracks
+  }
 });
 
 export const shoulderTex = () => tex('shoulder', 32, 32, (g, w, h, rnd) => {

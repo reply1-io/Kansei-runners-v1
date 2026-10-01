@@ -2,7 +2,7 @@
 // around the roads, road surfaces, barriers, forest, and (at home) the cabin/tent/driveway.
 // Each world is built the first time it's needed and then reused.
 import * as THREE from '../lib/three.module.min.js';
-import { ROAD_HALF, U, apexesOf } from './road.js';
+import { U, apexesOf, COURSES, GATEWAY_BACK } from './road.js';
 import { HOME } from './map.js';
 import { seeded } from './draw.js';
 import { roadTex, shoulderTex, grassTex, rockTex, treeTex, treeTopTex, skyTex, logTex, roofTex, canvasTex, gravelTex, waterfallTex } from './textures.js';
@@ -24,44 +24,93 @@ const noise = (x, z) => Math.sin(x * 0.045) * Math.cos(z * 0.039) * 2.2 + Math.s
 const hills = (x, z) => 9 * Math.sin(x * 0.011 + 1.3) * Math.cos(z * 0.013 - 0.4) + 6 * Math.sin((x + z) * 0.008 + 2.1) + 4 * Math.cos(x * 0.021 - z * 0.017) + 7;
 const smooth = (a, b, v) => { const t = Math.max(0, Math.min(1, (v - a) / (b - a))); return t * t * (3 - 2 * t); };
 
+// Canyon walls: height (m) above the road at u meters past the road edge. Steep rock rising to a rim,
+// then the mountain keeps climbing gently. The wall itself is a high-res mesh along the road; the
+// coarse terrain uses the same profile pushed back (CANYON_TUCK) so it always stays hidden behind it.
+const CANYON_H = 38, WALL_U0 = 2.2, WALL_U1 = 17, CANYON_TUCK = 9;
+export function canyonProfile(u) {
+  if (u <= WALL_U0) return 0;
+  if (u < WALL_U1) { const t = (u - WALL_U0) / (WALL_U1 - WALL_U0); return CANYON_H * (1 - (1 - t) ** 2); }
+  return CANYON_H + 0.25 * Math.max(0, u - 45);
+}
+// How far from a road the ground is built (beyond it the land keeps rising, so its edge is a skyline).
+const BAND = 470;
+
 // Returns terrainAt(x, z) for a network: flattened next to its roads, slopes blended between road
-// legs at different heights, rising hills farther away, and (at home) the flat cabin clearing.
+// legs at different heights, rising hills farther away, canyon walls, and (at home) the flat cabin
+// clearing. The far field (blended road heights + distance to the nearest road) is precomputed on a
+// coarse grid, so each lookup is cheap however long the roads are.
 function makeTerrain(net) {
   const ALL = [...net.road.samples, ...net.branches.flatMap((b) => b.samples)];
   const CELL = 12, grid = new Map();
+  let minX = Infinity, maxX = -Infinity, minZ = Infinity, maxZ = -Infinity;
   for (const p of ALL) {
     const k = `${Math.floor(p.x / CELL)},${Math.floor(p.z / CELL)}`;
     if (!grid.has(k)) grid.set(k, []);
     grid.get(k).push(p);
+    minX = Math.min(minX, p.x); maxX = Math.max(maxX, p.x); minZ = Math.min(minZ, p.z); maxZ = Math.max(maxZ, p.z);
   }
-  const coarse = ALL.filter((_, i) => i % 7 === 0);
-  const CL = net.home ? { x: m(HOME.clearing.x), z: m(HOME.clearing.y), rx: m(HOME.clearing.rx), rz: m(HOME.clearing.ry) } : null;
-  return function terrainAt(x, z) {
-    const cx = Math.floor(x / CELL), cz = Math.floor(z / CELL);
-    let nd = Infinity, ne = 0;
-    for (let i = -1; i <= 1; i++) for (let j = -1; j <= 1; j++) {
-      const list = grid.get(`${cx + i},${cz + j}`);
-      if (!list) continue;
-      for (const p of list) { const d = (p.x - x) ** 2 + (p.z - z) ** 2; if (d < nd) { nd = d; ne = p.e; } }
-    }
-    let ws = 0, es = 0, cmin = Infinity;
+  const stride = Math.max(7, Math.round(ALL.length / 650));
+  const coarse = ALL.filter((_, i) => i % stride === 0);
+  const FG = 24, PAD = BAND + 40;
+  const fx0 = minX - PAD, fz0 = minZ - PAD;
+  const fnx = Math.ceil((maxX - minX + 2 * PAD) / FG) + 1, fnz = Math.ceil((maxZ - minZ + 2 * PAD) / FG) + 1;
+  const F = { mean: new Float32Array(fnx * fnz), dist: new Float32Array(fnx * fnz), ce: new Float32Array(fnx * fnz), cc: new Float32Array(fnx * fnz), half: new Float32Array(fnx * fnz) };
+  for (let j = 0; j < fnz; j++) for (let i = 0; i < fnx; i++) {
+    const x = fx0 + i * FG, z = fz0 + j * FG;
+    let ws = 0, es = 0, cmin = Infinity, near = null;
     for (const p of coarse) {
       const d2 = (p.x - x) ** 2 + (p.z - z) ** 2;
-      if (d2 < cmin) cmin = d2;
+      if (d2 < cmin) { cmin = d2; near = p; }
       const w = 1 / Math.pow(d2 + 60, 1.6);
       ws += w; es += w * p.e;
     }
-    const dc = Math.sqrt(cmin);
-    const dn = Math.min(Math.sqrt(nd), dc);
-    const far = es / ws + noise(x, z) * smooth(8, 40, dc) + 0.22 * Math.max(0, dc - 18) + hills(x, z) * smooth(20, 90, dc);
-    let h = nd < Infinity && dn < 30 ? ne + (far - ne) * smooth(ROAD_HALF + 1.2, ROAD_HALF + 16, dn) - 0.3 * (1 - smooth(ROAD_HALF, ROAD_HALF + 3, dn)) : far;
+    const k = j * fnx + i;
+    F.mean[k] = es / ws; F.dist[k] = Math.sqrt(cmin); F.ce[k] = near.e; F.cc[k] = near.canyon || 0; F.half[k] = near.half;
+  }
+  const far = (arr, x, z) => {
+    const gx = Math.max(0, Math.min(fnx - 1.001, (x - fx0) / FG)), gz = Math.max(0, Math.min(fnz - 1.001, (z - fz0) / FG));
+    const i = Math.floor(gx), j = Math.floor(gz), u = gx - i, v = gz - j, k = j * fnx + i;
+    return (arr[k] * (1 - u) + arr[k + 1] * u) * (1 - v) + (arr[k + fnx] * (1 - u) + arr[k + fnx + 1] * u) * v;
+  };
+  // The ground dips under the road so its coarse triangles never poke through on sags (more on the
+  // long courses, whose ground grid is coarser).
+  const long = net.road.length > 2500, SINK = long ? 0.7 : 0.3;
+  // ...and on those the flat strip reaches one grid step past the shoulder, so a triangle reaching
+  // up a hillside can't cover the road edge.
+  const STEPT = net.road.length > 3500 ? 8 : 6, FLAT = long ? STEPT * 0.6 : 0;
+  const CL = net.home ? { x: m(HOME.clearing.x), z: m(HOME.clearing.y), rx: m(HOME.clearing.rx), rz: m(HOME.clearing.ry) } : null;
+  const terrainAt = function terrainAt(x, z) {
+    const cx = Math.floor(x / CELL), cz = Math.floor(z / CELL);
+    let nd = Infinity, np = null;
+    const scan = (i, j) => {
+      const list = grid.get(`${cx + i},${cz + j}`);
+      if (list) for (const p of list) { const d = (p.x - x) ** 2 + (p.z - z) ** 2; if (d < nd) { nd = d; np = p; } }
+    };
+    // The 3x3 cells around the point find any road within 12 m; the next ring out (to 24 m) is only
+    // searched when nothing is that close but a road isn't far off either.
+    for (let i = -1; i <= 1; i++) for (let j = -1; j <= 1; j++) scan(i, j);
+    if (nd > 144 && far(F.dist, x, z) < 40) for (let i = -2; i <= 2; i++) for (let j = -2; j <= 2; j++) if (Math.abs(i) === 2 || Math.abs(j) === 2) scan(i, j);
+    const de = Math.sqrt(nd), exact = de <= 24;
+    const d = exact ? de : Math.max(24, far(F.dist, x, z));
+    const half = exact ? np.half : far(F.half, x, z);
+    const farH = far(F.mean, x, z) + noise(x, z) * smooth(8, 40, d) + 0.22 * Math.max(0, d - 18) + hills(x, z) * smooth(20, 90, d);
+    let h = exact ? np.e + (farH - np.e) * smooth(half + 1.2 + FLAT, half + 16 + FLAT, d) - SINK * (1 - smooth(half + FLAT, half + 3 + FLAT, d)) : farH;
+    const cc = exact ? np.canyon : far(F.cc, x, z);
+    if (cc > 0.01) {
+      const rise = canyonProfile(d - half - CANYON_TUCK);
+      if (rise > 0) h += cc * Math.max(0, (exact ? np.e : far(F.ce, x, z)) + rise - h);
+    }
     let r = 9;
     if (CL) {
       r = Math.hypot((x - CL.x) / CL.rx, (z - CL.z) / CL.rz);
       h = -0.05 + (h + 0.05) * smooth(1.0, 1.5, r);
     }
-    return { h, dRoad: dn, clearing: r };
+    return { h, dRoad: d, clearing: r, half, canyon: cc };
   };
+  terrainAt.farDist = (x, z) => far(F.dist, x, z);
+  terrainAt.STEPT = STEPT;
+  return terrainAt;
 }
 
 // ---------- geometry helpers ----------
@@ -69,9 +118,11 @@ function ribbon(samples, offsetA, offsetB, yA, yB, { every = 1, withUV = false, 
   const pos = [], uv = [], idx = [];
   const pts = samples.filter((_, i) => i % every === 0 || i === samples.length - 1);
   if (closed) pts.push({ ...pts[0], s: length });
+  const off = (o, p) => (typeof o === 'function' ? o(p) : o);
   pts.forEach((p, i) => {
-    pos.push(p.x + p.nx * offsetA, p.e + yA, p.z + p.nz * offsetA);
-    pos.push(p.x + p.nx * offsetB, p.e + yB, p.z + p.nz * offsetB);
+    const oa = off(offsetA, p), ob = off(offsetB, p);
+    pos.push(p.x + p.nx * oa, p.e + yA, p.z + p.nz * oa);
+    pos.push(p.x + p.nx * ob, p.e + yB, p.z + p.nz * ob);
     if (withUV) uv.push(0, p.s / vPer, uAcross, p.s / vPer);
     if (i > 0) { const a = (i - 1) * 2; idx.push(a, a + 1, a + 2, a + 1, a + 3, a + 2); }
   });
@@ -109,6 +160,7 @@ function buildWorld(net) {
     }
     return t;
   };
+  terrainAt.farDist = baseTerrain.farDist;
   const scene = new THREE.Scene();
   const sky = new THREE.Color('#8ea6b8'); // horizon haze: blue-grey mountain air, not white
   scene.background = sky;
@@ -133,14 +185,17 @@ function buildWorld(net) {
   // The ground itself reaches much further (fading into the fog) so you never see its edge.
   const GROUND = 340, gMinX = minX - GROUND, gMaxX = maxX + GROUND, gMinZ = minZ - GROUND, gMaxZ = maxZ + GROUND;
   const water = findWaterSites(net, baseTerrain, { minX, maxX, minZ, maxZ });
+  const farDist = baseTerrain.farDist;
   carves = [...water.ponds.map((p) => ({ ...p, depth: 1.4 })), ...water.falls.map((f) => ({ x: f.bot.x, z: f.bot.z, r: 4.5, level: f.bot.h + 0.15, depth: 1.0 }))];
-  const STEPT = 6;
+  // Only ground within BAND of a road is built; long courses use a coarser grid.
+  const STEPT = baseTerrain.STEPT;
   const nx = Math.ceil((gMaxX - gMinX) / STEPT) + 1, nz = Math.ceil((gMaxZ - gMinZ) / STEPT) + 1;
   const pos = new Float32Array(nx * nz * 3), col = new Float32Array(nx * nz * 3), tuv = new Float32Array(nx * nz * 2);
   const info = [];
   const rnd = seeded(11);
   for (let j = 0; j < nz; j++) for (let i = 0; i < nx; i++) {
     const x = gMinX + i * STEPT, z = gMinZ + j * STEPT;
+    if (farDist(x, z) > BAND) { info.push(null); rnd(); continue; }
     const t = terrainAt(x, z);
     const k = (j * nx + i) * 3;
     pos[k] = x; pos[k + 1] = t.h; pos[k + 2] = z;
@@ -157,12 +212,13 @@ function buildWorld(net) {
   const groups = [[], [], []];
   const kind = (a, b, c) => {
     const ta = info[a], tb = info[b], tc = info[c];
-    if (Math.max(ta.dRoad, tb.dRoad, tc.dRoad) < ROAD_HALF + 3.2) return 2;
+    if (Math.max(ta.dRoad - ta.half, tb.dRoad - tb.half, tc.dRoad - tc.half) < 3.2) return 2;
     const hs = [pos[a * 3 + 1], pos[b * 3 + 1], pos[c * 3 + 1]];
     return Math.max(...hs) - Math.min(...hs) > STEPT * 1.15 ? 1 : 0;
   };
   for (let j = 0; j < nz - 1; j++) for (let i = 0; i < nx - 1; i++) {
     const a = j * nx + i, b = a + 1, c = a + nx, d = c + 1;
+    if (!info[a] || !info[b] || !info[c] || !info[d]) continue;
     groups[kind(a, c, b)].push(a, c, b);
     groups[kind(b, c, d)].push(b, c, d);
   }
@@ -179,8 +235,18 @@ function buildWorld(net) {
 
   // Road and shoulder. No guardrails: run wide and you're in the dirt, then the trees.
   const closed = net.road.loop, length = net.road.length;
-  scene.add(new THREE.Mesh(ribbon(S, -ROAD_HALF - 1.1, ROAD_HALF + 1.1, -0.02, -0.02, { every: 2, closed, length, withUV: true, uAcross: 3, vPer: 3 }), new THREE.MeshLambertMaterial({ map: shoulderTex() })));
-  scene.add(new THREE.Mesh(ribbon(S, -ROAD_HALF, ROAD_HALF, 0.03, 0.03, { withUV: true, closed, length, vPer: 10 }), new THREE.MeshLambertMaterial({ map: roadTex() })));
+  scene.add(new THREE.Mesh(ribbon(S, (p) => -p.half - 1.1, (p) => p.half + 1.1, -0.12, -0.12, { every: 2, closed, length, withUV: true, uAcross: 3, vPer: 3 }), new THREE.MeshLambertMaterial({ map: shoulderTex() })));
+  // The surface changes with the road: two lanes, a narrow mountain road, or a single lane.
+  const style = (p) => (p.half < 2.8 ? 'lane' : net.roadStyle || 'two');
+  if (closed) scene.add(new THREE.Mesh(ribbon(S, (p) => -p.half, (p) => p.half, 0.03, 0.03, { withUV: true, closed, length, vPer: 10 }), new THREE.MeshLambertMaterial({ map: roadTex(style(S[0])) })));
+  else {
+    for (let i0 = 0; i0 < S.length - 1;) {
+      let i1 = i0 + 1;
+      while (i1 < S.length - 1 && style(S[i1]) === style(S[i0])) i1++;
+      scene.add(new THREE.Mesh(ribbon(S.slice(i0, i1 + 1), (p) => -p.half, (p) => p.half, 0.03, 0.03, { withUV: true, vPer: 10 }), new THREE.MeshLambertMaterial({ map: roadTex(style(S[i0])) })));
+      i0 = i1;
+    }
+  }
 
   // Dirt cut-throughs on the inside of every apex: packed dirt you can clip to cut the corner.
   // Widest (APEX_CUT m) at the apex, tapering to nothing 14 m either side.
@@ -190,7 +256,7 @@ function buildWorld(net) {
     for (let ds = -14; ds <= 14; ds += 1) {
       const q = net.road.sampleAtS(a.s + ds), w = APEX_CUT * (1 - (ds / 14) ** 2);
       for (let c = 0; c < COLS; c++) {
-        const off = ROAD_HALF - 0.05 + (0.1 + w) * (c / (COLS - 1));
+        const off = q.half - 0.05 + (0.1 + w) * (c / (COLS - 1));
         const x = q.x + q.nx * off * a.inside, z = q.z + q.nz * off * a.inside;
         pos.push(x, Math.max(terrainAt(x, z).h, q.e - 0.25) + 0.07, z);
         uv.push(off / 2, (a.s + ds) / 2);
@@ -203,20 +269,22 @@ function buildWorld(net) {
     g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
     g.setIndex(idx); g.computeVertexNormals();
     scene.add(new THREE.Mesh(g, cutMat));
-    const q = net.road.sampleAtS(a.s), off = (ROAD_HALF + APEX_CUT / 2) * a.inside;
+    const q = net.road.sampleAtS(a.s), off = (q.half + APEX_CUT / 2) * a.inside;
     return { x: q.x + q.nx * off, z: q.z + q.nz * off };
   });
 
-  // Side roads: narrower gravel with a "Road closed" barrier at the end.
+  // Side roads: narrower gravel. Each leads to a race course, under a wooden arch with its name;
+  // one without a course would end at a "Road closed" barrier.
   const branchMat = new THREE.MeshLambertMaterial({ map: gravelTex() });
   for (const b of net.branches) {
     scene.add(new THREE.Mesh(ribbon(b.samples.slice(3), -b.half, b.half, 0.0, 0.0, { withUV: true, uAcross: 2, vPer: 3 }), branchMat));
-    scene.add(barrier(b.samples[b.samples.length - 1], b.half));
+    if (b.to) scene.add(gatewayArch(b.sampleAtS(b.length - GATEWAY_BACK), b.half + 1.2, COURSES[b.to].name));
+    else scene.add(barrier(b.samples[b.samples.length - 1], b.half));
   }
   // Open roads (race courses) are closed off at both ends.
   if (!closed) {
-    scene.add(barrier(S[S.length - 1], ROAD_HALF + 1));
-    scene.add(barrier(S[0], ROAD_HALF + 1));
+    scene.add(barrier(S[S.length - 1], S[S.length - 1].half + 1));
+    scene.add(barrier(S[0], S[0].half + 1));
   }
 
   // Start/finish lines (checkered strips across the road).
@@ -226,47 +294,65 @@ function buildWorld(net) {
 
   // Forest: instanced cones on a jittered grid, kept off the roads and out of the clearing.
   // Trees near the road are shorter, so the chase camera can see over them into the next corner.
+  // No trees on canyon walls (only up on the rim).
   const trees = [];
   const trnd = seeded(99);
   const TS = 3.6; // dense: the canopy closes over almost all the ground
   for (let z = minZ; z < maxZ; z += TS) for (let x = minX; x < maxX; x += TS) {
     const tx = x + (trnd() - 0.5) * TS * 0.9, tz = z + (trnd() - 0.5) * TS * 0.9;
+    if (farDist(tx, tz) > TREE_REACH + 30) continue;
     const t = terrainAt(tx, tz);
-    if (t.dRoad < ROAD_HALF + 2.8 + trnd() * 1.2 || t.dRoad > TREE_REACH || t.clearing < 1.12) continue;
+    if (t.dRoad < t.half + 2.8 + trnd() * 1.2 || t.dRoad > TREE_REACH || t.clearing < 1.12) continue;
+    if (t.canyon > 0.25 && t.dRoad < t.half + 30) continue;
     if (apexCuts.some((c) => (c.x - tx) ** 2 + (c.z - tz) ** 2 < 64)) continue; // keep the apex cut-throughs clear
     if (nearWater(water, tx, tz, 10)) continue; // and an open glade round the ponds and waterfalls
-    trees.push({ x: tx, z: tz, y: t.h, hgt: Math.min(9 + trnd() * 10, 2.5 + (t.dRoad - ROAD_HALF) * 0.55), r: 2.4 + trnd() * 1.4, shade: 0.75 + trnd() * 0.4 });
+    trees.push({ x: tx, z: tz, y: t.h, hgt: Math.min(9 + trnd() * 10, 2.5 + (t.dRoad - t.half) * 0.55), r: 2.4 + trnd() * 1.4, shade: 0.75 + trnd() * 0.4 });
   }
-  // Crossed-quad sprite trees, the classic late-90s way.
+  // Crossed-quad sprite trees, the classic late-90s way, in 250 m chunks so the ones off screen are culled.
   const quad = (rot) => { const p = new THREE.PlaneGeometry(1, 1); p.translate(0, 0.5, 0); p.rotateY(rot); return p; };
   const crossGeo = mergeGeos([quad(0), quad(Math.PI / 2)]);
-  const treeMeshes = [0, 1].map((v) => new THREE.InstancedMesh(crossGeo, new THREE.MeshLambertMaterial({ map: treeTex(v), alphaTest: 0.5, side: THREE.DoubleSide }), trees.length));
-  const counts = [0, 0];
-  const color = new THREE.Color(), mtx = new THREE.Matrix4();
-  const q = new THREE.Quaternion(), up = new THREE.Vector3(0, 1, 0);
-  trees.forEach((t, i) => {
-    const v = i % 2;
-    q.setFromAxisAngle(up, (i * 1.3) % Math.PI);
-    mtx.compose(new THREE.Vector3(t.x, t.y - 0.3, t.z), q, new THREE.Vector3(t.r * 2.4, t.hgt, t.r * 2.4));
-    treeMeshes[v].setMatrixAt(counts[v], mtx);
-    color.setScalar(t.shade);
-    treeMeshes[v].setColorAt(counts[v]++, color);
-  });
-  treeMeshes.forEach((tm, v) => { tm.count = counts[v]; scene.add(tm); });
-  // A flat crown on top of each tree for overhead views.
+  const treeMats = [0, 1].map((v) => new THREE.MeshLambertMaterial({ map: treeTex(v), alphaTest: 0.5, side: THREE.DoubleSide }));
   const topGeo = new THREE.PlaneGeometry(1, 1); topGeo.rotateX(-Math.PI / 2);
-  const tops = new THREE.InstancedMesh(topGeo, new THREE.MeshLambertMaterial({ map: treeTopTex(), alphaTest: 0.5 }), trees.length);
+  const topMat = new THREE.MeshLambertMaterial({ map: treeTopTex(), alphaTest: 0.5 });
+  const color = new THREE.Color(), mtx = new THREE.Matrix4();
+  const q = new THREE.Quaternion(), up = new THREE.Vector3(0, 1, 0), v3 = new THREE.Vector3(), sc3 = new THREE.Vector3();
+  const chunks = new Map();
   trees.forEach((t, i) => {
-    q.setFromAxisAngle(up, i * 0.7);
-    mtx.compose(new THREE.Vector3(t.x, t.y + t.hgt * 0.62, t.z), q, new THREE.Vector3(t.r * 2.6, 1, t.r * 2.6));
-    tops.setMatrixAt(i, mtx);
-    color.setScalar(t.shade);
-    tops.setColorAt(i, color);
+    const k = `${Math.floor(t.x / 250)},${Math.floor(t.z / 250)}`;
+    if (!chunks.has(k)) chunks.set(k, []);
+    chunks.get(k).push(i);
   });
-  scene.add(tops);
+  for (const ids of chunks.values()) {
+    const sides = [0, 1].map((v) => ids.filter((i) => i % 2 === v));
+    sides.forEach((list, v) => {
+      if (!list.length) return;
+      const tm = new THREE.InstancedMesh(crossGeo, treeMats[v], list.length);
+      list.forEach((i, n) => {
+        const t = trees[i];
+        q.setFromAxisAngle(up, (i * 1.3) % Math.PI);
+        tm.setMatrixAt(n, mtx.compose(v3.set(t.x, t.y - 0.3, t.z), q, sc3.set(t.r * 2.4, t.hgt, t.r * 2.4)));
+        tm.setColorAt(n, color.setScalar(t.shade));
+      });
+      tm.computeBoundingSphere();
+      scene.add(tm);
+    });
+    // A flat crown on top of each tree for overhead views.
+    const tops = new THREE.InstancedMesh(topGeo, topMat, ids.length);
+    ids.forEach((i, n) => {
+      const t = trees[i];
+      q.setFromAxisAngle(up, i * 0.7);
+      tops.setMatrixAt(n, mtx.compose(v3.set(t.x, t.y + t.hgt * 0.62, t.z), q, sc3.set(t.r * 2.6, 1, t.r * 2.6)));
+      tops.setColorAt(n, color.setScalar(t.shade));
+    });
+    tops.computeBoundingSphere();
+    scene.add(tops);
+  }
+
+  // Canyon walls: rock faces rising from the shoulder on both sides, built along the road.
+  const canyonRocks = buildCanyonWalls(scene, net.road, terrainAt);
 
   const waterFx = buildWater(scene, water, terrainAt);
-  buildRocks(scene, terrainAt, water, apexCuts, { minX, maxX, minZ, maxZ });
+  buildRocks(scene, terrainAt, water, apexCuts, { minX, maxX, minZ, maxZ }, canyonRocks);
   const mountains = buildMountains(scene);
 
 
@@ -328,6 +414,25 @@ function barrier(p, half) {
   return g;
 }
 
+// A timber arch over the road with the course name on a board, facing traffic.
+function gatewayArch(p, half, name) {
+  const g = new THREE.Group(), wood = new THREE.MeshLambertMaterial({ color: '#6b4a2c' });
+  for (const side of [-1, 1]) { const post = new THREE.Mesh(new THREE.BoxGeometry(0.35, 5.4, 0.35), wood); post.position.set(0, 2.7, side * half); g.add(post); }
+  const beam = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.4, half * 2 + 1.2), wood); beam.position.y = 5.3; g.add(beam);
+  const c = document.createElement('canvas'); c.width = 256; c.height = 48;
+  const x = c.getContext('2d');
+  x.fillStyle = '#20314a'; x.fillRect(0, 0, 256, 48); x.strokeStyle = '#e8d9b0'; x.lineWidth = 3; x.strokeRect(3, 3, 250, 42);
+  x.fillStyle = '#f4ecd2'; x.font = 'bold 22px Arial, sans-serif'; x.textAlign = 'center'; x.textBaseline = 'middle';
+  x.fillText(name.toUpperCase(), 128, 25, 236);
+  const tex = new THREE.CanvasTexture(c); tex.colorSpace = THREE.SRGBColorSpace;
+  const boardW = Math.min(half * 2 - 0.4, 7);
+  const board = new THREE.Mesh(new THREE.BoxGeometry(0.12, boardW * 48 / 256 * 1.6, boardW), [0, 1, 2, 3, 4, 5].map((i) => new THREE.MeshLambertMaterial(i === 0 || i === 1 ? { map: tex } : { color: '#20314a' })));
+  board.position.y = 4.4; g.add(board);
+  g.position.set(p.x, p.e, p.z);
+  g.rotation.y = -Math.atan2(p.tz, p.tx);
+  return g;
+}
+
 // Skid marks: a ring buffer of small dark quads laid on the road.
 function makeSkids(scene) {
   const MAX = 900;
@@ -363,7 +468,7 @@ function checkerLine(road, s) {
   const tex = new THREE.CanvasTexture(c);
   tex.magFilter = THREE.NearestFilter;
   tex.colorSpace = THREE.SRGBColorSpace;
-  const mesh = new THREE.Mesh(new THREE.PlaneGeometry(ROAD_HALF * 2, 1.2), new THREE.MeshLambertMaterial({ map: tex }));
+  const mesh = new THREE.Mesh(new THREE.PlaneGeometry(p.half * 2, 1.2), new THREE.MeshLambertMaterial({ map: tex }));
   mesh.rotation.order = 'YXZ';
   mesh.rotation.y = -Math.atan2(p.nz, p.nx);
   mesh.rotation.x = -Math.PI / 2;
@@ -431,19 +536,22 @@ function buildHome(scene) {
 function findWaterSites(net, terrainAt, { minX, maxX, minZ, maxZ }) {
   const rnd = seeded(net.id === 'home' ? 31 : net.id.length * 17 + 3);
   const ponds = [], falls = [];
-  const ok = (t) => t.clearing > 1.4;
+  // More of them along the long courses.
+  const scale = Math.min(3, Math.max(1, Math.round(net.road.length / 2500))), NP = 3 * scale, NF = 2 * scale;
+  const ok = (t) => t.clearing > 1.4 && t.canyon < 0.1;
   const far = (list, x, z, d) => list.every((p) => Math.hypot(p.x - x, p.z - z) > d);
-  for (let tries = 0; tries < 6000 && (ponds.length < 3 || falls.length < 2); tries++) {
+  for (let tries = 0; tries < 6000 * scale * scale && (ponds.length < NP || falls.length < NF); tries++) {
     const x = minX + rnd() * (maxX - minX), z = minZ + rnd() * (maxZ - minZ);
+    if (terrainAt.farDist(x, z) > 40) continue;
     const t = terrainAt(x, z);
     if (!ok(t)) continue;
-    if (ponds.length < 3 && t.dRoad > 13 && t.dRoad < 28 && far(ponds, x, z, 110)) {
+    if (ponds.length < NP && t.dRoad > 13 && t.dRoad < 28 && far(ponds, x, z, 110)) {
       const r = 6 + rnd() * 5;
       let lo = Infinity, hi = -Infinity;
       for (let a = 0; a < 6.28; a += 0.8) { const h = terrainAt(x + Math.cos(a) * r, z + Math.sin(a) * r).h; lo = Math.min(lo, h); hi = Math.max(hi, h); }
       if (hi - lo < 2.2) { ponds.push({ x, z, r, level: lo + 0.1 }); continue; }
     }
-    if (falls.length < 2 && t.dRoad > 12 && t.dRoad < 32 && far(falls, x, z, 140) && far(ponds, x, z, 25)) {
+    if (falls.length < NF && t.dRoad > 12 && t.dRoad < 32 && far(falls, x, z, 140) && far(ponds, x, z, 25)) {
       // Look for a big drop within 14 m in any direction.
       let best = null;
       for (let a = 0; a < 6.28; a += 0.4) {
@@ -505,11 +613,12 @@ function buildWater(scene, water, terrainAt) {
 
 // Boulders: scattered through the forest (more on steep ground), round the ponds and beside the falls.
 // Always outside the drivable area, so you never drive through one.
-function buildRocks(scene, terrainAt, water, apexCuts, { minX, maxX, minZ, maxZ }) {
-  const rnd = seeded(5), rocks = [];
-  const add = (x, z, s) => { const t = terrainAt(x, z); if (t.dRoad > ROAD_HALF + 5.4 && t.clearing > 1.15) rocks.push({ x, z, y: t.h, s }); };
+function buildRocks(scene, terrainAt, water, apexCuts, { minX, maxX, minZ, maxZ }, extra = []) {
+  const rnd = seeded(5), rocks = [...extra];
+  const add = (x, z, s) => { const t = terrainAt(x, z); if (t.dRoad > t.half + 5.4 && t.clearing > 1.15 && t.canyon < 0.25) rocks.push({ x, z, y: t.h, s }); };
   for (let z = minZ; z < maxZ; z += 10) for (let x = minX; x < maxX; x += 10) {
     const rx = x + (rnd() - 0.5) * 9, rz = z + (rnd() - 0.5) * 9;
+    if (terrainAt.farDist(rx, rz) > TREE_REACH + 60) { rnd(); rnd(); continue; }
     const t = terrainAt(rx, rz);
     if (t.dRoad > TREE_REACH + 40) continue;
     const slope = Math.abs(terrainAt(rx + 3, rz).h - terrainAt(rx - 3, rz).h) + Math.abs(terrainAt(rx, rz + 3).h - terrainAt(rx, rz - 3).h);
@@ -533,6 +642,50 @@ function buildRocks(scene, terrainAt, water, apexCuts, { minX, maxX, minZ, maxZ 
   });
   mesh.count = rocks.length;
   scene.add(mesh);
+}
+
+// Rock walls either side of the road wherever it runs through a canyon (sample.canyon > 0). Each wall
+// follows canyonProfile out to the rim; where the canyon fades in or out it blends into the ground.
+// Returns boulders for the foot of the walls.
+function buildCanyonWalls(scene, road, terrainAt) {
+  const S = road.samples, out = [];
+  if (!S.some((p) => p.canyon > 0.15)) return out;
+  const US = [WALL_U0 - 0.4, 3, 4.2, 5.6, 7.2, 9, 11, 13.5, 16, 19, 24, 30];
+  const rnd = seeded(61), mat = new THREE.MeshLambertMaterial({ map: rockTex(), vertexColors: true, side: THREE.DoubleSide });
+  const jag = (x, z) => Math.sin(x * 0.31 + z * 0.17) * Math.cos(z * 0.27 - x * 0.11) * 1.6 + Math.sin(x * 0.9 - z * 0.7) * 0.5;
+  for (const side of [-1, 1]) {
+    const pos = [], uv = [], col = [], idx = [];
+    let rows = 0, prevOk = false;
+    for (let i = 0; i < S.length; i += 2) {
+      const p = S[i], c = Math.min(1, p.canyon * 1.15);
+      if (c < 0.15) { prevOk = false; continue; }
+      US.forEach((u, k) => {
+        const off = side * (p.half + u), x = p.x + p.nx * off, z = p.z + p.nz * off;
+        const j = u > 3.5 && u < 26 ? jag(x, z) * Math.min(1, (u - 3.5) / 3) : 0;
+        const wall = p.e + canyonProfile(u) + j;
+        const y = Math.max(terrainAt(x, z).h + 0.1, terrainAt(x, z).h + (wall - terrainAt(x, z).h) * c);
+        pos.push(x + p.nx * side * j * 0.4, y, z + p.nz * side * j * 0.4);
+        uv.push(u / 4, p.s / 4);
+        // Darker at the foot, with warm and cool bands of strata up the face.
+        const shade = 0.78 + 0.4 * Math.min(1, u / WALL_U1) + j * 0.05, band = Math.sin((y - p.e) * 0.55 + x * 0.01) * 0.07;
+        col.push(shade * (1.04 + band), shade * (0.98 + band * 0.5), shade * (0.9 - band * 0.3));
+      });
+      if (prevOk) for (let k = 0; k < US.length - 1; k++) { const a = (rows - 1) * US.length + k, b = rows * US.length + k; idx.push(a, b, a + 1, a + 1, b, b + 1); }
+      rows++; prevOk = true;
+      // Fallen boulders at the foot of the wall.
+      if (c > 0.6 && rnd() < 0.12) {
+        const u = 3.6 + rnd() * 2.5, off = side * (p.half + u);
+        out.push({ x: p.x + p.nx * off, z: p.z + p.nz * off, y: p.e + canyonProfile(u) * 0.5, s: 0.7 + rnd() * 1.4 });
+      }
+    }
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+    g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
+    g.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
+    g.setIndex(idx); g.computeVertexNormals();
+    scene.add(new THREE.Mesh(g, mat));
+  }
+  return out;
 }
 
 // A hazy ring of snow-capped mountains on the horizon. It follows the camera (like the sky), so it
