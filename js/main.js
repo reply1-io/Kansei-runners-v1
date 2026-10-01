@@ -568,15 +568,25 @@ document.addEventListener('pointerdown', unlockAudio, { passive: true });
 const fsEl = document.documentElement;
 const canFullscreen = !!(fsEl.requestFullscreen || fsEl.webkitRequestFullscreen) && (document.fullscreenEnabled || document.webkitFullscreenEnabled);
 if (!canFullscreen || window.matchMedia('(display-mode: fullscreen), (display-mode: standalone)').matches) document.body.classList.add('no-fullscreen');
-function toggleFullscreen() {
-  const on = document.fullscreenElement || document.webkitFullscreenElement;
+const isFullscreen = () => !!(document.fullscreenElement || document.webkitFullscreenElement);
+let fsOptOut = false; // set when you leave full screen with the button, so we stop pulling you back in
+function enterFullscreen() {
+  if (!canFullscreen || fsOptOut || isFullscreen()) return;
   try {
-    if (on) (document.exitFullscreen || document.webkitExitFullscreen).call(document);
-    else Promise.resolve((fsEl.requestFullscreen || fsEl.webkitRequestFullscreen).call(fsEl, { navigationUI: 'hide' }))
+    Promise.resolve((fsEl.requestFullscreen || fsEl.webkitRequestFullscreen).call(fsEl, { navigationUI: 'hide' }))
       .then(() => screen.orientation?.lock?.('portrait')).catch(() => {});
   } catch (err) { /* not allowed here (e.g. inside a frame without permission) */ }
 }
-document.addEventListener('click', (e) => { if (e.target.closest('[data-fullscreen]')) { e.stopPropagation(); toggleFullscreen(); } }, true);
+function toggleFullscreen() {
+  if (isFullscreen()) {
+    fsOptOut = true;
+    try { (document.exitFullscreen || document.webkitExitFullscreen).call(document); } catch (err) { /* ignore */ }
+  } else { fsOptOut = false; enterFullscreen(); }
+}
+document.addEventListener('click', (e) => {
+  if (e.target.closest('[data-fullscreen]')) { e.stopPropagation(); toggleFullscreen(); return; }
+  enterFullscreen(); // the game goes full screen on your first tap (where the browser allows it)
+}, true);
 
 document.body.addEventListener('click', (e) => {
   const el = e.target.closest('[data-action]');
@@ -630,6 +640,7 @@ async function startHotLap(race) {
 }
 
 function runDrive(mode, car, ev, difficulty) {
+  enterFullscreen();
   const all = parkedInMeters();
   const mine = all.find((p) => p.car.id === car.id);
   phoneWrap.hidden = true;

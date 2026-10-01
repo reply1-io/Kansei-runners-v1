@@ -64,7 +64,7 @@ python3 -m http.server 8000
 
 ### Full screen
 
-- **Android / desktop:** tap the **⛶** button (top right at home, next to 🔊 in a race).
+- **Android / desktop:** the game goes full screen on your first tap (and again when you start driving). The **⛶** button (top right at home, next to 🔊 in a race) toggles it; if you turn it off, it stays off until you tap ⛶ again.
 - **iPhone / any phone, best option:** open the hosted game in the browser (Safari: Share → **Add to Home Screen**; Chrome: ⋮ → **Add to Home screen** / **Install app**). Launched from its icon, it runs full screen with no browser bars (it ships a web app manifest and icons). iPhone Safari doesn't allow web pages to go full screen any other way, so the ⛶ button hides there.
 
 ## Code layout: where to add things
