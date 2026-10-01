@@ -16,11 +16,11 @@ export const MODELS = [
     colors: ['#b9bcc0', '#1c2433', '#e9e6dc', '#5a1d22', '#6f7f86', '#161616'] },
   { id: 'e30',      name: 'BMW 325i',                  years: [1987, 1987], hp: 168, weight: 1230, drive: 'RWD', cyl: 6, price: 7000,  parts: 0.8,
     colors: ['#f2f2ee', '#b3231e', '#141414', '#1d3a6b', '#9aa3a8', '#2c4a3b'] },
-  { id: 'supra',    name: 'Toyota Supra Turbo (Mk3)',  years: [1987, 1992], hp: 230, weight: 1600, drive: 'RWD', cyl: 6, price: 8000,  parts: 1.1,
+  { id: 'supra',    name: 'Toyota Supra Turbo (Mk3)',  years: [1987, 1992], hp: 230, weight: 1600, drive: 'RWD', cyl: 6, turbo: true, price: 8000,  parts: 1.1,
     colors: ['#f0f0ec', '#b4161b', '#141414', '#27427a', '#8f959b'] },
-  { id: 's180sx',   name: 'Nissan 180SX',              years: [1991, 1994], hp: 202, weight: 1220, drive: 'RWD', cyl: 4, price: 9000,  parts: 0.9,
+  { id: 's180sx',   name: 'Nissan 180SX',              years: [1991, 1994], hp: 202, weight: 1220, drive: 'RWD', cyl: 4, turbo: true, price: 9000,  parts: 0.9,
     colors: ['#f2f2ee', '#a81a1e', '#141414', '#3c4a8a', '#b8bcc2'] },
-  { id: 'r32',      name: 'Nissan Skyline GTS-t (R32)', years: [1989, 1993], hp: 212, weight: 1340, drive: 'RWD', cyl: 6, price: 11000, parts: 1.0,
+  { id: 'r32',      name: 'Nissan Skyline GTS-t (R32)', years: [1989, 1993], hp: 212, weight: 1340, drive: 'RWD', cyl: 6, turbo: true, price: 11000, parts: 1.0,
     colors: ['#5e6267', '#f2f2ee', '#141414', '#7a1418', '#2b3d63'] },
 ];
 

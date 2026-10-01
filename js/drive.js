@@ -3,7 +3,7 @@
 //   race:   touge battle on a race course vs rivals in cars with exactly your car's numbers;
 //           difficulty only changes how good their racing line is and how hard they commit to it
 import * as THREE from '../lib/three.module.min.js';
-import { ROAD_HALF, HOME_NET, COURSES, lineVariant, apexesOf } from './road.js';
+import { ROAD_HALF, HOME_NET, COURSES, lineVariant, apexesOf, jumpHeight } from './road.js';
 import { getWorld, makeCarMesh, inHome } from './world3d.js';
 import { PROBLEM_THRESHOLD, MODELS } from './data.js';
 import { clamp } from './state.js';
@@ -26,6 +26,16 @@ const APEX_BONUS = 50, APEX_HIT = 2.0;
 const APEX_GEM = new THREE.OctahedronGeometry(0.45, 0);
 const APEX_RING = new THREE.RingGeometry(1.2, 1.6, 20);
 const TOUCH_SLOP = 36; // px: touches this close to a control count for it
+const SMOKE_LIFE = 1.4;
+let smokeTex = null;
+function smokeTexture() {
+  if (smokeTex) return smokeTex;
+  const c = document.createElement('canvas'); c.width = c.height = 32;
+  const g = c.getContext('2d'), gr = g.createRadialGradient(16, 16, 0, 16, 16, 16);
+  gr.addColorStop(0, 'rgba(255,255,255,1)'); gr.addColorStop(0.5, 'rgba(255,255,255,0.45)'); gr.addColorStop(1, 'rgba(255,255,255,0)');
+  g.fillStyle = gr; g.fillRect(0, 0, 32, 32);
+  return (smokeTex = new THREE.CanvasTexture(c));
+}
 const HB_RADIUS = 15; // rivals pull the handbrake where their line is tighter than this
 
 // Locked chase camera: fixed high up behind the car with a wide 90° view, looking down the road over the
@@ -201,7 +211,8 @@ export function startDrive({ canvas, hud, car, perf, rivalBase, mode, event, dif
   }
   const flash = (msg, t = 1.5) => { message = msg; messageT = t; };
   if (!race) flash('Drive down the lane to the road', 2.5);
-  const sound = carSound({ cyl: MODELS.find((m) => m.id === car.modelId)?.cyl });
+  const carModel = MODELS.find((m) => m.id === car.modelId);
+  const sound = carSound({ cyl: carModel?.cyl, turbo: !!(carModel?.turbo || car.upgrades?.turbo > 0) });
 
   // ---- input ----
   const keyMap = { arrowleft: 'left', a: 'left', arrowright: 'right', d: 'right', arrowup: 'gas', w: 'gas', arrowdown: 'brake', s: 'brake', ' ': 'hb', shift: 'hb' };
@@ -295,6 +306,30 @@ export function startDrive({ canvas, hud, car, perf, rivalBase, mode, event, dif
     return best;
   }
 
+  // ---- tire smoke (a small pool of soft sprites that grow, drift up and fade) ----
+  let spinT = 0, smokeAcc = 0, smokeSide = 1, smokeNext = 0;
+  const smoke = Array.from({ length: 48 }, () => {
+    const m = new THREE.Sprite(new THREE.SpriteMaterial({ map: smokeTexture(), transparent: true, opacity: 0, depthWrite: false, color: '#e8e8e4' }));
+    m.visible = false; addMesh(m);
+    return { m, age: 99, vx: 0, vz: 0 };
+  });
+  function puff(x, y, z) {
+    const p = smoke[smokeNext = (smokeNext + 1) % smoke.length];
+    p.age = 0; p.m.position.set(x, y, z); p.m.visible = true;
+    p.vx = P.vx * 0.6; p.vz = P.vz * 0.6; // carried along in the car's wake, then hangs in the air
+  }
+  function updateSmoke(dt) {
+    for (const p of smoke) {
+      if (p.age > SMOKE_LIFE) { p.m.visible = false; continue; }
+      p.age += dt;
+      const t = p.age / SMOKE_LIFE;
+      p.m.scale.setScalar(0.9 + t * 2.6);
+      p.m.position.x += p.vx * dt; p.m.position.z += p.vz * dt; p.vx *= 1 - dt * 1.5; p.vz *= 1 - dt * 1.5;
+      p.m.position.y += dt * 0.6;
+      p.m.material.opacity = 0.3 * (1 - t) * Math.min(1, t * 6); // light: never thick
+    }
+  }
+
   // ---- physics ----
   function stepPlayer(dt) {
     const w0 = where(P.x, P.z);
@@ -314,7 +349,8 @@ export function startDrive({ canvas, hud, car, perf, rivalBase, mode, event, dif
     // (spins up quicker the faster you're going) while the front tires keep steering, so you don't
     // get thrown wide. The rotation has momentum: it builds while you hold it and carries on briefly
     // after you let go, so you catch the slide with steering and throttle like a real drift.
-    const latCap = spec.lat * surf.grip * (hb ? 1.2 : 1);
+    const air = !!P.air; // off a dirt jump: no grip, no drive, no brakes until you land
+    const latCap = spec.lat * surf.grip * (hb ? 1.2 : 1) * (air ? 0.05 : 1);
 
     // Kinematic yaw from steering, capped by what the tires can hold. On power (RWD) the rear lets go a little.
     const maxAngle = 0.6 / (1 + speed / 16);
@@ -324,6 +360,7 @@ export function startDrive({ canvas, hud, car, perf, rivalBase, mode, event, dif
     if (input.gas && spec.drive === 'FWD') k = 1.05;
     const yawCap = (spec.lat * surf.grip * k) / Math.max(Math.abs(vf), 4);
     yaw = clamp(yaw, -yawCap, yawCap);
+    const yrBefore = P.yr;
     if (hb && vf > 3) {
       // Spin into the turn: the way you're steering, or else the way the car is already rotating.
       const dir = Math.sign(P.steer) || Math.sign(P.yr) || 0;
@@ -333,6 +370,7 @@ export function startDrive({ canvas, hud, car, perf, rivalBase, mode, event, dif
       // Grip returns: the car's rotation settles back to what the steering asks for.
       P.yr += (yaw - P.yr) * Math.min(1, dt * (Math.abs(P.yr) > Math.abs(yaw) + 0.3 ? 3.5 : 25));
     }
+    if (air) P.yr = yrBefore; // keeps rotating as it was in the air
     P.h += P.yr * dt;
 
     fx = Math.cos(P.h); fz = Math.sin(P.h);
@@ -341,24 +379,24 @@ export function startDrive({ canvas, hud, car, perf, rivalBase, mode, event, dif
     let vl = P.vx * rx + P.vz * rz;
 
     const canPower = time > 0 && !engineBlown && noPowerT <= 0;
-    if (input.gas && canPower) {
+    if (input.gas && canPower && !air) {
       vf += spec.accel * Math.max(0, 1 - (vf / spec.top) ** 2) * dt * (hb ? 0.4 : 1);
       wear.engine += dt * 0.12 * (1 + 0.6 * car.upgrades.turbo);
       wear.trans += dt * 0.06;
     }
-    if (input.brake && time > 0) {
+    if (input.brake && time > 0 && !air) {
       if (vf > 0.5) { vf = Math.max(0, vf - spec.brake * surf.grip * dt); if (speed > 8) wear.brakes += dt * 0.4; }
       else vf = Math.max(-5, vf - 3 * dt);
     }
     if (hb && vf > 0) vf = Math.max(0, vf - 2.2 * dt); // locked rears drag a little
     // Gravity along the slope: uphill slows you, downhill pulls you.
-    if (!atHome || w0.asphalt) vf -= G * rs.grade * (fx * rs.tx + fz * rs.tz) * dt;
+    if (!air && (!atHome || w0.asphalt)) vf -= G * rs.grade * (fx * rs.tx + fz * rs.tz) * dt;
     vf -= vf * (0.012 + (input.gas ? 0 : 0.06) + surf.drag) * dt;
     if (time <= 0) vf = 0;
 
     // Lateral grip: what the tires can't cancel becomes a slide.
     const cap = latCap * dt;
-    P.drifting = (Math.abs(vl) > 1.3 && speed > 5) || (hb && speed > 4);
+    P.drifting = !air && ((Math.abs(vl) > 1.3 && speed > 5) || (hb && speed > 4));
     if (Math.abs(vl) <= cap) vl = 0; else vl -= Math.sign(vl) * cap;
     if (P.drifting) { vf -= vf * 0.1 * dt; wear.tires += (Math.abs(vl) + (hb ? 2 : 0)) * dt * 0.02; }
     wear.tires += speed * dt * 0.0004;
@@ -398,12 +436,44 @@ export function startDrive({ canvas, hud, car, perf, rivalBase, mode, event, dif
     const onBranch = w2.kind === 'branch';
     const inYard = home(P.x, P.z) && Math.abs(w2.m.lat) > ROAD_HALF + 2;
     const offRoad = !inYard && !onBranch && Math.abs(w2.lat) > ROAD_HALF + 0.3;
-    const eTarget = inYard ? 0 : onBranch ? w2.e : offRoad ? world.terrainAt(P.x, P.z).h : sampleAtS(w2.m.s).e;
-    P.e += (eTarget - P.e) * (P.eSet ? Math.min(1, dt * 12) : 1); // snaps to the road on the first step
+    let eTarget = inYard ? 0 : onBranch ? w2.e : offRoad ? world.terrainAt(P.x, P.z).h : sampleAtS(w2.m.s).e;
+    // Natural dirt jumps at some apexes: ride up the hump; fast enough and you leave the ground at the
+    // crest, fly on gravity and land.
+    const jhRaw = !inYard && !onBranch ? jumpHeight(road, w2.m.s, w2.m.lat) : 0;
+    // Smoothed: on the inside of a tight corner the road position steps a little between samples.
+    const jh = P.jhS = (P.jhS ?? 0) + (jhRaw - (P.jhS ?? 0)) * Math.min(1, dt * 22);
+    // Track the ground under you (smoothed), then add the hump, or your height in the air above it.
+    if (jhRaw > 0 || jh > 0.01) eTarget = Math.max(world.terrainAt(P.x, P.z).h, sampleAtS(w2.m.s).e - 0.25) + 0.07;
+    P.eBase = P.eSet ? P.eBase + (eTarget - P.eBase) * Math.min(1, dt * 12) : eTarget; // snaps on the first step
+    const gv = (jh - (P.jhPrev ?? jh)) / dt; // how fast the hump lifts you
+    if (P.air) {
+      P.vy -= G * dt; P.hAir += P.vy * dt;
+      if (P.hAir <= jh && P.vy < 0) {
+        if (P.vy < -2.5) { sound.hit(Math.min(6, -P.vy)); wear.susp += -P.vy * 0.05; }
+        P.air = false; P.vy = 0;
+      }
+    } else if (jh > 0.3 && P.vy > 1.2 && gv < P.vy - G * dt * 1.5) {
+      P.air = true; P.hAir = jh; // over the crest faster than gravity can follow: airborne
+    } else P.vy = jh > 0 ? gv : 0;
+    P.e = P.eBase + (P.air ? P.hAir : jh);
+    P.jhPrev = jh;
     P.eSet = true;
     const gAlong = inYard ? 0 : rs.grade * (fx * rs.tx + fz * rs.tz);
-    P.pitch += (Math.atan(gAlong) - P.pitch) * Math.min(1, dt * 6);
+    const pitchTo = P.air || jh > 0.05 ? Math.atan2(P.vy, Math.max(speed, 2)) : Math.atan(gAlong);
+    P.pitch += (pitchTo - P.pitch) * Math.min(1, dt * 6);
     P.roll += (clamp(-vl * 0.012 - P.steer * speed * 0.0015, -0.08, 0.08) - P.roll) * Math.min(1, dt * 5);
+
+    // Tire smoke: after the tires have been sliding/spinning for 2 s, a light haze from the rear wheels.
+    const spinning = !P.air && speed > 3 && (P.slip > 0.35 || P.drifting);
+    spinT = spinning ? spinT + dt : Math.max(0, spinT - dt * 3);
+    if (spinT >= 2 && spinning) {
+      smokeAcc += dt * 16;
+      while (smokeAcc >= 1) {
+        smokeAcc -= 1;
+        const side = (smokeSide = -smokeSide);
+        puff(P.x - fx * 1.35 + rx * 0.75 * side, P.e + 0.35, P.z - fz * 1.35 + rz * 0.75 * side);
+      }
+    }
 
     // Skid marks from the rear wheels.
     if (P.drifting || (input.brake && speed > 12)) {
@@ -681,6 +751,7 @@ export function startDrive({ canvas, hud, car, perf, rivalBase, mode, event, dif
       if (engineBlown) { blownT -= dt; if (blownT <= 0) finish(true); }
       if (race && !done && progress() >= route.to - route.from) { place = 1 + rivals.filter((r) => r.finished).length; finish(false); }
     }
+    updateSmoke(Math.min(0.05, realDt));
     if (race && time > 0) checkApexes();
     render();
     updateHud();
@@ -713,7 +784,7 @@ export function startDrive({ canvas, hud, car, perf, rivalBase, mode, event, dif
   }
 
   // Test/debug hook.
-  window.__kr = { money: () => ({ bonus, apexHits, contacts }), apexMarks, player: P, rivals, input, spec, wear, race, route, road, net, bestLine: road.bestLine && getLine(road, net.id, 1), sampleAtS, progress };
+  window.__kr = { smokeCount: () => smoke.filter((p) => p.m.visible).length, spinT: () => spinT, money: () => ({ bonus, apexHits, contacts }), apexMarks, player: P, rivals, input, spec, wear, race, route, road, net, bestLine: road.bestLine && getLine(road, net.id, 1), sampleAtS, progress };
   raf = requestAnimationFrame(loop);
 }
 

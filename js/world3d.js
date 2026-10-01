@@ -2,7 +2,7 @@
 // around the roads, road surfaces, barriers, forest, and (at home) the cabin/tent/driveway.
 // Each world is built the first time it's needed and then reused.
 import * as THREE from '../lib/three.module.min.js';
-import { ROAD_HALF, U, apexesOf } from './road.js';
+import { ROAD_HALF, U, apexesOf, jumpHeight } from './road.js';
 import { HOME } from './map.js';
 import { seeded } from './draw.js';
 import { roadTex, shoulderTex, grassTex, rockTex, treeTex, treeTopTex, skyTex, logTex, roofTex, canvasTex, gravelTex, waterfallTex } from './textures.js';
@@ -110,9 +110,9 @@ function buildWorld(net) {
     return t;
   };
   const scene = new THREE.Scene();
-  const sky = new THREE.Color('#c9d9ea'); // horizon haze
+  const sky = new THREE.Color('#8ea6b8'); // horizon haze: blue-grey mountain air, not white
   scene.background = sky;
-  scene.fog = new THREE.Fog(sky, 80, 330);
+  scene.fog = new THREE.Fog(sky, 150, 620);
   const hemi = new THREE.HemisphereLight('#e2ecff', '#56663a', 1.2);
   scene.add(hemi);
   const sun = new THREE.DirectionalLight('#fff2da', 1.9);
@@ -130,15 +130,17 @@ function buildWorld(net) {
   let minX = Infinity, maxX = -Infinity, minZ = Infinity, maxZ = -Infinity;
   for (const p of [...S, ...net.branches.flatMap((b) => b.samples)]) { minX = Math.min(minX, p.x); maxX = Math.max(maxX, p.x); minZ = Math.min(minZ, p.z); maxZ = Math.max(maxZ, p.z); }
   minX -= 130; maxX += 130; minZ -= 130; maxZ += 130;
+  // The ground itself reaches much further (fading into the fog) so you never see its edge.
+  const GROUND = 340, gMinX = minX - GROUND, gMaxX = maxX + GROUND, gMinZ = minZ - GROUND, gMaxZ = maxZ + GROUND;
   const water = findWaterSites(net, baseTerrain, { minX, maxX, minZ, maxZ });
   carves = [...water.ponds.map((p) => ({ ...p, depth: 1.4 })), ...water.falls.map((f) => ({ x: f.bot.x, z: f.bot.z, r: 4.5, level: f.bot.h + 0.15, depth: 1.0 }))];
-  const STEPT = 5;
-  const nx = Math.ceil((maxX - minX) / STEPT) + 1, nz = Math.ceil((maxZ - minZ) / STEPT) + 1;
+  const STEPT = 6;
+  const nx = Math.ceil((gMaxX - gMinX) / STEPT) + 1, nz = Math.ceil((gMaxZ - gMinZ) / STEPT) + 1;
   const pos = new Float32Array(nx * nz * 3), col = new Float32Array(nx * nz * 3), tuv = new Float32Array(nx * nz * 2);
   const info = [];
   const rnd = seeded(11);
   for (let j = 0; j < nz; j++) for (let i = 0; i < nx; i++) {
-    const x = minX + i * STEPT, z = minZ + j * STEPT;
+    const x = gMinX + i * STEPT, z = gMinZ + j * STEPT;
     const t = terrainAt(x, z);
     const k = (j * nx + i) * 3;
     pos[k] = x; pos[k + 1] = t.h; pos[k + 2] = z;
@@ -183,16 +185,18 @@ function buildWorld(net) {
   // Dirt cut-throughs on the inside of every apex: packed dirt you can clip to cut the corner.
   // Widest (APEX_CUT m) at the apex, tapering to nothing 14 m either side.
   const apexCuts = apexesOf(net.road).map((a) => {
-    const pos = [], uv = [], idx = [];
+    // A grid of cols x rows, so the natural dirt jumps (see jumpHeight) can rise out of it.
+    const pos = [], uv = [], idx = [], COLS = 7;
     let n = 0;
-    for (let ds = -14; ds <= 14; ds += 2) {
+    for (let ds = -14; ds <= 14; ds += 1) {
       const q = net.road.sampleAtS(a.s + ds), w = APEX_CUT * (1 - (ds / 14) ** 2);
-      for (const off of [ROAD_HALF - 0.05, ROAD_HALF + 0.05 + w]) {
+      for (let c = 0; c < COLS; c++) {
+        const off = ROAD_HALF - 0.05 + (0.1 + w) * (c / (COLS - 1));
         const x = q.x + q.nx * off * a.inside, z = q.z + q.nz * off * a.inside;
-        pos.push(x, Math.max(terrainAt(x, z).h, q.e - 0.25) + 0.07, z);
+        pos.push(x, Math.max(terrainAt(x, z).h, q.e - 0.25) + 0.07 + jumpHeight(net.road, a.s + ds, off * a.inside), z);
         uv.push(off / 2, (a.s + ds) / 2);
       }
-      if (n) { const b = (n - 1) * 2; idx.push(b, b + 1, b + 2, b + 1, b + 3, b + 2); }
+      if (n) for (let c = 0; c < COLS - 1; c++) { const b = (n - 1) * COLS + c, d = b + COLS; idx.push(b, b + 1, d, b + 1, d + 1, d); }
       n++;
     }
     const g = new THREE.BufferGeometry();
@@ -288,10 +292,10 @@ function setNight({ hemi, sun, sky, fog }, on) {
   hemi.color.set(on ? '#5d6f9c' : '#e2ecff');
   sun.intensity = on ? 0.18 : 1.9;
   sun.color.set(on ? '#9fb3ff' : '#fff2da');
-  sky.set(on ? '#0b1020' : '#c9d9ea');
+  sky.set(on ? '#0b1020' : '#8ea6b8');
   fog.color.copy(sky);
-  fog.near = on ? 25 : 80;
-  fog.far = on ? 150 : 330;
+  fog.near = on ? 25 : 150;
+  fog.far = on ? 150 : 620;
 }
 
 // Merge simple non-indexed-compatible geometries (positions, normals, uvs).

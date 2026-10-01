@@ -118,7 +118,9 @@ const engineLoops = (cyl) => loopCache[cyl] || (loopCache[cyl] = LOOP_RPMS.map((
 
 // One car's worth of sound. update() is called every frame with the car's state.
 // cyl: cylinder count (an inline-6 fires 1.5x as often as a 4 at the same rpm, so it sounds smoother).
-export function carSound({ cyl = 4 } = {}) {
+// turbo: true for factory-turbo cars and cars with a turbo kit: lifting off after building boost
+// gives a compressor-surge flutter ("stu-tu-tu-tu").
+export function carSound({ cyl = 4, turbo = false } = {}) {
   if (!ctx) return { update() {}, hit() {}, stop() {} };
   const t0 = ctx.currentTime;
   const out = ctx.createGain(); out.gain.value = 0; out.connect(master);
@@ -151,6 +153,24 @@ export function carSound({ cyl = 4 } = {}) {
   const srcs = [...loops.map((l) => l.src), intake, tire];
   for (const o of srcs) o.start(t0);
 
+  // Turbo flutter: a burst of chopped, band-passed air noise that slows and fades out.
+  function flutter(strength) {
+    const now = ctx.currentTime, src = noise();
+    const bp = ctx.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = 950; bp.Q.value = 1.4;
+    const lp = ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 2400;
+    const g = ctx.createGain(); g.gain.value = 0;
+    src.connect(bp); bp.connect(lp); lp.connect(g); g.connect(out);
+    let t = now + 0.02, gap = 0.038;
+    const n = 7 + Math.round(strength * 4);
+    for (let k = 0; k < n; k++) {
+      const a = 0.32 * strength * (1 - k / (n + 1));
+      g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(a, t + 0.006); g.gain.linearRampToValueAtTime(0, t + gap * 0.55);
+      t += gap; gap *= 1.07; // the flutter slows as the pressure bleeds off
+    }
+    src.start(now); src.stop(t + 0.1);
+  }
+  let boost = 0, lastT = t0, lastThr = 0;
+
   let rpmSm = 900, thrSm = 0;
   return {
     // speed and top in m/s, throttle 0..1, slip 0..1 (how hard the tires are sliding)
@@ -159,6 +179,13 @@ export function carSound({ cyl = 4 } = {}) {
       const { rpm } = gearFor(speed, top, throttle);
       rpmSm += (rpm - rpmSm) * 0.2;
       thrSm += (throttle - thrSm) * 0.15;
+      if (turbo) {
+        const dt = Math.min(0.1, now - lastT);
+        // Boost builds on throttle above ~3,000 rpm and leaks away off it.
+        boost = throttle > 0.5 && rpmSm > 3000 ? Math.min(1, boost + dt * 1.4) : Math.max(0, boost - dt * 0.8);
+        if (lastThr > 0.5 && throttle < 0.5 && boost > 0.35) { flutter(boost); boost = 0; }
+        lastT = now; lastThr = throttle;
+      }
       // Crossfade the two loops either side of the current rpm (equal power, in log-rpm).
       let k = 0;
       while (k < LOOP_RPMS.length - 2 && rpmSm > LOOP_RPMS[k + 1]) k++;

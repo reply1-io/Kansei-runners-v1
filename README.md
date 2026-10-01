@@ -39,7 +39,7 @@ You start at **your cabin, deep in the forest**, shown top-down. It has a carpor
    - Each level up drives a cleaner racing line, which uses the whole road and closes the doors. They also commit harder in corners, brake later, and run wide less often.
    - Measured rival times (average of all rivals), Easy / Medium / Hard / Impossible: **Kansei Pass** about 1:41 / 1:34 / 1:29 / 1:24.5, **Switchback Ladder** about 1:35 / 1:29 / 1:24 / 1:20 (the same percentage faster than a flawless drive on each course). A flawless drive in your stock car is about 1:42 on the Pass and 1:37 on the Ladder, so rivals keep your power-to-weight but get **extra grip and braking** that grows with the level: you win by out-braking them into corners, getting past and holding them off.
    - **Apex bonus:** every corner has a gold marker on the inside of its apex. Clip it for **+$50**. The running total shows under the minimap, and the result screen pays it out.
-   - **Dirt cut-throughs:** each apex has a patch of packed dirt on the inside. Clip it to cut the corner a little when a rival is defending the inside.
+   - **Dirt cut-throughs:** each apex has a patch of packed dirt on the inside. Clip it to cut the corner a little when a rival is defending the inside. Every third one has a **natural dirt jump** in it: hit it with speed and you'll catch a little air.
    - **Rivals make mistakes on every level** (Impossible too, just rarely): they run wide and lose speed, opening a gap. **They never turn into you**: while you're alongside they hold their side of the road.
    - **Rivals never drive the same line twice.** Each race they drift around the racing line in their own way, so gaps open in different places.
    - **Impossible fights back:** get 50 m clear of a rival and it finds extra power to chase you down, until it's back within 15 m.
@@ -48,6 +48,7 @@ You start at **your cabin, deep in the forest**, shown top-down. It has a carpor
    - **◀ ▶** steer
    - **GAS**, **BRAKE** and **HANDBRAKE**. The handbrake works like a hydraulic one: it locks the rear wheels, so the rear steps out and the car rotates into the turn (quicker the faster you go) while the fronts keep steering. The rotation carries on for a moment after you let go, so catch the slide with steering and throttle. It only costs a little speed. Dirt shoulders are only slightly looser than the road.
    - On a keyboard, use arrows/WASD, with space for the handbrake.
+   - Slide or spin the tires for 2 seconds and you'll see light tire smoke.
    - 🔊 toggles sound (engine, tire squeal, impacts).
 8. Every drive wears the car. Throttle wears the engine and transmission, sliding wears tires, brakes wear on downhills, and hitting the trees or other cars damages the body. Bumping another car doesn't slow either of you down. A worn engine can blow. Spend your winnings on repairs and mods, or sell and move up.
 
@@ -86,7 +87,7 @@ python3 -m http.server 8000
 | `js/turntable.js` | The garage turntable | |
 | `js/map.js` | Home layout (`HOME`) and parking spots (`PARKING`) | Move things at the cabin, more parking |
 | `js/main.js` | Phone UI and every app, plus the flow between home, phone and driving | New apps or screens |
-| `js/audio.js` | Synthesized engine (exhaust-pulse loops rendered in code at 4 rpm points and crossfaded by rpm; 4- or 6-cylinder per car), intake, tire and impact sounds, plus the gearbox model | Sounds |
+| `js/audio.js` | Turbo flutter on lift-off (factory turbos: Supra, 180SX, R32; or any car with a turbo kit). Synthesized engine (exhaust-pulse loops rendered in code at 4 rpm points and crossfaded by rpm; 4- or 6-cylinder per car), intake, tire and impact sounds, plus the gearbox model | Sounds |
 | `lib/three.module.min.js` | [three.js](https://threejs.org) r160 (MIT), vendored | |
 
 To add a car, add a line to `MODELS` in `js/data.js` (real hp, weight, drive layout, a clean-car price and paint colors), and give it a shape in `CARS` in `js/carmodel.js` (real length, width, height, wheelbase, front overhang, track and tire size; the side profile as distances behind the front axle; and which grille, lights, taillights, bumpers and wheels it uses). It then shows up in the Marketplace whenever one is cheap enough to list under $5k.
