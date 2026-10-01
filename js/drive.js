@@ -3,7 +3,7 @@
 //   race:   touge battle on a race course vs rivals in cars with exactly your car's numbers;
 //           difficulty only changes how good their racing line is and how hard they commit to it
 import * as THREE from '../lib/three.module.min.js';
-import { ROAD_HALF, HOME_NET, COURSES, lineVariant, apexesOf, jumpHeight } from './road.js';
+import { ROAD_HALF, HOME_NET, COURSES, lineVariant, apexesOf } from './road.js';
 import { getWorld, makeCarMesh, inHome } from './world3d.js';
 import { PROBLEM_THRESHOLD, MODELS } from './data.js';
 import { clamp } from './state.js';
@@ -349,8 +349,7 @@ export function startDrive({ canvas, hud, car, perf, rivalBase, mode, event, dif
     // (spins up quicker the faster you're going) while the front tires keep steering, so you don't
     // get thrown wide. The rotation has momentum: it builds while you hold it and carries on briefly
     // after you let go, so you catch the slide with steering and throttle like a real drift.
-    const air = !!P.air; // off a dirt jump: no grip, no drive, no brakes until you land
-    const latCap = spec.lat * surf.grip * (hb ? 1.2 : 1) * (air ? 0.05 : 1);
+    const latCap = spec.lat * surf.grip * (hb ? 1.2 : 1);
 
     // Kinematic yaw from steering, capped by what the tires can hold. On power (RWD) the rear lets go a little.
     const maxAngle = 0.6 / (1 + speed / 16);
@@ -360,7 +359,6 @@ export function startDrive({ canvas, hud, car, perf, rivalBase, mode, event, dif
     if (input.gas && spec.drive === 'FWD') k = 1.05;
     const yawCap = (spec.lat * surf.grip * k) / Math.max(Math.abs(vf), 4);
     yaw = clamp(yaw, -yawCap, yawCap);
-    const yrBefore = P.yr;
     if (hb && vf > 3) {
       // Spin into the turn: the way you're steering, or else the way the car is already rotating.
       const dir = Math.sign(P.steer) || Math.sign(P.yr) || 0;
@@ -370,7 +368,6 @@ export function startDrive({ canvas, hud, car, perf, rivalBase, mode, event, dif
       // Grip returns: the car's rotation settles back to what the steering asks for.
       P.yr += (yaw - P.yr) * Math.min(1, dt * (Math.abs(P.yr) > Math.abs(yaw) + 0.3 ? 3.5 : 25));
     }
-    if (air) P.yr = yrBefore; // keeps rotating as it was in the air
     P.h += P.yr * dt;
 
     fx = Math.cos(P.h); fz = Math.sin(P.h);
@@ -379,24 +376,24 @@ export function startDrive({ canvas, hud, car, perf, rivalBase, mode, event, dif
     let vl = P.vx * rx + P.vz * rz;
 
     const canPower = time > 0 && !engineBlown && noPowerT <= 0;
-    if (input.gas && canPower && !air) {
+    if (input.gas && canPower) {
       vf += spec.accel * Math.max(0, 1 - (vf / spec.top) ** 2) * dt * (hb ? 0.4 : 1);
       wear.engine += dt * 0.12 * (1 + 0.6 * car.upgrades.turbo);
       wear.trans += dt * 0.06;
     }
-    if (input.brake && time > 0 && !air) {
+    if (input.brake && time > 0) {
       if (vf > 0.5) { vf = Math.max(0, vf - spec.brake * surf.grip * dt); if (speed > 8) wear.brakes += dt * 0.4; }
       else vf = Math.max(-5, vf - 3 * dt);
     }
     if (hb && vf > 0) vf = Math.max(0, vf - 2.2 * dt); // locked rears drag a little
     // Gravity along the slope: uphill slows you, downhill pulls you.
-    if (!air && (!atHome || w0.asphalt)) vf -= G * rs.grade * (fx * rs.tx + fz * rs.tz) * dt;
+    if (!atHome || w0.asphalt) vf -= G * rs.grade * (fx * rs.tx + fz * rs.tz) * dt;
     vf -= vf * (0.012 + (input.gas ? 0 : 0.06) + surf.drag) * dt;
     if (time <= 0) vf = 0;
 
     // Lateral grip: what the tires can't cancel becomes a slide.
     const cap = latCap * dt;
-    P.drifting = !air && ((Math.abs(vl) > 1.3 && speed > 5) || (hb && speed > 4));
+    P.drifting = (Math.abs(vl) > 1.3 && speed > 5) || (hb && speed > 4);
     if (Math.abs(vl) <= cap) vl = 0; else vl -= Math.sign(vl) * cap;
     if (P.drifting) { vf -= vf * 0.1 * dt; wear.tires += (Math.abs(vl) + (hb ? 2 : 0)) * dt * 0.02; }
     wear.tires += speed * dt * 0.0004;
@@ -436,35 +433,15 @@ export function startDrive({ canvas, hud, car, perf, rivalBase, mode, event, dif
     const onBranch = w2.kind === 'branch';
     const inYard = home(P.x, P.z) && Math.abs(w2.m.lat) > ROAD_HALF + 2;
     const offRoad = !inYard && !onBranch && Math.abs(w2.lat) > ROAD_HALF + 0.3;
-    let eTarget = inYard ? 0 : onBranch ? w2.e : offRoad ? world.terrainAt(P.x, P.z).h : sampleAtS(w2.m.s).e;
-    // Natural dirt jumps at some apexes: ride up the hump; fast enough and you leave the ground at the
-    // crest, fly on gravity and land.
-    const jhRaw = !inYard && !onBranch ? jumpHeight(road, w2.m.s, w2.m.lat) : 0;
-    // Smoothed: on the inside of a tight corner the road position steps a little between samples.
-    const jh = P.jhS = (P.jhS ?? 0) + (jhRaw - (P.jhS ?? 0)) * Math.min(1, dt * 22);
-    // Track the ground under you (smoothed), then add the hump, or your height in the air above it.
-    if (jhRaw > 0 || jh > 0.01) eTarget = Math.max(world.terrainAt(P.x, P.z).h, sampleAtS(w2.m.s).e - 0.25) + 0.07;
-    P.eBase = P.eSet ? P.eBase + (eTarget - P.eBase) * Math.min(1, dt * 12) : eTarget; // snaps on the first step
-    const gv = (jh - (P.jhPrev ?? jh)) / dt; // how fast the hump lifts you
-    if (P.air) {
-      P.vy -= G * dt; P.hAir += P.vy * dt;
-      if (P.hAir <= jh && P.vy < 0) {
-        if (P.vy < -2.5) { sound.hit(Math.min(6, -P.vy)); wear.susp += -P.vy * 0.05; }
-        P.air = false; P.vy = 0;
-      }
-    } else if (jh > 0.3 && P.vy > 1.2 && gv < P.vy - G * dt * 1.5) {
-      P.air = true; P.hAir = jh; // over the crest faster than gravity can follow: airborne
-    } else P.vy = jh > 0 ? gv : 0;
-    P.e = P.eBase + (P.air ? P.hAir : jh);
-    P.jhPrev = jh;
+    const eTarget = inYard ? 0 : onBranch ? w2.e : offRoad ? world.terrainAt(P.x, P.z).h : sampleAtS(w2.m.s).e;
+    P.e += (eTarget - P.e) * (P.eSet ? Math.min(1, dt * 12) : 1); // snaps to the road on the first step
     P.eSet = true;
     const gAlong = inYard ? 0 : rs.grade * (fx * rs.tx + fz * rs.tz);
-    const pitchTo = P.air || jh > 0.05 ? Math.atan2(P.vy, Math.max(speed, 2)) : Math.atan(gAlong);
-    P.pitch += (pitchTo - P.pitch) * Math.min(1, dt * 6);
+    P.pitch += (Math.atan(gAlong) - P.pitch) * Math.min(1, dt * 6);
     P.roll += (clamp(-vl * 0.012 - P.steer * speed * 0.0015, -0.08, 0.08) - P.roll) * Math.min(1, dt * 5);
 
     // Tire smoke: after the tires have been sliding/spinning for 2 s, a light haze from the rear wheels.
-    const spinning = !P.air && speed > 3 && (P.slip > 0.35 || P.drifting);
+    const spinning = speed > 3 && (P.slip > 0.35 || P.drifting);
     spinT = spinning ? spinT + dt : Math.max(0, spinT - dt * 3);
     if (spinT >= 2 && spinning) {
       smokeAcc += dt * 16;
@@ -560,7 +537,15 @@ export function startDrive({ canvas, hud, car, perf, rivalBase, mode, event, dif
           const latSide = Math.sign(r.curLat - road.nearest(P.x, P.z, P.hint).lat) || -sg;
           r.pass = clamp(r.pass + latSide * penZ * 0.45, -3.2, 3.2);
         }
-        else { const sg = Math.sign(lx) || 1; P.x += ch * sg * penX; P.z += sh * sg * penX; }
+        else if (lx > 0) {
+          // You're in front: the rival behind backs off to your speed. You never get shoved forward.
+          r.d -= penX; r.v = Math.min(r.v, Math.max(0, Math.hypot(P.vx, P.vz) - 0.5));
+        } else {
+          // You ran into the back of it: you're held behind at its speed.
+          P.x -= ch * penX; P.z -= sh * penX;
+          const vf = P.vx * ch + P.vz * sh;
+          if (vf > r.v) { P.vx -= ch * (vf - r.v); P.vz -= sh * (vf - r.v); }
+        }
         if (hitCool <= 0) { wear.body += 0.8; hitCool = 0.5; contacts++; flash('Contact!', 0.6); sound.hit(3); }
       }
     }
@@ -578,11 +563,13 @@ export function startDrive({ canvas, hud, car, perf, rivalBase, mode, event, dif
     const lineLat = a.off + (b.off - a.off) * t;
     const wob = r.wander.reduce((sum, w) => sum + w.amp * Math.sin((r.d / w.len) * Math.PI * 2 + w.ph), 0);
     let lat = clamp((1 - blend) * r.startLat + blend * (lineLat + wob) + r.pass, -ROAD_HALF + 1, ROAD_HALF - 1);
-    // Never turn into you: while you're alongside (overlapping nose to tail), a rival holds its side of
-    // the road. It can move away from you but never closer than a car's width, and never any closer
-    // than it already was.
-    const along = P.sAbs - r.sAbs;
-    if (race && time > 0 && Math.abs(along) < 5.5) {
+    // Never turn into you: while you're alongside, or close behind with your nose to one side of its
+    // rear (going for the inside), a rival holds its side of the road. It can move away from you but
+    // never closer than a car's width, and never any closer than it already was, so it won't shut the
+    // door on a pass. Right behind it in its own wheel tracks doesn't count.
+    // Measured in real metres along the rival's heading (road distance is misleading inside tight hairpins).
+    const along = (P.x - r.x) * Math.cos(r.h) + (P.z - r.z) * Math.sin(r.h), beside = Math.abs(r.curLat - playerLatNow) > 1.2;
+    if (race && time > 0 && ((along > -9 && along < 5.5 && beside) || (r.sideLock && along > -9 && along < 5.5))) {
       const side = r.sideLock || (r.curLat >= playerLatNow ? 1 : -1);
       r.sideLock = side;
       const gapNow = (r.curLat - playerLatNow) * side, minGap = Math.min(2.4, Math.max(gapNow, 0));

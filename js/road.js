@@ -452,23 +452,3 @@ export function apexesOf(road) {
   return out;
 }
 
-// Natural dirt jumps: a rounded hump of dirt in the cut-through on the inside of every third apex.
-// A run-up that steepens towards a natural lip (9 m), a rounded back (3 m), about 0.75 m tall,
-// centred 1.9 m beyond the road edge. Hit it with speed and you leave the ground at the lip.
-export const JUMP = { up: 9, down: 3, height: 0.75, inset: 1.9, halfWidth: 2.2 };
-export function jumpsOf(road) {
-  return road.jumps || (road.jumps = apexesOf(road).filter((_, i) => i % 3 === 1));
-}
-// Height of any jump at road position s, lateral offset lat (0 when not on one).
-export function jumpHeight(road, s, lat) {
-  for (const j of jumpsOf(road)) {
-    let u = s - j.s;
-    if (road.loop) u = ((u % road.length) + road.length * 1.5) % road.length - road.length / 2;
-    if (u < -JUMP.up || u > JUMP.down) continue;
-    const v = Math.abs(lat * j.inside - (ROAD_HALF + JUMP.inset));
-    if (v > JUMP.halfWidth) continue;
-    const along = u < 0 ? ((u + JUMP.up) / JUMP.up) ** 2 : 1 - (u / JUMP.down) ** 1.5;
-    return JUMP.height * along * (1 - (v / JUMP.halfWidth) ** 2);
-  }
-  return 0;
-}

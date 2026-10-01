@@ -2,7 +2,7 @@
 // around the roads, road surfaces, barriers, forest, and (at home) the cabin/tent/driveway.
 // Each world is built the first time it's needed and then reused.
 import * as THREE from '../lib/three.module.min.js';
-import { ROAD_HALF, U, apexesOf, jumpHeight } from './road.js';
+import { ROAD_HALF, U, apexesOf } from './road.js';
 import { HOME } from './map.js';
 import { seeded } from './draw.js';
 import { roadTex, shoulderTex, grassTex, rockTex, treeTex, treeTopTex, skyTex, logTex, roofTex, canvasTex, gravelTex, waterfallTex } from './textures.js';
@@ -185,7 +185,6 @@ function buildWorld(net) {
   // Dirt cut-throughs on the inside of every apex: packed dirt you can clip to cut the corner.
   // Widest (APEX_CUT m) at the apex, tapering to nothing 14 m either side.
   const apexCuts = apexesOf(net.road).map((a) => {
-    // A grid of cols x rows, so the natural dirt jumps (see jumpHeight) can rise out of it.
     const pos = [], uv = [], idx = [], COLS = 7;
     let n = 0;
     for (let ds = -14; ds <= 14; ds += 1) {
@@ -193,7 +192,7 @@ function buildWorld(net) {
       for (let c = 0; c < COLS; c++) {
         const off = ROAD_HALF - 0.05 + (0.1 + w) * (c / (COLS - 1));
         const x = q.x + q.nx * off * a.inside, z = q.z + q.nz * off * a.inside;
-        pos.push(x, Math.max(terrainAt(x, z).h, q.e - 0.25) + 0.07 + jumpHeight(net.road, a.s + ds, off * a.inside), z);
+        pos.push(x, Math.max(terrainAt(x, z).h, q.e - 0.25) + 0.07, z);
         uv.push(off / 2, (a.s + ds) / 2);
       }
       if (n) for (let c = 0; c < COLS - 1; c++) { const b = (n - 1) * COLS + c, d = b + COLS; idx.push(b, b + 1, d, b + 1, d + 1, d); }

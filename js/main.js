@@ -12,7 +12,6 @@ import { createHomeView } from './homeview.js';
 import { mountTurntable, unmountTurntable } from './turntable.js';
 import { U, COURSES } from './road.js';
 import { unlockAudio } from './audio.js';
-import { carPhoto } from './photo.js';
 
 const screen = document.getElementById('screen');
 const modalEl = document.getElementById('modal');
@@ -146,7 +145,6 @@ function renderMarket() {
       const perf = performance(l.car);
       const hidden = l.inspected ? [] : l.hidden;
       return `<div class="card">
-        <img class="listing-photo" data-photo="${l.id}" alt="Photo of the ${esc(carName(l.car))} in the seller's driveway">
         <div class="row between"><h2>${esc(carName(l.car))}</h2>${clsBadge(perf)}</div>
         <div class="row between"><span class="price ${l.price > state.money ? 'cant' : ''}">${money(l.price)}</span>
           <span class="small muted">${Math.round(l.car.miles / 1000)}k mi · ${modelOf(l.car).drive}</span></div>
@@ -339,11 +337,6 @@ function render() {
   const tt = screen.querySelector('[data-turntable]');
   if (tt && !phoneWrap.hidden && activeCar()) mountTurntable(tt, activeCar()); else unmountTurntable();
   renderMapHud();
-  // Marketplace listing photos render in the background, one at a time.
-  for (const img of screen.querySelectorAll('img[data-photo]')) {
-    const l = state.listings.find((x) => x.id === img.dataset.photo);
-    if (l) carPhoto(l.car, l.id).then((url) => { if (img.isConnected) img.src = url; }).catch(() => img.remove());
-  }
 }
 
 function renderMapHud() {
