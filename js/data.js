@@ -106,8 +106,8 @@ export const RACES = [
 export const HOTLAP_RECORD_BONUS = 500;
 
 export const DIFFICULTIES = {
-  easy:       { label: 'Easy',       line: 0.65, mistakeEvery: 24, rivals: ['Kenta', 'Itsuki'],    entry: 50,   purse: [500, 100] },
-  medium:     { label: 'Medium',     line: 0.8,  mistakeEvery: 36, rivals: ['Iketani', 'Kenji', 'Shingo'],   entry: 150,  purse: [1200, 250] },
-  hard:       { label: 'Hard',       line: 0.97, mistakeEvery: 90, rivals: ['Ryo', 'Keisuke', 'Nakazato', 'Kyoichi'],     entry: 400,  purse: [3500, 700] },
-  impossible: { label: 'Impossible', line: 1.0,  mistakeEvery: 1e9, equalPair: true, catchUp: true, rivals: ['The Ghost', 'Bunta', 'Takumi', 'Sudo', 'Akiyama'], entry: 1000, purse: [12000, 2000] },
+  easy:       { label: 'Easy',       line: 0.65, mistakeEvery: 24, rivals: ['Kenta', 'Itsuki'],    purse: [750, 150] },
+  medium:     { label: 'Medium',     line: 0.8,  mistakeEvery: 36, rivals: ['Iketani', 'Kenji', 'Shingo'],   purse: [1500, 300] },
+  hard:       { label: 'Hard',       line: 0.97, mistakeEvery: 90, rivals: ['Ryo', 'Keisuke', 'Nakazato', 'Kyoichi'],     purse: [3000, 600] },
+  impossible: { label: 'Impossible', line: 1.0,  mistakeEvery: 1e9, equalPair: true, catchUp: true, rivals: ['The Ghost', 'Bunta', 'Takumi', 'Sudo', 'Akiyama'], purse: [5000, 1000] },
 };

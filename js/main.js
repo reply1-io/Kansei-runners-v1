@@ -267,7 +267,7 @@ function renderRaces() {
     const diffs = Object.entries(DIFFICULTIES).map(([key, d]) => {
       const best = state.records[`${race.id}:${key}`];
       return `<button class="diff diff-${key}" data-action="race" data-arg="${race.id}:${key}" ${!car ? 'disabled' : ''}>
-        <b>${d.label}</b><span>${money(d.entry)} → ${money(d.purse[0])}</span><small>${best ? `🏁 ${fmtTime(best)}` : '&nbsp;'}</small></button>`;
+        <b>${d.label}</b><span>Free · win ${money(d.purse[0])}</span><small>${best ? `🏁 ${fmtTime(best)}` : '&nbsp;'}</small></button>`;
     }).join('');
     // Hot lap: no rivals, free entry, paid by lap time (best tier you beat) plus a bonus for a new record.
     const hlBest = state.records[`${race.id}:hotlap`];
@@ -539,18 +539,16 @@ const ACTIONS = {
     const race = RACES.find((r) => r.id === raceId);
     if (diffKey === 'hotlap') return startHotLap(race);
     const diff = { ...DIFFICULTIES[diffKey], ...race.levels[diffKey] };
-    const ev = { ...race, key: `${raceId}:${diffKey}`, diffLabel: diff.label, entry: diff.entry, purse: diff.purse, rivals: diff.rivals };
+    const ev = { ...race, key: `${raceId}:${diffKey}`, diffLabel: diff.label, purse: diff.purse, rivals: diff.rivals };
     const car = activeCar();
     if (!car) return;
     const dead = canRun(car);
     if (dead) return modal(`<h2>Not happening</h2><p>${dead}</p><p class="small muted">Buy parts in the Parts Shop, then install them in the Garage.</p>`);
     const nProb = Object.keys(car.problems).length;
     const risky = nProb ? `<p class="small" style="color:var(--warn)">⚠️ Your car has ${nProb} major problem${nProb > 1 ? 's' : ''}. Things might break.</p>` : '';
-    const ok = await confirmBox(`<h2>${ev.name} · ${diff.label}</h2><p>${ev.style} vs ${ev.rivals.map(esc).join(', ')}, same car numbers as yours. You start behind them. Entry fee <b>${money(ev.entry)}</b>, win <b>${money(ev.purse[0])}</b>.</p>${risky}
-      ${ev.entry > state.money ? `<p class="small" style="color:var(--warn)">You're ${money(ev.entry - state.money)} short of the entry fee. You can race anyway: your balance goes below $0 until you win it back.</p>` : ''}
+    const ok = await confirmBox(`<h2>${ev.name} · ${diff.label}</h2><p>${ev.style} vs ${ev.rivals.map(esc).join(', ')}, same car numbers as yours. You start behind them. Free to enter: win <b>${money(ev.purse[0])}</b>, 2nd gets ${money(ev.purse[1])}.</p>${risky}
       <p class="small muted">Controls: ◀ ▶ steer, GAS, BRAKE, HANDBRAKE. Keyboard: arrows/WASD, space = handbrake.</p>`, 'Race!');
     if (!ok) return;
-    spend(ev.entry);
     runDrive('race', car, ev, diff);
   },
 
@@ -632,7 +630,7 @@ async function startHotLap(race) {
   const dead = canRun(car);
   if (dead) return modal(`<h2>Not happening</h2><p>${dead}</p>`);
   const key = `${race.id}:hotlap`;
-  const ev = { ...race, key, diffLabel: 'Hot Lap', entry: 0, purse: [], rivals: [], isHotLap: true, best: state.records[key] };
+  const ev = { ...race, key, diffLabel: 'Hot Lap', purse: [], rivals: [], isHotLap: true, best: state.records[key] };
   const tiers = race.hotlap.map(([t, r]) => `<li>Under ${fmtTime(t)} → <b>${money(r)}</b></li>`).join('');
   const ok = await confirmBox(`<h2>${ev.name} · ⏱ Hot Lap</h2><p>No rivals: just you against the clock. Free to enter.</p>
     <ul class="tiers">${tiers}<li>New personal record → <b>+${money(HOTLAP_RECORD_BONUS)}</b></li></ul>
@@ -740,10 +738,9 @@ async function finishRace(car, ev, res) {
 
   await modal(`<div class="result-place">${title}</div>
     <p style="text-align:center" class="muted">${ev.name} · ${ev.diffLabel}${res.dnf ? '' : ` · ${fmtTime(res.time)}${newBest ? ' · 🏁 new best' : ''}`}</p>
-    <div class="stats four"><div class="stat"><b>${money(-ev.entry)}</b><small>Entry</small></div>
-      <div class="stat"><b style="color:var(--good)">${money(payout)}</b><small>${ev.isHotLap ? `Lap ${money(lapReward)}${recordBonus ? ` + record ${money(recordBonus)}` : ''}` : 'Prize'}</small></div>
+    <div class="stats"><div class="stat"><b style="color:var(--good)">${money(payout)}</b><small>${ev.isHotLap ? `Lap ${money(lapReward)}${recordBonus ? ` + record ${money(recordBonus)}` : ''}` : 'Prize'}</small></div>
       <div class="stat"><b style="color:${bonus < 0 ? 'var(--bad)' : 'var(--good)'}">${money(bonus)}</b><small>Apex ${res.apexHits || 0}/${res.apexTotal || 0} · Hits ${res.contacts || 0}</small></div>
-      <div class="stat"><b>${money(payout + bonus - ev.entry)}</b><small>Net</small></div></div>
+      <div class="stat"><b>${money(payout + bonus)}</b><small>Total</small></div></div>
     <h3 class="small muted" style="margin:14px 0 4px">WEAR &amp; TEAR</h3>
     <ul class="problems">${wearList(report) || '<li style="color:var(--muted)">Barely a scratch.</li>'}</ul>`,
   [{ label: 'Back to the cabin', value: true, cls: 'primary' }]);
