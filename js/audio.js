@@ -156,35 +156,35 @@ export function carSound({ cyl = 4, turbo = false } = {}) {
   const srcs = [...loops.map((l) => l.src), intake, tire];
   for (const o of srcs) o.start(t0);
 
-  // Turbo flutter: a cute, soft "stu-tu-tu-tu-tu". A tiny breath of air, then quick little pitched
-  // chirps of air (each one dips in pitch, like a tiny "tu"), bouncing faster at first, then slowing
-  // and fading. Rolled off above ~2.6 kHz so it stays soft.
+  // Turbo flutter: a cute, soft, unhurried "stu... tu... tu... tu". A tiny breath of air, then a few
+  // rounded puffs (slow swell in and out, no sharp edges), each gliding down a little in pitch like a
+  // soft "tu". Rolled off above ~1.6 kHz.
   function flutter(strength) {
     const now = ctx.currentTime, src = noise();
-    const tu = ctx.createBiquadFilter(); tu.type = 'bandpass'; tu.Q.value = 3.2;
-    const soft = ctx.createBiquadFilter(); soft.type = 'lowpass'; soft.frequency.value = 2600; soft.Q.value = 0.5;
+    const tu = ctx.createBiquadFilter(); tu.type = 'bandpass'; tu.Q.value = 1.6;
+    const soft = ctx.createBiquadFilter(); soft.type = 'lowpass'; soft.frequency.value = 1600; soft.Q.value = 0.4;
     const tuG = ctx.createGain(), g = ctx.createGain();
-    tuG.gain.value = 3.4; g.gain.value = 0;
+    tuG.gain.value = 2.6; g.gain.value = 0;
     src.connect(tu); tu.connect(tuG); tuG.connect(soft); soft.connect(g); g.connect(out);
-    // "s": a tiny breath first.
+    // "s": a tiny, soft breath first.
     const hiss = noise(), hb = ctx.createBiquadFilter(), hg = ctx.createGain();
-    hb.type = 'bandpass'; hb.frequency.value = 2200; hb.Q.value = 1; hg.gain.value = 0;
+    hb.type = 'bandpass'; hb.frequency.value = 1500; hb.Q.value = 0.7; hg.gain.value = 0;
     hiss.connect(hb); hb.connect(hg); hg.connect(out);
-    hg.gain.setValueAtTime(0, now); hg.gain.linearRampToValueAtTime(0.04 * strength, now + 0.015); hg.gain.setTargetAtTime(0, now + 0.02, 0.015);
-    hiss.start(now); hiss.stop(now + 0.12);
-    // "tu-tu-tu-tu-tu": quick chirps.
-    let t = now + 0.045, gap = 0.04;
-    const n = 7 + Math.round(strength * 4);
+    hg.gain.setValueAtTime(0, now); hg.gain.linearRampToValueAtTime(0.025 * strength, now + 0.04); hg.gain.setTargetAtTime(0, now + 0.05, 0.03);
+    hiss.start(now); hiss.stop(now + 0.25);
+    // "tu... tu... tu...": slow, rounded puffs.
+    let t = now + 0.09, gap = 0.13;
+    const n = 4 + Math.round(strength * 2);
     for (let k = 0; k < n; k++) {
-      const a = (0.42 + 0.3 * strength) * (1 - k / (n + 2));
-      const f = 1250 - k * 35; // each chirp a touch lower, like the pressure running out
-      tu.frequency.setValueAtTime(f * 1.15, t); tu.frequency.exponentialRampToValueAtTime(f * 0.8, t + 0.03);
-      g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(a, t + 0.006); g.gain.setTargetAtTime(0, t + 0.008, 0.008);
-      t += gap; gap *= 1.06;
+      const a = (0.32 + 0.22 * strength) * (1 - k / (n + 1.5));
+      const f = 900 - k * 45;
+      tu.frequency.setValueAtTime(f * 1.12, t); tu.frequency.exponentialRampToValueAtTime(f * 0.78, t + gap * 0.7);
+      g.gain.setValueAtTime(0, t); g.gain.setTargetAtTime(a, t, 0.018); g.gain.setTargetAtTime(0, t + 0.05, 0.03);
+      t += gap; gap *= 1.07;
     }
-    src.start(now); src.stop(t + 0.08);
-    engG.gain.cancelScheduledValues(now); engG.gain.setValueAtTime(engG.gain.value * 0.8, now);
-    duckUntil = now + 0.2;
+    src.start(now); src.stop(t + 0.15);
+    engG.gain.cancelScheduledValues(now); engG.gain.setValueAtTime(engG.gain.value * 0.85, now);
+    duckUntil = now + 0.25;
   }
   let duckUntil = 0;
   let boost = 0, lastT = t0, lastThr = 0;
