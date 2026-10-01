@@ -298,7 +298,5 @@ button { font: inherit; color: inherit; cursor: pointer; }
     repeating-linear-gradient(to bottom, rgba(0,0,0,0.16) 0 1px, transparent 1px 3px); }
 .vhs-osd { position: absolute; left: 16px; top: calc(128px + var(--safe-top)); font: 700 15px/1.25 'Courier New', ui-monospace, monospace;
   color: #f4f4f4; text-shadow: 2px 0 rgba(255,40,40,0.6), -2px 0 rgba(40,140,255,0.6), 0 0 3px #000; letter-spacing: 1px; opacity: 0.85; }
-.vhs-osd b { display: block; animation: vhsblink 1.6s steps(1) infinite; }
-@keyframes vhsblink { 50% { opacity: 0.25; } }
+.vhs-osd b { display: block; }
 #phone-wrap:not([hidden]) ~ #vhs .vhs-osd { display: none; }
-@media (prefers-reduced-motion: reduce) { .vhs-osd b { animation: none; } }

@@ -9,7 +9,7 @@ It's styled after **Gran Turismo 2** on the original PlayStation:
 - **Menus:** GT-style chrome buttons, steel-blue panels and italic type.
 - **Garage:** a spinning turntable showing your car.
 
-**Look:** PlayStation-era graphics (Gran Turismo 2 style) seen through a Sony VX1000 / VHS camcorder: slight fisheye, colour fringing and bleed, line wobble, a rolling tracking band, tape grain, scanlines, vignette and a ▶ PLAY / tape-counter display. Dense pine forest over rolling hills, with boulders, ponds and waterfalls in open glades, and a ring of snow-capped mountains on the horizon. (`setVhs(false)` in `js/ps1.js` turns the camcorder effect off.)
+**Look:** PlayStation-era graphics (Gran Turismo 2 style) seen through a Sony VX1000 / VHS camcorder: slight fisheye, colour fringing and bleed, still tape grain, scanlines, vignette and a ▶ PLAY / tape-counter display. Dense pine forest over rolling hills, with boulders, ponds and waterfalls in open glades, and a ring of snow-capped mountains on the horizon. (`setVhs(false)` in `js/ps1.js` turns the camcorder effect off.)
 
 ## How to play
 

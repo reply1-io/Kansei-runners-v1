@@ -29,8 +29,8 @@ function installPsxShaders() {
 
 const POST_VERT = 'varying vec2 vUv; void main() { vUv = uv; gl_Position = vec4( position.xy, 0.0, 1.0 ); }';
 // Post: PS1 15-bit colour with dithering, then a Sony VX1000 / VHS camcorder look (VHS = 1):
-// slight fisheye bulge, red/blue fringing, colour bleeding sideways (VHS chroma is low-res), line
-// wobble and a slow tracking band rolling up the picture, tape grain and a warm camcorder grade.
+// slight fisheye bulge, red/blue fringing, colour bleeding sideways (VHS chroma is low-res), fixed
+// tape grain and a warm camcorder grade. Nothing in it moves.
 // Scanlines and the vignette are a page overlay (see #vhs in the CSS) so they cover the menus too.
 const POST_FRAG = `
   uniform sampler2D tDiffuse;
@@ -52,13 +52,6 @@ const POST_FRAG = `
       // Lens: a gentle fisheye bulge, like a VX1000 with a wide-angle adapter.
       vec2 d = uv - 0.5;
       uv = 0.5 + d * ( 1.0 - 0.07 * dot( d, d ) * 4.0 ) * 0.985;
-      // Tape: every line wobbles a little; a tracking band rolls slowly up the frame.
-      float line = floor( uv.y * 240.0 );
-      float wob = ( hash( vec2( line, floor( time * 30.0 ) ) ) - 0.5 ) * 0.0016;
-      float band = fract( time * 0.07 );
-      float inBand = smoothstep( 0.03, 0.0, abs( uv.y - band ) );
-      wob += inBand * ( hash( vec2( line, time ) ) - 0.5 ) * 0.02;
-      uv.x += wob;
     }
     vec3 c;
     if ( vhs > 0.5 ) {
@@ -76,9 +69,7 @@ const POST_FRAG = `
     vec2 px = floor( vUv * res );
     c = floor( c * 31.0 + 0.5 + bayer4( px ) * 0.9 ) / 31.0;
     if ( vhs > 0.5 ) {
-      c += ( hash( gl_FragCoord.xy + fract( time ) * 100.0 ) - 0.5 ) * 0.07; // tape grain
-      float band = fract( time * 0.07 );
-      c += smoothstep( 0.012, 0.0, abs( vUv.y - band ) ) * 0.12;              // bright tracking line
+      c += ( hash( floor( vUv * res ) ) - 0.5 ) * 0.05; // fixed tape grain (doesn't move)
     }
     gl_FragColor = vec4( c, 1.0 );
   }
