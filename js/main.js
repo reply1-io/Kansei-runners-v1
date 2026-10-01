@@ -1,6 +1,6 @@
 // Phone UI: home screen + apps (Marketplace, Parts, Garage, Touge, Bank, Messages), and the flow
 // between the cabin map, the phone, and driving.
-import { COMPONENTS, UPGRADES, RACES, DIFFICULTIES, INSPECTION_COST, PROBLEM_THRESHOLD } from './data.js';
+import { COMPONENTS, UPGRADES, RACES, DIFFICULTIES, INSPECTION_COST, PROBLEM_THRESHOLD, PAINT_COST, PAINT_COLORS, WHEEL_COLORS, HOTLAP_RECORD_BONUS } from './data.js';
 import {
   state, load, save, resetGame, refreshListings, addLog, carName, modelOf, carValue,
   repairCost, upgradeCost, repair, performance, factorySpecs, canRun, applyWear, activeCar,
@@ -12,6 +12,7 @@ import { createHomeView } from './homeview.js';
 import { mountTurntable, unmountTurntable } from './turntable.js';
 import { U, COURSES } from './road.js';
 import { unlockAudio } from './audio.js';
+import { carPhoto } from './photo.js';
 
 const screen = document.getElementById('screen');
 const modalEl = document.getElementById('modal');
@@ -145,6 +146,7 @@ function renderMarket() {
       const perf = performance(l.car);
       const hidden = l.inspected ? [] : l.hidden;
       return `<div class="card">
+        <img class="listing-photo" data-photo="${l.id}" alt="Photo of the ${esc(carName(l.car))} in the seller's driveway">
         <div class="row between"><h2>${esc(carName(l.car))}</h2>${clsBadge(perf)}</div>
         <div class="row between"><span class="price ${l.price > state.money ? 'cant' : ''}">${money(l.price)}</span>
           <span class="small muted">${Math.round(l.car.miles / 1000)}k mi · ${modelOf(l.car).drive}</span></div>
@@ -225,6 +227,15 @@ function installList(car) {
   </div>`;
 }
 
+// Paint shop inside each garage card: body colour and wheel finish, PAINT_COST each.
+function paintPanel(car) {
+  const body = [...new Set([...(modelOf(car).colors || []), ...PAINT_COLORS])];
+  const sw = (kind, c, label, on) => `<button class="swatch ${kind === 'wheels' ? 'wheel' : ''} ${on ? 'on' : ''}" style="background:${c}" data-action="paint" data-arg="${car.id}|${kind}|${c}" aria-label="${label}" title="${label}"></button>`;
+  return `<details class="paint" ${ui.paintOpen === car.id ? 'open' : ''}><summary>🎨 Paint shop · ${money(PAINT_COST)} per change</summary>
+    <div class="small muted">Body</div><div class="swatches">${body.map((c) => sw('body', c, `Body ${c}`, car.color === c)).join('')}</div>
+    <div class="small muted">Wheels</div><div class="swatches">${WHEEL_COLORS.map(([n, c]) => sw('wheels', c, `${n} wheels`, (car.wheelColor || '#d8dbe0') === c)).join('')}</div></details>`;
+}
+
 function renderGarage() {
   if (!state.cars.length) return `<div class="app">${header('Garage')}<div class="empty"><div class="big">🏠</div>Empty garage. Hit the Marketplace.</div></div>`;
   return `<div class="app">${header('Garage')}${state.cars.map((car) => {
@@ -238,6 +249,7 @@ function renderGarage() {
         ${clsBadge(perf)}</div>
       ${dead ? `<div class="small" style="color:var(--bad);margin-top:8px">🚫 ${dead}</div>` : ''}
       ${installList(car)}
+      ${paintPanel(car)}
       ${statGrid(perf)}
       ${bars(car)}
       ${problemList(car)}
@@ -257,11 +269,17 @@ function renderRaces() {
       return `<button class="diff diff-${key}" data-action="race" data-arg="${race.id}:${key}" ${!car || d.entry > state.money ? 'disabled' : ''}>
         <b>${d.label}</b><span>${money(d.entry)} → ${money(d.purse[0])}</span><small>${best ? `🏁 ${fmtTime(best)}` : '&nbsp;'}</small></button>`;
     }).join('');
+    // Hot lap: no rivals, free entry, paid by lap time (best tier you beat) plus a bonus for a new record.
+    const hlBest = state.records[`${race.id}:hotlap`];
+    const hotlap = `<button class="diff diff-hotlap" data-action="race" data-arg="${race.id}:hotlap" ${!car ? 'disabled' : ''}>
+        <b>⏱ Hot Lap</b><span>Free · up to ${money(race.hotlap[race.hotlap.length - 1][1])}</span><small>${hlBest ? `🏁 ${fmtTime(hlBest)}` : '&nbsp;'}</small></button>`;
+    const tiers = race.hotlap.map(([t, r]) => `${fmtTime(t - 1).replace(/\.\d$/, '')}.x → ${money(r)}`).join(' · ');
     return `<div class="card">
       <div class="row between"><h2>${race.name}</h2><span class="small muted">${(c.road.length / 1000).toFixed(1)} km · ${c.hairpins} hairpins</span></div>
       <div class="small muted">${race.style}</div>
       <div class="notes">${race.desc}</div>
-      <div class="diffs">${diffs}</div>
+      <div class="diffs">${diffs}${hotlap}</div>
+      <div class="small muted" style="margin-top:6px">Hot lap pays: ${tiers} · +${money(HOTLAP_RECORD_BONUS)} for a new record</div>
     </div>`;
   }).join('');
   const carInfo = car
@@ -269,7 +287,7 @@ function renderRaces() {
         ${canRun(car) ? `<div class="small" style="color:var(--bad);margin-top:6px">🚫 ${canRun(car)}</div>` : ''}</div>`
     : '<div class="hint">You need a car to race.</div>';
   return `<div class="app">${header('Touge')}
-    <div class="hint">Rivals always drive a car with <b>exactly your car's numbers</b>, so it's always fair. Harder levels drive cleaner racing lines and commit harder. You start behind two of them; get past and stay there. Impossible needs near-perfect lines.</div>
+    <div class="hint">Rivals always drive a car with <b>exactly your car's numbers</b>, so it's always fair. Harder levels drive cleaner racing lines and commit harder. You start at the back: 2 rivals on Easy, 3 on Medium, 4 on Hard, 5 on Impossible. Get past and stay there. Or run a Hot Lap: no rivals, just the clock.</div>
     ${carInfo}${cards}</div>`;
 }
 
@@ -320,6 +338,11 @@ function render() {
   const tt = screen.querySelector('[data-turntable]');
   if (tt && !phoneWrap.hidden && activeCar()) mountTurntable(tt, activeCar()); else unmountTurntable();
   renderMapHud();
+  // Marketplace listing photos render in the background, one at a time.
+  for (const img of screen.querySelectorAll('img[data-photo]')) {
+    const l = state.listings.find((x) => x.id === img.dataset.photo);
+    if (l) carPhoto(l.car, l.id).then((url) => { if (img.isConnected) img.src = url; }).catch(() => img.remove());
+  }
 }
 
 function renderMapHud() {
@@ -494,9 +517,26 @@ const ACTIONS = {
     save(); render.keepScroll = true; render();
   },
 
+  paint: (arg) => {
+    const [carId, kind, color] = arg.split('|');
+    const car = state.cars.find((c) => c.id === carId);
+    if (!car) return;
+    ui.paintOpen = carId;
+    const cur = kind === 'body' ? car.color : (car.wheelColor || '#d8dbe0');
+    if (cur === color) return toast('Already that colour.');
+    if (state.money < PAINT_COST) return toast(`Paint costs ${money(PAINT_COST)}.`);
+    spend(PAINT_COST);
+    if (kind === 'body') car.color = color; else car.wheelColor = color;
+    addLog(`Painted ${carName(car)}'s ${kind === 'body' ? 'body' : 'wheels'}`);
+    toast(`${kind === 'body' ? 'Resprayed' : 'Wheels refinished'} · −${money(PAINT_COST)}`);
+    save(); render.keepScroll = true; render();
+  },
+
   race: async (arg) => {
     const [raceId, diffKey] = arg.split(':');
-    const race = RACES.find((r) => r.id === raceId), diff = { ...DIFFICULTIES[diffKey], ...race.levels[diffKey] };
+    const race = RACES.find((r) => r.id === raceId);
+    if (diffKey === 'hotlap') return startHotLap(race);
+    const diff = { ...DIFFICULTIES[diffKey], ...race.levels[diffKey] };
     const ev = { ...race, key: `${raceId}:${diffKey}`, diffLabel: diff.label, entry: diff.entry, purse: diff.purse, rivals: diff.rivals };
     const car = activeCar();
     if (!car) return;
@@ -505,7 +545,7 @@ const ACTIONS = {
     if (ev.entry > state.money) return toast('Can\'t cover the entry fee.');
     const nProb = Object.keys(car.problems).length;
     const risky = nProb ? `<p class="small" style="color:var(--warn)">⚠️ Your car has ${nProb} major problem${nProb > 1 ? 's' : ''}. Things might break.</p>` : '';
-    const ok = await confirmBox(`<h2>${ev.name} · ${diff.label}</h2><p>${ev.style} vs ${ev.rivals.map(esc).join(' & ')}, same car numbers as yours. You start behind them. Entry fee <b>${money(ev.entry)}</b>, win <b>${money(ev.purse[0])}</b>.</p>${risky}
+    const ok = await confirmBox(`<h2>${ev.name} · ${diff.label}</h2><p>${ev.style} vs ${ev.rivals.map(esc).join(', ')}, same car numbers as yours. You start behind them. Entry fee <b>${money(ev.entry)}</b>, win <b>${money(ev.purse[0])}</b>.</p>${risky}
       <p class="small muted">Controls: ◀ ▶ steer, GAS, BRAKE, HANDBRAKE. Keyboard: arrows/WASD, space = handbrake.</p>`, 'Race!');
     if (!ok) return;
     spend(ev.entry);
@@ -571,6 +611,22 @@ function parkedInMeters() {
   return parkingAssignments(state.cars, state.activeCarId)
     .filter((x) => x.car)
     .map(({ spot, car }) => ({ car, x: spot.x * U, z: spot.y * U }));
+}
+
+// Hot lap: just you and the clock. Free to enter.
+async function startHotLap(race) {
+  const car = activeCar();
+  if (!car) return;
+  const dead = canRun(car);
+  if (dead) return modal(`<h2>Not happening</h2><p>${dead}</p>`);
+  const key = `${race.id}:hotlap`;
+  const ev = { ...race, key, diffLabel: 'Hot Lap', entry: 0, purse: [], rivals: [], isHotLap: true, best: state.records[key] };
+  const tiers = race.hotlap.map(([t, r]) => `<li>Under ${fmtTime(t)} → <b>${money(r)}</b></li>`).join('');
+  const ok = await confirmBox(`<h2>${ev.name} · ⏱ Hot Lap</h2><p>No rivals: just you against the clock. Free to enter.</p>
+    <ul class="tiers">${tiers}<li>New personal record → <b>+${money(HOTLAP_RECORD_BONUS)}</b></li></ul>
+    <p class="small muted">${ev.best ? `Your record: ${fmtTime(ev.best)}` : 'No record yet.'} Apex markers still pay +$50.</p>`, 'Go!');
+  if (!ok) return;
+  runDrive('race', car, ev, { label: 'Hot Lap', rivals: [], line: 1, mistakeEvery: 1e9, commit: 1, brake: 1 });
 }
 
 function runDrive(mode, car, ev, difficulty) {
@@ -644,8 +700,15 @@ async function finishRace(car, ev, res) {
   const report = applyWear(car, res.wear);
   let payout = 0;
   let title;
+  let lapReward = 0, recordBonus = 0;
   if (res.dnf) {
     title = res.engineBlown ? '💥 DNF — Engine' : 'DNF';
+  } else if (ev.isHotLap) {
+    title = '⏱ Hot Lap';
+    for (const [t, r] of ev.hotlap) if (res.time < t) lapReward = r;
+    const prev = state.records[ev.key];
+    if (prev && res.time < prev) recordBonus = HOTLAP_RECORD_BONUS;
+    payout = lapReward + recordBonus;
   } else {
     payout = ev.purse[res.place - 1] || 0;
     title = ['', '🥇 1st', '🥈 2nd', '🥉 3rd'][res.place];
@@ -665,7 +728,7 @@ async function finishRace(car, ev, res) {
   await modal(`<div class="result-place">${title}</div>
     <p style="text-align:center" class="muted">${ev.name} · ${ev.diffLabel}${res.dnf ? '' : ` · ${fmtTime(res.time)}${newBest ? ' · 🏁 new best' : ''}`}</p>
     <div class="stats four"><div class="stat"><b>${money(-ev.entry)}</b><small>Entry</small></div>
-      <div class="stat"><b style="color:var(--good)">${money(payout)}</b><small>Prize</small></div>
+      <div class="stat"><b style="color:var(--good)">${money(payout)}</b><small>${ev.isHotLap ? `Lap ${money(lapReward)}${recordBonus ? ` + record ${money(recordBonus)}` : ''}` : 'Prize'}</small></div>
       <div class="stat"><b style="color:${bonus < 0 ? 'var(--bad)' : 'var(--good)'}">${money(bonus)}</b><small>Apex ${res.apexHits || 0}/${res.apexTotal || 0} · Hits ${res.contacts || 0}</small></div>
       <div class="stat"><b>${money(payout + bonus - ev.entry)}</b><small>Net</small></div></div>
     <h3 class="small muted" style="margin:14px 0 4px">WEAR &amp; TEAR</h3>

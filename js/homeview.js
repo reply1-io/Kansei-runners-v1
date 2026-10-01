@@ -35,12 +35,12 @@ export function createHomeView({ canvas, overlay, getCars, getActiveId, onTap, o
   let parked = [], parkedKey = '';
   function syncParked() {
     const spots = parkingAssignments(getCars(), getActiveId());
-    const key = spots.map((x) => (x.car ? `${x.car.id}:${x.car.color}` : '-')).join('|');
+    const key = spots.map((x) => (x.car ? `${x.car.id}:${x.car.color}:${x.car.wheelColor || ''}` : '-')).join('|');
     if (key === parkedKey) return spots;
     parkedKey = key;
     for (const p of parked) scene.remove(p);
     parked = spots.filter((x) => x.car).map(({ spot, car }) => {
-      const m = makeCarMesh(car.color, car.modelId);
+      const m = makeCarMesh(car.color, car.modelId, { wheels: car.wheelColor });
       m.group.position.set(spot.x * U, 0, spot.y * U);
       m.group.rotation.set(0, -PARK_HEADING, 0);
       scene.add(m.group);

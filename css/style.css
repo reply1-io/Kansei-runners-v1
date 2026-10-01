@@ -275,3 +275,17 @@ button { font: inherit; color: inherit; cursor: pointer; }
 
 /* GT-style garage turntable */
 .turntable { display: block; width: calc(100% + 24px); height: 210px; margin: -12px -12px 12px; border-bottom: 2px solid var(--accent); background: #0a1638; }
+
+/* Paint shop */
+.paint { margin: 8px 0; border: 1px solid var(--line); border-radius: var(--radius); padding: 6px 10px; }
+.paint summary { cursor: pointer; font-weight: 800; font-style: italic; padding: 4px 0; }
+.swatches { display: flex; flex-wrap: wrap; gap: 8px; margin: 6px 0 10px; }
+.swatch { width: 36px; height: 36px; border-radius: 50%; border: 2px solid rgba(255,255,255,0.35); padding: 0; cursor: pointer; }
+.swatch.wheel { border-radius: 50%; box-shadow: inset 0 0 0 7px #1a1a1a; }
+.swatch.on { border-color: var(--accent); outline: 2px solid var(--accent); outline-offset: 2px; }
+/* Hot lap spans the full width under the four difficulties. */
+.diff-hotlap { grid-column: 1 / -1; border-color: rgba(126,195,255,0.6); }
+.diff-hotlap b { color: #7ec3ff; }
+/* Marketplace listing photo (the car in the seller's driveway). */
+.listing-photo { display: block; width: calc(100% + 24px); aspect-ratio: 16 / 10; margin: -12px -12px 10px; object-fit: cover; background: #0a1638; border-bottom: 2px solid var(--accent); image-rendering: pixelated; }
+.tiers { margin: 8px 0; padding-left: 20px; line-height: 1.6; }

@@ -109,19 +109,24 @@ export function startDrive({ canvas, hud, car, perf, rivalBase, mode, event, dif
   const addMesh = (o) => { scene.add(o); added.push(o); return o; };
 
   // ---- player ----
+  // Grid: rivals staggered a car length apart on alternating sides; you start one slot behind the last.
+  // Rival i: row floor(i/2), left/right lane, the right lane a half-row back. You start one row behind the last.
+  const nRivals = race && !window.__krNoRivals ? difficulty.rivals.length : 0;
+  const gridSlot = (i) => route.from - 2 - Math.floor(i / 2) * 6.5 - (i % 2) * 3.25;
+  const gridBack = race ? (nRivals ? gridSlot(nRivals - 1) - 6.5 : route.from - 2) : 0;
   const P = { yr: 0, x: 0, z: 0, h: 0, vx: 0, vz: 0, steer: 0, hint: -1, e: 0, pitch: 0, roll: 0, drifting: false, sAbs: 0, lastL: null, lastR: null, slip: 0 };
   if (race) {
     // You start behind the rivals and have to get past.
-    const st = sampleAtS(route.from - 13);
+    const st = sampleAtS(gridBack);
     P.x = st.x; P.z = st.z;
     P.h = Math.atan2(st.tz, st.tx);
     P.hint = st.i;
-    P.sAbs = route.from - 13;
+    P.sAbs = gridBack;
   } else {
     P.x = spot.x; P.z = spot.z; P.h = Math.PI / 2; // backed in, facing the road
     P.sAbs = road.nearest(P.x, P.z).s;
   }
-  const playerMesh = makeCarMesh(car.color, car.modelId);
+  const playerMesh = makeCarMesh(car.color, car.modelId, { wheels: car.wheelColor });
   playerMesh.beam.intensity = night ? 400 : 0;
   addMesh(playerMesh.group);
   for (const pc of parked) {
@@ -146,14 +151,14 @@ export function startDrive({ canvas, hud, car, perf, rivalBase, mode, event, dif
       const mesh = makeCarMesh(palette[i % palette.length], car.modelId); // one-make race: same car as yours
       mesh.beam.intensity = night ? 400 : 0;
       addMesh(mesh.group);
-      const s0 = route.from - 2 - i * 5.5; // staggered grid: the second rival starts a car length back, so they run nose to tail instead of tangling
+      const s0 = gridSlot(i); // two-wide staggered grid, so they run nose to tail instead of tangling
       // Every race each rival drifts around the racing line in its own way (two slow random waves),
       // so their lines differ from race to race and leave gaps to pass without contact.
       const wander = [0, 1].map((k) => ({ amp: (k ? 0.5 : 1.0) + Math.random() * (k ? 0.5 : 0.7), len: k ? 35 + Math.random() * 25 : 90 + Math.random() * 70, ph: Math.random() * Math.PI * 2 }));
       rivals.push({
         wander, boost: false,
         name, spec: rs, skill: brakeCommit, line, prof: speedProfile(line, rs, commit, brakeCommit), mesh,
-        d: lineDAtS(line, s0), sAbs: s0, v: 0, pass: 0, passTarget: 0, startLat: i === 0 ? -2.1 : 2.1, curLat: 0,
+        d: lineDAtS(line, s0), sAbs: s0, v: 0, pass: 0, passTarget: 0, startLat: i % 2 ? 2.1 : -2.1, curLat: 0,
         yawOff: 0, finished: false, finishT: 0, x: 0, z: 0, e: 0, h: 0, hb: false, lastL: null, lastR: null,
         mistakeT: 0, mistakeOff: 0,
       });
@@ -595,9 +600,16 @@ export function startDrive({ canvas, hud, car, perf, rivalBase, mode, event, dif
       const all = [{ me: true, prog: my }, ...rivals.map((r) => ({ prog: r.sAbs - route.from }))].sort((a, b) => b.prog - a.prog);
       $('[data-pos]').textContent = all.findIndex((x) => x.me) + 1;
       $('[data-pos-of]').textContent = `/${all.length}`;
-      const gap = Math.max(...rivals.map((r) => r.sAbs - route.from)) - my;
-      $('[data-gap]').textContent = gap > 0 ? `-${Math.round(gap)}m` : `+${Math.round(-gap)}m`;
-      $('[data-gap]').style.color = gap > 0 ? 'var(--bad)' : 'var(--good)';
+      if (rivals.length) {
+        $('[data-gap-label]').textContent = 'GAP';
+        const gap = Math.max(...rivals.map((r) => r.sAbs - route.from)) - my;
+        $('[data-gap]').textContent = gap > 0 ? `-${Math.round(gap)}m` : `+${Math.round(-gap)}m`;
+        $('[data-gap]').style.color = gap > 0 ? 'var(--bad)' : 'var(--good)';
+      } else { // hot lap: no gap, show the record to beat
+        $('[data-gap-label]').textContent = 'BEST';
+        $('[data-gap]').textContent = event.best ? fmtTime(event.best) : '—';
+        $('[data-gap]').style.color = '#fff';
+      }
       $('[data-time]').textContent = time > 0 ? fmtTime(time) : '0:00.0';
       $('[data-togo]').textContent = `${Math.max(0, Math.round(route.to - route.from - my))} m to go\n${bonus < 0 ? '−' : '+'}$${Math.abs(bonus)} apex bonus`;
     }

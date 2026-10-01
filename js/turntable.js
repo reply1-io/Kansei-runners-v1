@@ -6,7 +6,8 @@ import { makeCarMesh } from './carmodel.js';
 let active = null;
 
 export function mountTurntable(canvas, car) {
-  if (active && active.canvas === canvas && active.key === `${car.id}:${car.color}`) return;
+  const tkey = `${car.id}:${car.color}:${car.wheelColor || ''}`;
+  if (active && active.canvas === canvas && active.key === tkey) return;
   unmountTurntable();
   const retro = createRetro(canvas, { lines: 300, minPx: 1 });
   const scene = new THREE.Scene();
@@ -19,7 +20,7 @@ export function mountTurntable(canvas, car) {
   disc.position.y = -0.09; scene.add(disc);
   const ring = new THREE.Mesh(new THREE.TorusGeometry(3.45, 0.05, 4, 32), new THREE.MeshBasicMaterial({ color: '#ffd200' }));
   ring.rotation.x = -Math.PI / 2; ring.position.y = 0.01; scene.add(ring);
-  const model = makeCarMesh(car.color, car.modelId);
+  const model = makeCarMesh(car.color, car.modelId, { wheels: car.wheelColor });
   scene.add(model.group);
   const camera = new THREE.PerspectiveCamera(26, 2, 0.5, 100);
   let raf = 0, t = 0, last = performance.now();
@@ -34,7 +35,7 @@ export function mountTurntable(canvas, car) {
     raf = requestAnimationFrame(loop);
   };
   raf = requestAnimationFrame(loop);
-  active = { canvas, key: `${car.id}:${car.color}`, stop: () => { cancelAnimationFrame(raf); retro.dispose(); } };
+  active = { canvas, key: tkey, stop: () => { cancelAnimationFrame(raf); retro.dispose(); } };
 }
 
 export function unmountTurntable() {

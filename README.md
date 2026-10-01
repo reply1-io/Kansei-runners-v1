@@ -27,25 +27,26 @@ You start at **your cabin, deep in the forest**, shown top-down. It has a carpor
 - **Switchback Ladder:** straight, hairpin, repeat. Nine straights joined by eight hairpins stacked down the mountain, so braking points win it.
 
 **The loop:**
-1. **Marketplace:** 6–10 used cars under $5k each day, all real cars: **1980 Volvo 242, Mercedes-Benz 190E 2.3, 1987 BMW 325i (E30), Toyota Supra Turbo (Mk3), Nissan 180SX, Nissan Skyline GTS-t (R32) and 1999 Honda Civic Si hatch (FWD)**. Each has its real factory specs, and a model built from its real dimensions (length, width, height, wheelbase, overhangs, track, tire size and pillar positions). The pricier ones only show up in your budget as project cars. Each listing shows a price, factory specs (hp, handling, weight) and condition. Striped `??` bars are hidden problems, so tap **Inspect ($80)** before you buy.
+1. **Marketplace:** every listing has a photo of the car in the seller's driveway (neglected cars look grubby). 6–10 used cars under $5k each day, all real cars: **1980 Volvo 242, Mercedes-Benz 190E 2.3, 1987 BMW 325i (E30), Toyota Supra Turbo (Mk3), Nissan 180SX, Nissan Skyline GTS-t (R32) and 1999 Honda Civic Si hatch (FWD)**. Each has its real factory specs, and a model built from its real dimensions (length, width, height, wheelbase, overhangs, track, tire size and pillar positions). The pricier ones only show up in your budget as project cars. Each listing shows a price, factory specs (hp, handling, weight) and condition. Striped `??` bars are hidden problems, so tap **Inspect ($80)** before you buy.
 2. **Parts Shop:** buy parts for anything marked ⚠️, plus performance mods. They go in your trunk.
-3. **Garage:** tap **Install** / **Install all**.
+3. **Garage:** tap **Install** / **Install all**. Each car also has a **paint shop**: respray the body or refinish the wheels, $100 per change.
 4. **Touge app:** pick a course and a difficulty: **Easy, Medium, Hard or Impossible**. Your best time for each shows on its button.
-5. **Rivals are always fair.** They drive a car with **exactly your car's numbers** (power-to-weight, grip, brakes). Difficulty only changes how well they drive:
+5. **Hot Lap:** each course also has a free Hot Lap with no rivals. Kansei Pass pays $250 under 1:41, $500 under 1:34, $1,000 under 1:29 and $2,000 under 1:25; Switchback Ladder pays the same under 1:36, 1:29, 1:25 and 1:21. You get the best tier you beat, plus **$500 every time you beat your own hot-lap record**. Apex markers still pay.
+6. **Rivals are always fair.** They drive a car with **exactly your car's numbers** (power-to-weight, grip, brakes). Difficulty only changes how well they drive:
    - **Easy** rivals mostly keep to their lane, brake early and make mistakes, so the other lane is open to pass.
    - Each level up drives a cleaner racing line, which uses the whole road and closes the doors. They also commit harder in corners, brake later, and run wide less often.
-   - Measured rival times (average of the two), Easy / Medium / Hard / Impossible: **Kansei Pass** about 1:41 / 1:34 / 1:29 / 1:24.5, **Switchback Ladder** about 1:35 / 1:29 / 1:24 / 1:20 (the same percentage faster than a flawless drive on each course). A flawless drive in your stock car is about 1:42 on the Pass and 1:37 on the Ladder, so rivals keep your power-to-weight but get **extra grip and braking** that grows with the level: you win by out-braking them into corners, getting past and holding them off.
+   - Measured rival times (average of all rivals), Easy / Medium / Hard / Impossible: **Kansei Pass** about 1:41 / 1:34 / 1:29 / 1:24.5, **Switchback Ladder** about 1:35 / 1:29 / 1:24 / 1:20 (the same percentage faster than a flawless drive on each course). A flawless drive in your stock car is about 1:42 on the Pass and 1:37 on the Ladder, so rivals keep your power-to-weight but get **extra grip and braking** that grows with the level: you win by out-braking them into corners, getting past and holding them off.
    - **Apex bonus:** every corner has a gold marker on the inside of its apex. Clip it for **+$50**. Every contact with a rival costs **−$25**. The running total shows under the minimap, and the result screen pays it out.
    - **Dirt cut-throughs:** each apex has a patch of packed dirt on the inside. Clip it to cut the corner a little when a rival is defending the inside.
    - **Rivals never drive the same line twice.** Each race they drift around the racing line in their own way, so gaps open in different places.
    - **Impossible fights back:** get 50 m clear of a rival and it finds extra power to chase you down, until it's back within 15 m.
-   - You start behind two rivals and have to get past. They pull the handbrake through the tightest hairpins, give you racing room when you're alongside, and go for gaps themselves.
-6. **Drive:**
+   - You start at the back of the grid: **2 rivals on Easy, 3 on Medium, 4 on Hard and 5 on Impossible**, and have to get past. They pull the handbrake through the tightest hairpins, give you racing room when you're alongside, and go for gaps themselves.
+7. **Drive:**
    - **◀ ▶** steer
    - **GAS**, **BRAKE** and **HANDBRAKE**. The handbrake works like a hydraulic one: it locks the rear wheels, so the rear steps out and the car rotates into the turn (quicker the faster you go) while the fronts keep steering. The rotation carries on for a moment after you let go, so catch the slide with steering and throttle. It only costs a little speed. Dirt shoulders are only slightly looser than the road.
    - On a keyboard, use arrows/WASD, with space for the handbrake.
    - 🔊 toggles sound (engine, tire squeal, impacts).
-7. Every drive wears the car. Throttle wears the engine and transmission, sliding wears tires, brakes wear on downhills, and hitting the trees or other cars damages the body. Bumping another car doesn't slow either of you down. A worn engine can blow. Spend your winnings on repairs and mods, or sell and move up.
+8. Every drive wears the car. Throttle wears the engine and transmission, sliding wears tires, brakes wear on downhills, and hitting the trees or other cars damages the body. Bumping another car doesn't slow either of you down. A worn engine can blow. Spend your winnings on repairs and mods, or sell and move up.
 
 Progress saves automatically in the browser (localStorage).
 

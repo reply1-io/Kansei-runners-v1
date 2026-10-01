@@ -109,7 +109,8 @@ const shared = {};
 const once = (key, make) => shared[key] || (shared[key] = make());
 const decal = (key, map, extra) => once(key, () => new THREE.MeshBasicMaterial({ map, transparent: true, alphaTest: 0.4, ...extra }));
 
-export function makeCarMesh(color, modelId) {
+// opts.wheels: optional wheel colour (tints the wheel faces), from the paint shop.
+export function makeCarMesh(color, modelId, opts = {}) {
   const b = { ...(CARS[modelId] || CARS.e30) };
   const g = new THREE.Group();
   const env = envCube();
@@ -371,7 +372,9 @@ export function makeCarMesh(color, modelId) {
   const tire = once(`tire-${WHEEL_R}-${b.tireW}`, () => { const t = new THREE.CylinderGeometry(WHEEL_R, WHEEL_R, b.tireW, 14); t.rotateX(Math.PI / 2); return t; });
   const faceGeo = once(`wheelface-${WHEEL_R}`, () => new THREE.CircleGeometry(WHEEL_R, 14));
   const disc = once('disc', () => new THREE.MeshLambertMaterial({ color: '#5a5e64' }));
-  const wheelMat = decal(`wheel-${b.rim}`, wheelTex(b.rim));
+  const wheelMat = opts.wheels
+    ? new THREE.MeshBasicMaterial({ map: wheelTex(b.rim), color: opts.wheels, transparent: true, alphaTest: 0.4 })
+    : decal(`wheel-${b.rim}`, wheelTex(b.rim));
   for (const ax of axles) for (const s of [-1, 1]) {
     const zc = s * b.track / 2;
     add(tire, black, ax, WHEEL_R, zc);

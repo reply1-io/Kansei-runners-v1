@@ -72,6 +72,10 @@ export const SELLER_NOTES = [
   'Garage kept. Some surface rust.',
 ];
 
+// Paint shop: body colours on top of each model's factory colours, and wheel finishes. $PAINT_COST each.
+export const PAINT_COST = 100;
+export const PAINT_COLORS = ['#f2f2ee', '#141414', '#b3231e', '#e8a317', '#1f4fa0', '#2c6e49', '#6a2c91', '#ff6b1a', '#9aa3a8', '#4a5560', '#00a6a6', '#f4c2c2'];
+export const WHEEL_COLORS = [['Silver', '#d8dbe0'], ['Gunmetal', '#5a6068'], ['Black', '#2a2a2a'], ['Gold', '#d4a640'], ['Bronze', '#9c6b3c'], ['White', '#ffffff']];
 export const COLORS = ['#e8e8e8', '#d63031', '#0984e3', '#2d3436', '#fdcb6e', '#00b894', '#6c5ce7', '#e17055', '#b2bec3', '#fab1a0'];
 
 // Two race courses (geometry in js/road.js), each ~2 minutes, each at four difficulties.
@@ -84,19 +88,26 @@ export const COLORS = ['#e8e8e8', '#d63031', '#0984e3', '#2d3436', '#fdcb6e', '#
 //   mistakeEvery: roughly how often (seconds) one of them runs wide or brakes early, opening a door
 // commit/brake are per course, calibrated against a test driver: rivals ride their line perfectly,
 // so these land lower than 1.0 to put each level where a human driver actually is.
-// You start behind two of them and have to get past.
+// You start behind them (2 on Easy up to 5 on Impossible) and have to get past.
 export const RACES = [
   { id: 'pass', course: 'pass', name: 'Kansei Pass', style: 'Ultra-winding downhill',
     desc: 'Hairpin after hairpin, sharp esses and square 90s, almost no straight road. Line is everything, and passing is hard.',
+    hotlap: [[101, 250], [94, 500], [89, 1000], [85, 2000]],
     levels: { easy: { commit: 1.16, brake: 1.35 }, medium: { commit: 1.33, brake: 1.6 }, hard: { commit: 1.47, brake: 1.85 }, impossible: { commit: 1.66, brake: 2.1 } } },
   { id: 'ladder', course: 'ladder', name: 'Switchback Ladder', style: 'Straight, hairpin, repeat',
     desc: 'Flat out down a straight, stand on the brakes, swing it around a hairpin, do it again. Nine times. Braking points win this one.',
+    hotlap: [[96, 250], [89, 500], [85, 1000], [81, 2000]],
     levels: { easy: { commit: 1.07, brake: 1.3 }, medium: { commit: 1.33, brake: 1.9 }, hard: { commit: 1.62, brake: 2.7 }, impossible: { commit: 2.0, brake: 3.6 } } },
 ];
 
+// Hot lap: no rivals, just you against the clock. Each race's `hotlap` lists [time in seconds, reward]:
+// finish under that time to earn it (you get the best tier you beat, e.g. 1:40.x on the Pass pays $250).
+// Beat your own hot-lap record and you get HOTLAP_RECORD_BONUS on top.
+export const HOTLAP_RECORD_BONUS = 500;
+
 export const DIFFICULTIES = {
   easy:       { label: 'Easy',       line: 0.65, mistakeEvery: 24, rivals: ['Kenta', 'Itsuki'],    entry: 50,   purse: [500, 100] },
-  medium:     { label: 'Medium',     line: 0.8,  mistakeEvery: 36, rivals: ['Iketani', 'Kenji'],   entry: 150,  purse: [1200, 250] },
-  hard:       { label: 'Hard',       line: 0.97, mistakeEvery: 90, rivals: ['Ryo', 'Keisuke'],     entry: 400,  purse: [3500, 700] },
-  impossible: { label: 'Impossible', line: 1.0,  mistakeEvery: 1e9, equalPair: true, catchUp: true, rivals: ['The Ghost', 'Bunta'], entry: 1000, purse: [12000, 2000] },
+  medium:     { label: 'Medium',     line: 0.8,  mistakeEvery: 36, rivals: ['Iketani', 'Kenji', 'Shingo'],   entry: 150,  purse: [1200, 250] },
+  hard:       { label: 'Hard',       line: 0.97, mistakeEvery: 90, rivals: ['Ryo', 'Keisuke', 'Nakazato', 'Kyoichi'],     entry: 400,  purse: [3500, 700] },
+  impossible: { label: 'Impossible', line: 1.0,  mistakeEvery: 1e9, equalPair: true, catchUp: true, rivals: ['The Ghost', 'Bunta', 'Takumi', 'Sudo', 'Akiyama'], entry: 1000, purse: [12000, 2000] },
 };
