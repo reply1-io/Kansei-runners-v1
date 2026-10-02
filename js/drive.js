@@ -10,6 +10,7 @@ import { PROBLEM_THRESHOLD, MODELS } from './data.js';
 import { clamp } from './state.js';
 import { carSound, unlockAudio, isMuted, setMuted, gearFor } from './audio.js';
 import { getRetro, setAffine } from './ps1.js';
+import { openFullMap } from './fullmap.js';
 
 const G = 9.81;
 const WHEELBASE = 2.5;
@@ -198,7 +199,7 @@ export function startDrive({ canvas, hud, car, perf, rivalBase, mode, event, dif
   const used = (k) => (race ? Math.min(wear[k], RACE_WEAR) : wear[k]);
   const input = { left: false, right: false, gas: false, brake: false, hb: false, axis: null };
   let time = race ? -3.2 : 0.01;
-  let done = false, raf = 0, last = performance.now();
+  let done = false, raf = 0, last = performance.now(), mapOpen = false;
   let message = '', messageT = 0, noPowerT = 0, engineBlown = false, blownT = 0, hitCool = 0, place = 0;
   let bonus = 0, apexHits = 0, contacts = 0; // race money: +$ per apex clipped (contacts are only counted)
   // ---- apex markers (races): clip the inside of each apex for a bonus ----
@@ -234,7 +235,9 @@ export function startDrive({ canvas, hud, car, perf, rivalBase, mode, event, dif
   // ---- input ----
   const keyMap = { arrowleft: 'left', a: 'left', arrowright: 'right', d: 'right', arrowup: 'gas', w: 'gas', arrowdown: 'brake', s: 'brake', ' ': 'hb', shift: 'hb' };
   const onKey = (e) => {
+    if (mapOpen) return;
     if (e.key.toLowerCase() === 'c' && e.type === 'keydown' && !e.repeat) { toggleCam(); return; }
+    if (e.key.toLowerCase() === 'm' && e.type === 'keydown' && !e.repeat) { showMap(); return; }
     const k = keyMap[e.key.toLowerCase()]; if (!k) return; input[k] = e.type === 'keydown'; e.preventDefault();
   };
   window.addEventListener('keydown', onKey);
@@ -257,6 +260,7 @@ export function startDrive({ canvas, hud, car, perf, rivalBase, mode, event, dif
   // stuck: the next touch change corrects it, and lifting every finger releases everything. A touch
   // that lands just outside a control (within TOUCH_SLOP px) counts for the nearest one.
   const onTouch = (e) => {
+    if (mapOpen) return; // (the map takes touches while it's open)
     const rects = [...ctlButtons].map((b) => ({ k: b.dataset.ctl, r: b.getBoundingClientRect() }));
     const held = new Set();
     let ours = false;
@@ -681,6 +685,14 @@ export function startDrive({ canvas, hud, car, perf, rivalBase, mode, event, dif
   // within MINI_R of you, centred on the car.
   const mini = hud.querySelector('[data-minimap]');
   const mctx = mini.getContext('2d');
+  // Tap the minimap (or press M) for the whole map. The game pauses while it's open.
+  async function showMap() {
+    if (mapOpen || done) return;
+    mapOpen = true; releaseAll();
+    await openFullMap({ player: P, rivals, route: race ? route : null, routeRoad: road, ponds: world.landmarks.ponds });
+    mapOpen = false; releaseAll(); last = performance.now();
+  }
+  mini.addEventListener('click', showMap);
   const MINI_R = 380;
   let bx0 = Infinity, bx1 = -Infinity, bz0 = Infinity, bz1 = -Infinity;
   for (const p of S) { bx0 = Math.min(bx0, p.x); bx1 = Math.max(bx1, p.x); bz0 = Math.min(bz0, p.z); bz1 = Math.max(bz1, p.z); }
@@ -797,6 +809,7 @@ export function startDrive({ canvas, hud, car, perf, rivalBase, mode, event, dif
   function loop(now) {
     const realDt = Math.max(0, (now - last) / 1000); // a frame stamped before startDrive ran can come out negative
     last = now;
+    if (mapOpen) { sound.update({ speed: 0, top: spec.top, throttle: 0, slip: 0 }); raf = requestAnimationFrame(loop); return; }
     const steps = window.__krSimSpeed || 1; // test hook: run the sim faster than real time
     for (let n = 0; n < steps && !done; n++) {
       const dt = window.__krDt || Math.min(0.033, realDt); // test hook: fixed step
@@ -839,6 +852,7 @@ export function startDrive({ canvas, hud, car, perf, rivalBase, mode, event, dif
     exitBtn.removeEventListener('click', onExitBtn);
     muteBtn.removeEventListener('click', onMute);
     camBtn.removeEventListener('click', toggleCam);
+    mini.removeEventListener('click', showMap);
     retro.setDetail(); setAffine(1); // the home screen shares the renderer
     ctlButtons.forEach((b) => b.classList.remove('on'));
     sound.stop();
