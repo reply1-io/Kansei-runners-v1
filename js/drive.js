@@ -470,6 +470,19 @@ export function startDrive({ canvas, hud, car, perf, rivalBase, mode, event, dif
       }
     }
 
+    // Boulders are solid: bounce off, losing speed (and a little body) on a real hit.
+    const rock = world.rockHit(P.x, P.z, 1.0);
+    if (rock) {
+      P.x += rock.nx * rock.over; P.z += rock.nz * rock.over;
+      const into = -(P.vx * rock.nx + P.vz * rock.nz);
+      if (into > 0) { P.vx += rock.nx * into * 1.3; P.vz += rock.nz * into * 1.3; }
+      if (into > 1) { const keep = 1 - Math.min(0.6, into * 0.05); P.vx *= keep; P.vz *= keep; }
+      if (into > 3 && hitCool <= 0) {
+        wear.body += into * 0.5; wear.susp += into * 0.2;
+        flash('Hit a rock!', 0.8); sound.hit(into); hitCool = 0.5;
+      }
+    }
+
     // Progress along the loop (unwrapped), elevation and body attitude.
     const w2 = where(P.x, P.z);
     P.hint = w2.m.i;

@@ -130,9 +130,20 @@ function makeTerrain(net) {
 // its own strip, so the coarse ground never paints big dirt wedges.)
 const TILE_CELLS = 40, VIEW = 900;
 let treeAssets = null;
-function makeTileStreamer(scene, terrainAt, { minX, maxX, minZ, maxZ }, { apexNear, water, rim, clearings }) {
+const GROUND = 340;
+// Height of the ground mesh itself at (x, z): the tiles are 8 m triangles (split along the b-c
+// diagonal), which can sit well under the true terrain on a hump, so trees and rocks are planted on
+// this instead of terrainAt, or they float. hAt(i, j) gives the height at grid node (i, j).
+function meshHeight(hAt, x, z, gx0, gz0, S) {
+  const fx = (x - gx0) / S, fz = (z - gz0) / S, i = Math.floor(fx), j = Math.floor(fz), u = fx - i, v = fz - j;
+  const ha = hAt(i, j), hb = hAt(i + 1, j), hc = hAt(i, j + 1);
+  if (u + v <= 1) return ha + u * (hb - ha) + v * (hc - ha);
+  const hd = hAt(i + 1, j + 1);
+  return hd + (1 - u) * (hc - hd) + (1 - v) * (hb - hd);
+}
+function makeTileStreamer(scene, terrainAt, { minX, maxX, minZ, maxZ }, { apexNear, water, rim, clearings, rocks: rockReg }) {
   const STEPT = terrainAt.STEPT, T = TILE_CELLS, SIZE = STEPT * T;
-  const GROUND = 340, gx0 = minX - GROUND, gz0 = minZ - GROUND;
+  const gx0 = minX - GROUND, gz0 = minZ - GROUND;
   const nti = Math.ceil((maxX + GROUND - gx0) / SIZE), ntj = Math.ceil((maxZ + GROUND - gz0) / SIZE);
   const mats = [grassTex(), rockTex(), shoulderTex()].map((map) => new THREE.MeshLambertMaterial({ map, vertexColors: true }));
   const hash = (i, j) => { const v = Math.sin(i * 127.1 + j * 311.7) * 43758.5453; return v - Math.floor(v); };
@@ -166,6 +177,7 @@ function makeTileStreamer(scene, terrainAt, { minX, maxX, minZ, maxZ }, { apexNe
       H[j * W + i] = t.h;
       if (inner && built) info[(j - 1) * (T + 1) + (i - 1)] = t;
     }
+    tile.H = H;
     const pos = [], col = [], uv = [], nor = [];
     let ymin = Infinity;
     for (let j = 0; j <= T; j++) for (let i = 0; i <= T; i++) {
@@ -215,6 +227,13 @@ function makeTileStreamer(scene, terrainAt, { minX, maxX, minZ, maxZ }, { apexNe
     scene.add(new THREE.Mesh(g, mats));
   }
 
+  // Mesh height inside (or just outside) a built tile.
+  const groundIn = (tile, x, z) => meshHeight((i, j) => {
+    const li = i - tile.ti * T, lj = j - tile.tj * T, W = T + 3;
+    const h = li >= -1 && lj >= -1 && li <= T + 1 && lj <= T + 1 ? tile.H[(lj + 1) * W + li + 1] : NaN;
+    return Number.isNaN(h) ? terrainAt(gx0 + i * STEPT, gz0 + j * STEPT).h : h;
+  }, x, z, gx0, gz0, STEPT);
+
   // Forest: crossed-quad sprite trees (the classic late-90s way) on a jittered grid, kept off the
   // roads, out of the clearing, off canyon walls (only up on the rim), clear of the apex cut-throughs
   // and in open glades round the water. Trees near the road are shorter, so the chase camera can see
@@ -229,7 +248,10 @@ function makeTileStreamer(scene, terrainAt, { minX, maxX, minZ, maxZ }, { apexNe
       if (t.dRoad < t.half + 2.8 + rnd() * 1.2 || t.dRoad > TREE_REACH || t.clearing < 1.12) continue;
       if (t.canyon > 0.25 && t.dRoad < t.half + 30) continue;
       if (apexNear(tx, tz) || nearWater(water, tx, tz, 10) || rim.beyond(tx, tz) > -4 || clearings.some((c) => (c.x - tx) ** 2 + (c.z - tz) ** 2 < c.r * c.r)) continue;
-      trees.push({ x: tx, z: tz, y: t.h, hgt: Math.min(9 + rnd() * 10, 2.5 + (t.dRoad - t.half) * 0.55), r: 2.4 + rnd() * 1.4, shade: 0.75 + rnd() * 0.4 });
+      // Planted on the mesh, at the lowest point under the crown's base, so no side floats.
+      const r = 2.4 + rnd() * 1.4, k = r * 0.5;
+      const y = Math.min(groundIn(tile, tx, tz), groundIn(tile, tx + k, tz), groundIn(tile, tx - k, tz), groundIn(tile, tx, tz + k), groundIn(tile, tx, tz - k));
+      trees.push({ x: tx, z: tz, y, r, hgt: Math.min(9 + rnd() * 10, 2.5 + (t.dRoad - t.half) * 0.55), shade: 0.75 + rnd() * 0.4 });
     }
     if (!trees.length) return;
     const { crossGeo, treeMats, topGeo, topMat } = treeAssets;
@@ -265,11 +287,11 @@ function makeTileStreamer(scene, terrainAt, { minX, maxX, minZ, maxZ }, { apexNe
       const rx = x + (rnd() - 0.5) * 9, rz = z + (rnd() - 0.5) * 9, a = rnd(), b = rnd();
       if (terrainAt.farDist(rx, rz) > TREE_REACH + 60) continue;
       const t = terrainAt(rx, rz);
-      if (t.dRoad > TREE_REACH + 40 || t.dRoad <= t.half + 5.4 || t.clearing <= 1.15 || t.canyon >= 0.25 || rim.beyond(rx, rz) > -6) continue;
+      if (t.dRoad > TREE_REACH + 40 || t.dRoad <= t.half + 5.4 || t.clearing <= 1.15 || t.canyon >= 0.25 || rim.beyond(rx, rz) > -6 || nearWater(water, rx, rz, 1)) continue;
       const slope = Math.abs(terrainAt(rx + 3, rz).h - terrainAt(rx - 3, rz).h) + Math.abs(terrainAt(rx, rz + 3).h - terrainAt(rx, rz - 3).h);
-      if (a < 0.05 + Math.min(0.5, slope * 0.08)) rocks.push({ x: rx, z: rz, y: t.h, s: 0.5 + b * (slope > 3 ? 2.6 : 1.4) });
+      if (a < 0.05 + Math.min(0.5, slope * 0.08)) rocks.push({ x: rx, z: rz, y: groundIn(tile, rx, rz), s: 0.5 + b * (slope > 3 ? 2.6 : 1.4) });
     }
-    addRocks(scene, rocks, rnd);
+    addRocks(scene, rocks, rnd, rockReg);
   }
 
   // A tile is built in steps (ground, trees in four strips, boulders), so streaming costs a step per frame.
@@ -297,18 +319,39 @@ function makeTileStreamer(scene, terrainAt, { minX, maxX, minZ, maxZ }, { apexNe
   };
 }
 
-function addRocks(scene, rocks, rnd) {
+// Rocks big enough to stop a car go in `reg` (see makeRockRegistry), so the car hits them.
+function addRocks(scene, rocks, rnd, reg) {
   if (!rocks.length) return;
   const mesh = new THREE.InstancedMesh(treeAssets.rockGeo, treeAssets.rockMat, rocks.length);
   const mtx = new THREE.Matrix4(), q = new THREE.Quaternion(), e = new THREE.Euler(), color = new THREE.Color();
   rocks.forEach((r, i) => {
     q.setFromEuler(e.set(rnd() * 0.5, rnd() * 6.28, rnd() * 0.5));
-    mtx.compose(new THREE.Vector3(r.x, r.y + r.s * 0.15, r.z), q, new THREE.Vector3(r.s * (0.8 + rnd() * 0.5), r.s * (0.5 + rnd() * 0.4), r.s * (0.8 + rnd() * 0.5)));
+    const sx = r.s * (0.8 + rnd() * 0.5), sy = r.s * (0.5 + rnd() * 0.4), sz = r.s * (0.8 + rnd() * 0.5);
+    mtx.compose(new THREE.Vector3(r.x, r.y + r.s * 0.15, r.z), q, new THREE.Vector3(sx, sy, sz));
+    if (reg && sy > 0.35) reg.add(r.x, r.z, Math.min(sx, sz) * 0.9);
     mesh.setMatrixAt(i, mtx);
     mesh.setColorAt(i, color.setScalar(0.75 + rnd() * 0.35));
   });
   mesh.computeBoundingSphere();
   scene.add(mesh);
+}
+
+// Solid rocks on a 16 m grid: `hit(x, z, rad)` returns how to push a circle of radius rad out of
+// any rock it overlaps ({ nx, nz, over }), or null.
+function makeRockRegistry() {
+  const cells = new Map(), C = 16, key = (i, j) => (i + 50000) * 100000 + (j + 50000);
+  return {
+    add(x, z, r) { const k = key(Math.floor(x / C), Math.floor(z / C)); (cells.get(k) || cells.set(k, []).get(k)).push({ x, z, r }); },
+    hit(x, z, rad) {
+      const i = Math.floor(x / C), j = Math.floor(z / C);
+      let best = null;
+      for (let a = -1; a <= 1; a++) for (let b = -1; b <= 1; b++) for (const r of cells.get(key(i + a, j + b)) || []) {
+        const dx = x - r.x, dz = z - r.z, d = Math.hypot(dx, dz), over = r.r + rad - d;
+        if (over > 0 && (!best || over > best.over)) best = { nx: d > 1e-3 ? dx / d : 1, nz: d > 1e-3 ? dz / d : 0, over };
+      }
+      return best;
+    },
+  };
 }
 
 // ---------- geometry helpers ----------
@@ -393,7 +436,7 @@ function buildWorld(net) {
   const bigFalls = placeBigFalls(rim, baseTerrain, ROADS);
   for (const f of bigFalls) water.ponds.push(f.pool);
   const clearings = [];
-  carves = [...water.ponds.map((p) => ({ ...p, depth: p.depth || 1.4 })), ...water.falls.map((f) => ({ x: f.bot.x, z: f.bot.z, r: 4.5, level: f.bot.h + 0.15, depth: 1.0 }))];
+  carves = water.ponds.map((p) => ({ ...p, depth: p.depth || 1.4 }));
   buildRimWall(scene, rim, terrainAt);
   const bigFx = buildBigFalls(scene, rim, bigFalls);
   buildCabins(scene, terrainAt, ROADS, bigFalls, clearings);
@@ -502,21 +545,25 @@ function buildWorld(net) {
     for (let a = -1; a <= 1; a++) for (let b = -1; b <= 1; b++) for (const c of apexCells.get(ak(i + a, j + b)) || []) if ((c.x - x) ** 2 + (c.z - z) ** 2 < 64) return true;
     return false;
   };
-  const tiles = makeTileStreamer(scene, terrainAt, { minX, maxX, minZ, maxZ }, { apexNear, water, rim, clearings });
+  const rockReg = makeRockRegistry();
+  const tiles = makeTileStreamer(scene, terrainAt, { minX, maxX, minZ, maxZ }, { apexNear, water, rim, clearings, rocks: rockReg });
 
   // Canyon walls: rock faces rising from the shoulder on both sides, built along the road.
   const canyonRocks = ROADS.flatMap((r) => buildCanyonWalls(scene, r, terrainAt));
 
-  const waterFx = buildWater(scene, water, terrainAt);
-  buildRocks(scene, terrainAt, water, canyonRocks);
+  const groundAt = (x, z) => meshHeight((i, j) => terrainAt(minX - GROUND + i * terrainAt.STEPT, minZ - GROUND + j * terrainAt.STEPT).h, x, z, minX - GROUND, minZ - GROUND, terrainAt.STEPT);
+  const waterFx = buildWater(scene, water, groundAt);
+  buildRocks(scene, terrainAt, water, canyonRocks, rockReg, groundAt);
   const mountains = buildMountains(scene);
 
 
   const fire = net.home ? buildHome(scene) : null;
   const skids = makeSkids(scene);
   return {
-    scene, fire, skids, terrainAt,
-    landmarks: { falls: bigFalls.map((f) => f.i), cabins: clearings.map((c) => ({ x: c.x, z: c.z })) },
+    scene, fire, skids, terrainAt, groundAt,
+    // Push-out from any solid rock a car (radius rad) at (x, z) overlaps, or null.
+    rockHit: (x, z, rad) => rockReg.hit(x, z, rad),
+    landmarks: { falls: bigFalls.map((f) => f.i), cabins: clearings.map((c) => ({ x: c.x, z: c.z })), ponds: water.ponds, streams: water.falls },
     setNight: (on) => { setNight(lights, on); skyMat.color.set(on ? '#1b2440' : '#ffffff'); },
     // Keep the sky panorama centered on the camera, and build the ground around it as it moves.
     follow: (cam) => {
@@ -690,7 +737,9 @@ function buildHome(scene) {
 
 // ---------- natural features: ponds, waterfalls, rocks, distant mountains ----------
 
-// Ponds sit on flat ground 15-40 m off a road; waterfalls on the steepest drops 12-45 m off a road.
+// Ponds: big (14-26 m across the water) and set back from the road in open glades, each sitting in a
+// bowl carved into the ground. Most have a waterfall pouring into them off the nearest rise, and a
+// few waterfalls stand alone over their own deep plunge pool, so the water reads as one system.
 function findWaterSites(net, terrainAt, { minX, maxX, minZ, maxZ }) {
   const rnd = seeded(31);
   const ponds = [], falls = [];
@@ -698,27 +747,52 @@ function findWaterSites(net, terrainAt, { minX, maxX, minZ, maxZ }) {
   const L = net.roads.reduce((sum, r) => sum + r.length, 0);
   const scale = Math.max(1, Math.round(L / 2500)), NP = 3 * scale, NF = 2 * scale;
   const ok = (t) => t.clearing > 1.4 && t.canyon < 0.1;
-  const far = (list, x, z, d) => list.every((p) => Math.hypot(p.x - x, p.z - z) > d);
-  for (let tries = 0; tries < 8000 * scale && (ponds.length < NP || falls.length < NF); tries++) {
+  const far = (list, x, z, d) => list.every((p) => Math.hypot(p.x - x, p.z - z) > d + (p.r || 0));
+  // The steepest drop into (x, z) from up to 34 m away, landing `edge` m out from the centre: a fall's lip.
+  const lipFor = (x, z, edge, level, minDrop) => {
+    let best = null;
+    for (let a = 0; a < 6.28; a += 0.26) for (let d = edge + 8; d <= edge + 34; d += 4) {
+      const tx = x + Math.cos(a) * d, tz = z + Math.sin(a) * d, tt = terrainAt(tx, tz);
+      if (tt.dRoad < tt.half + 12 || !ok(tt)) continue;
+      const drop = tt.h - level, steep = drop / (d - edge);
+      if (drop > minDrop && steep > 0.32 && (!best || drop * steep > best.score)) best = { score: drop * steep, top: { x: tx, z: tz, h: tt.h }, a };
+    }
+    return best;
+  };
+  // The lowest ground on a ring of radius r round (x, z), and the highest.
+  const ringRange = (x, z, r) => {
+    let lo = Infinity, hi = -Infinity;
+    for (let a = 0; a < 6.28; a += 0.4) { const h = terrainAt(x + Math.cos(a) * r, z + Math.sin(a) * r).h; lo = Math.min(lo, h); hi = Math.max(hi, h); }
+    return { lo, hi };
+  };
+  for (let tries = 0; tries < 9000 * scale && (ponds.length < NP || falls.length < NF); tries++) {
     const x = minX + rnd() * (maxX - minX), z = minZ + rnd() * (maxZ - minZ);
-    if (terrainAt.farDist(x, z) > 40) continue;
+    if (terrainAt.farDist(x, z) > 60) continue;
     const t = terrainAt(x, z);
     if (!ok(t)) continue;
-    if (ponds.length < NP && t.dRoad > 13 && t.dRoad < 28 && far(ponds, x, z, 110)) {
-      const r = 6 + rnd() * 5;
-      let lo = Infinity, hi = -Infinity;
-      for (let a = 0; a < 6.28; a += 0.8) { const h = terrainAt(x + Math.cos(a) * r, z + Math.sin(a) * r).h; lo = Math.min(lo, h); hi = Math.max(hi, h); }
-      if (hi - lo < 2.2) { ponds.push({ x, z, r, level: lo + 0.1 }); continue; }
-    }
-    if (falls.length < NF && t.dRoad > 12 && t.dRoad < 32 && far(falls, x, z, 140) && far(ponds, x, z, 25)) {
-      // Look for a big drop within 14 m in any direction.
-      let best = null;
-      for (let a = 0; a < 6.28; a += 0.4) {
-        const bx = x + Math.cos(a) * 14, bz = z + Math.sin(a) * 14, tb = terrainAt(bx, bz);
-        const drop = t.h - tb.h;
-        if (drop > 4 && tb.dRoad > 9 && (!best || drop > best.drop)) best = { drop, bx, bz, h: tb.h };
+    const r = 11 + rnd() * 10;
+    if (ponds.length < NP && t.dRoad > r + t.half + 13 && t.dRoad < r + 34 && far(ponds, x, z, 120)) {
+      // Water level just under the lowest point of its shore, so the water never floats over a dip.
+      const { lo, hi } = ringRange(x, z, r + 3);
+      if (hi - lo < 7) {
+        const pond = { x, z, r, level: lo - 0.15, depth: 2 };
+        ponds.push(pond);
+        if (falls.length < NF && rnd() < 0.75) {
+          const lip = lipFor(x, z, r - 1, pond.level, 6);
+          if (lip) falls.push({ x: lip.top.x, z: lip.top.z, top: lip.top, bot: { x: x + Math.cos(lip.a) * (r - 1.5), z: z + Math.sin(lip.a) * (r - 1.5), h: pond.level }, into: pond });
+        }
+        continue;
       }
-      if (best) falls.push({ x, z, top: { x, z, h: t.h }, bot: { x: best.bx, z: best.bz, h: best.h } });
+    }
+    // A waterfall on its own, with a plunge pool at the foot.
+    if (falls.length < NF && rnd() < 0.3 && t.dRoad > t.half + 22 && t.dRoad < 60 && far(falls, x, z, 160) && far(ponds, x, z, 40)) {
+      const pr = 7 + rnd() * 3, { lo } = ringRange(x, z, pr + 2), level = lo - 0.15;
+      const lip = lipFor(x, z, pr - 1, level, 9);
+      if (lip) {
+        const pool = { x, z, r: pr, level, depth: 2.6, plunge: true };
+        ponds.push(pool);
+        falls.push({ x: lip.top.x, z: lip.top.z, top: lip.top, bot: { x: x + Math.cos(lip.a) * (pr - 1), z: z + Math.sin(lip.a) * (pr - 1), h: level }, into: pool });
+      }
     }
   }
   return { ponds, falls };
@@ -736,22 +810,23 @@ function nearWater(water, x, z, pad) {
   return false;
 }
 
-function buildWater(scene, water, terrainAt) {
+function buildWater(scene, water, groundAt) {
   const pondMat = new THREE.MeshPhongMaterial({ color: '#2f6178', specular: '#bcd8ee', shininess: 90, transparent: true, opacity: 0.9 });
-  const disc = (x, z, r, y) => { const g = new THREE.CircleGeometry(r, 18); g.rotateX(-Math.PI / 2); const m = new THREE.Mesh(g, pondMat); m.position.set(x, y, z); scene.add(m); };
+  const disc = (x, z, r, y) => { const g = new THREE.CircleGeometry(r, 28); g.rotateX(-Math.PI / 2); const m = new THREE.Mesh(g, pondMat); m.position.set(x, y, z); scene.add(m); };
   for (const p of water.ponds) disc(p.x, p.z, p.r + 3, p.level);
   const fallTex = waterfallTex();
   fallTex.wrapS = fallTex.wrapT = THREE.RepeatWrapping;
   const fallMat = new THREE.MeshBasicMaterial({ map: fallTex, side: THREE.DoubleSide });
   const foamMat = new THREE.MeshBasicMaterial({ color: '#eef6fb', transparent: true, opacity: 0.75 });
+  const mists = [], mistTex = mistTexture();
   for (const f of water.falls) {
-    // A ribbon of falling water hugging the slope from the lip down into its plunge pool.
-    const N = 10, W = 3.2, pos = [], uv = [], idx = [];
+    // A ribbon of falling water hugging the slope from the lip down into its pool, spreading as it falls.
+    const N = 16, pos = [], uv = [], idx = [];
     const dx = f.bot.x - f.top.x, dz = f.bot.z - f.top.z, L = Math.hypot(dx, dz) || 1, nx = -dz / L, nz = dx / L;
     let along = 0, prev = null;
     for (let i = 0; i <= N; i++) {
       const u = i / N, x = f.top.x + dx * u, z = f.top.z + dz * u;
-      const y = Math.max(terrainAt(x, z).h, f.bot.h) + 0.45;
+      const y = Math.max(groundAt(x, z), f.bot.h) + 0.5, W = 3.2 + u * 3.6;
       if (prev) along += Math.hypot(x - prev.x, y - prev.y, z - prev.z);
       prev = { x, y, z };
       pos.push(x - nx * W / 2, y, z - nz * W / 2, x + nx * W / 2, y, z + nz * W / 2);
@@ -763,27 +838,37 @@ function buildWater(scene, water, terrainAt) {
     g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
     g.setIndex(idx); g.computeVertexNormals();
     scene.add(new THREE.Mesh(g, fallMat));
-    disc(f.bot.x, f.bot.z, 5.5, f.bot.h + 0.15);
-    const foam = new THREE.Mesh(new THREE.RingGeometry(0.6, 2.4, 14), foamMat);
-    foam.rotation.x = -Math.PI / 2; foam.position.set(f.bot.x, f.bot.h + 0.2, f.bot.z); scene.add(foam);
+    disc(f.top.x - dx / L * 1.5, f.top.z - dz / L * 1.5, 2.6, groundAt(f.top.x, f.top.z) + 0.35); // the stream it spills from
+    const foam = new THREE.Mesh(new THREE.RingGeometry(0.8, 4.2, 16), foamMat);
+    foam.rotation.x = -Math.PI / 2; foam.position.set(f.bot.x, f.bot.h + 0.06, f.bot.z); scene.add(foam);
+    for (let m = 0; m < 3; m++) {
+      const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: mistTex, transparent: true, depthWrite: false, opacity: 0.4 }));
+      sp.position.set(f.bot.x, f.bot.h + 1 + m, f.bot.z); sp.scale.setScalar(4 + m * 2); scene.add(sp);
+      mists.push({ sp, y0: sp.position.y, ph: m * 1.7 + f.x });
+    }
   }
-  return { update: (t) => { fallTex.offset.y = (t * 1.6) % 1; } };
+  return {
+    update: (t) => {
+      fallTex.offset.y = (t * 1.6) % 1;
+      for (const m of mists) { m.sp.position.y = m.y0 + Math.sin(t * 0.9 + m.ph) * 0.6; m.sp.material.opacity = 0.28 + 0.12 * Math.sin(t * 1.4 + m.ph); }
+    },
+  };
 }
 
 // Boulders: scattered through the forest (more on steep ground), round the ponds and beside the falls.
 // Always outside the drivable area, so you never drive through one.
 // Boulders round the ponds, beside the falls and at the foot of the canyon walls (the ones scattered
 // through the forest come with each ground tile). Always outside the drivable area.
-function buildRocks(scene, terrainAt, water, extra = []) {
+function buildRocks(scene, terrainAt, water, extra, reg, groundAt) {
   const rnd = seeded(5), rocks = [...extra];
-  const add = (x, z, s) => { const t = terrainAt(x, z); if (t.dRoad > t.half + 5.4 && t.clearing > 1.15 && t.canyon < 0.25) rocks.push({ x, z, y: t.h, s }); };
+  const add = (x, z, s) => { const t = terrainAt(x, z); if (t.dRoad > t.half + 5.4 && t.clearing > 1.15 && t.canyon < 0.25) rocks.push({ x, z, y: groundAt(x, z), s }); };
   for (const p of water.ponds) for (let i = 0; i < 10; i++) { const a = rnd() * 6.28, d = p.r + 0.6 + rnd() * 2.5; add(p.x + Math.cos(a) * d, p.z + Math.sin(a) * d, 0.5 + rnd() * 1.1); }
   for (const f of water.falls) for (let i = 0; i < 14; i++) {
     const u = rnd(), side = rnd() < 0.5 ? -1 : 1;
     const dx = f.bot.x - f.top.x, dz = f.bot.z - f.top.z, L = Math.hypot(dx, dz) || 1;
     add(f.top.x + dx * u - (dz / L) * side * (2.4 + rnd() * 2), f.top.z + dz * u + (dx / L) * side * (2.4 + rnd() * 2), 0.8 + rnd() * 1.8);
   }
-  addRocks(scene, rocks, rnd);
+  addRocks(scene, rocks, rnd, reg);
 }
 
 // Rock walls either side of the road wherever it runs through a canyon (sample.canyon > 0). Each wall
@@ -905,17 +990,27 @@ function placeBigFalls(rim, terrainAt, roads) {
   const out = [], others = roads.filter((r) => r !== rim.ring);
   for (const f of [0.08, 0.31, 0.57, 0.82]) {
     let i = Math.floor(f * rim.N);
-    for (let tries = 0; tries < 40; tries++, i = (i + 60) % rim.N) {
-      const p = rim.S[i];
-      if (others.some((r) => r.samples.some((q, k) => k % 5 === 0 && (q.x - p.x) ** 2 + (q.z - p.z) ** 2 < 260 * 260))) continue;
-      break;
-    }
-    const p = rim.S[i], base = rim.wallAt(i), pc = base - 13;
+    const clear = (j) => { const p = rim.S[j]; return !others.some((r) => r.samples.some((q, k) => k % 5 === 0 && (q.x - p.x) ** 2 + (q.z - p.z) ** 2 < 260 * 260)); };
+    for (let tries = 0; tries < 40 && !clear(i); tries++) i = (i + 60) % rim.N;
+    // Within reach, where the wall stands furthest back from the road, so a big pool fits.
+    let bi = i;
+    for (let d = -300; d <= 300; d += 10) { const j = (i + d + rim.N) % rim.N; if (rim.wallAt(j) - rim.S[j].half > rim.wallAt(bi) - rim.S[bi].half && clear(j)) bi = j; }
+    i = bi;
+    const p = rim.S[i], base = rim.wallAt(i), r = Math.max(10, Math.min(19, (base - p.half - 16) / 1.6)), pc = base - r * 0.55;
     const x = p.x + p.nx * p.out * pc, z = p.z + p.nz * p.out * pc;
-    const level = terrainAt(x, z).h - 0.4;
-    out.push({ i, pool: { x, z, r: 11, level, depth: 2.2 } });
+    let level = Infinity;
+    for (let a = 0; a < 6.28; a += 0.5) level = Math.min(level, terrainAt(x + Math.cos(a) * (r + 2), z + Math.sin(a) * (r + 2)).h);
+    out.push({ i, pool: { x, z, r, level: level - 0.3, depth: 3 } });
   }
   return out;
+}
+
+// A soft white puff for waterfall spray.
+function mistTexture() {
+  const c = document.createElement('canvas'); c.width = c.height = 32;
+  const g2 = c.getContext('2d'), gr = g2.createRadialGradient(16, 16, 0, 16, 16, 16);
+  gr.addColorStop(0, 'rgba(255,255,255,0.9)'); gr.addColorStop(1, 'rgba(255,255,255,0)'); g2.fillStyle = gr; g2.fillRect(0, 0, 32, 32);
+  return new THREE.CanvasTexture(c);
 }
 
 function buildBigFalls(scene, rim, falls) {
@@ -924,13 +1019,10 @@ function buildBigFalls(scene, rim, falls) {
   const mat = new THREE.MeshBasicMaterial({ map: tex, side: THREE.DoubleSide, transparent: true, opacity: 0.92 });
   const foamMat = new THREE.MeshBasicMaterial({ color: '#eef6fb', transparent: true, opacity: 0.8 });
   // Spray: soft white sprites that swell and fade at the foot.
-  const c = document.createElement('canvas'); c.width = c.height = 32;
-  const g2 = c.getContext('2d'), gr = g2.createRadialGradient(16, 16, 0, 16, 16, 16);
-  gr.addColorStop(0, 'rgba(255,255,255,0.9)'); gr.addColorStop(1, 'rgba(255,255,255,0)'); g2.fillStyle = gr; g2.fillRect(0, 0, 32, 32);
-  const mistTex = new THREE.CanvasTexture(c);
+  const mistTex = mistTexture();
   const mists = [];
   for (const f of falls) {
-    const k = rim.heightAt(f.i), W = 7; // half-width in ring samples (m)
+    const k = rim.heightAt(f.i), W = 10; // half-width in ring samples (m)
     const pos = [], uv = [], idx = [];
     const cols = [-W, -W / 2, 0, W / 2, W], rowsU = [...RIM_PROFILE].reverse(); // top to bottom
     let along = 0, prev = null;
