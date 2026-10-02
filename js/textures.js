@@ -27,7 +27,7 @@ const noiseFill = (g, w, h, rnd, colors, n) => { for (let i = 0; i < n; i++) px(
 
 // Road: u runs across the road (0..1 = edge to edge), v along it.
 // Road surfaces: 'two' lanes (double yellow), 'narrow' mountain road (dashed white centre line),
-// 'lane' (single lane, no centre line), 'track' (circuit: white edges), 'drift' (rubber streaks).
+// 'lane' (single lane, no centre line), 'plain' (bare asphalt, for junction patches).
 export const roadTex = (kind = 'two') => tex(kind === 'two' ? 'road' : `road-${kind}`, 32, 64, (g, w, h, rnd) => {
   g.fillStyle = '#56565a'; g.fillRect(0, 0, w, h);
   noiseFill(g, w, h, rnd, ['#4b4b50', '#616166', '#44444a', '#6a6a6e'], 900);
@@ -39,12 +39,8 @@ export const roadTex = (kind = 'two') => tex(kind === 'two' ? 'road' : `road-${k
     g.fillStyle = '#d8d8cc'; g.fillRect(1, 0, 1, h); g.fillRect(30, 0, 1, h);
     g.fillRect(15, 0, 2, 26);                                                        // dashed centre line
     for (let y = 0; y < h; y += 5) { px(g, 1, y, '#56565a'); px(g, 30, y + 2, '#56565a'); px(g, 15 + Math.floor(rnd() * 2), Math.floor(rnd() * 26), '#56565a'); }
-  } else if (kind === 'track') {
-    g.fillStyle = '#ececec'; g.fillRect(0, 0, 2, h); g.fillRect(30, 0, 2, h);          // circuit: white edges only
   } else if (kind === 'plain') {
     // bare asphalt (patches over junction mouths)
-  } else if (kind === 'drift') {
-    for (let i = 0; i < 6; i++) { g.fillStyle = 'rgba(20,20,22,0.55)'; g.fillRect(4 + Math.floor(rnd() * 22), 0, 2, h); } // tyre streaks
   } else {
     g.fillStyle = '#cfcfc4'; g.fillRect(1, 0, 1, h); g.fillRect(30, 0, 1, h);
     for (let y = 0; y < h; y += 4) { px(g, 1, y, '#56565a'); px(g, 30, y + 1, '#56565a'); }

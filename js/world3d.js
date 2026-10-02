@@ -2,7 +2,7 @@
 // around the roads, road surfaces, barriers, forest, and (at home) the cabin/tent/driveway.
 // Each world is built the first time it's needed and then reused.
 import * as THREE from '../lib/three.module.min.js';
-import { U, apexesOf, COURSES, WORLD, FLARE_LEN } from './road.js';
+import { U, apexesOf, COURSES, WORLD, FLARE_LEN, RING } from './road.js';
 import { HOME } from './map.js';
 import { seeded } from './draw.js';
 import { roadTex, shoulderTex, grassTex, rockTex, treeTex, treeTopTex, skyTex, logTex, roofTex, canvasTex, gravelTex, waterfallTex } from './textures.js';
@@ -104,8 +104,7 @@ function makeTerrain(net) {
     const d = exact ? de : Math.max(24, far(F.dist, x, z));
     const half = exact ? np.half : far(F.half, x, z);
     const farH = far(F.mean, x, z) + noise(x, z) * smooth(8, 40, d) + 0.22 * Math.max(0, d - 18) + hills(x, z) * smooth(20, 90, d);
-    const flat = FLAT + (exact ? np.apron || 0 : 0); // run-off areas are flat too
-    let h = exact ? np.e + (farH - np.e) * smooth(half + 1.2 + flat, half + 16 + flat, d) - SINK * (1 - smooth(half + flat, half + 3 + flat, d)) : farH;
+    let h = exact ? np.e + (farH - np.e) * smooth(half + 1.2 + FLAT, half + 16 + FLAT, d) - SINK * (1 - smooth(half + FLAT, half + 3 + FLAT, d)) : farH;
     const cc = exact ? np.canyon : far(F.cc, x, z);
     if (cc > 0.01) {
       const rise = canyonProfile(d - half - CANYON_TUCK);
@@ -116,9 +115,7 @@ function makeTerrain(net) {
       r = Math.hypot((x - CL.x) / CL.rx, (z - CL.z) / CL.rz);
       h = -0.05 + (h + 0.05) * smooth(1.0, 1.5, r);
     }
-    // How far past the edge trees and boulders must stay: clear of any barrier, else 2.8 m.
-    const clear = exact && np.clear !== undefined ? np.clear : 2.8;
-    return { h, dRoad: d, clearing: r, half, canyon: cc, clear };
+    return { h, dRoad: d, clearing: r, half, canyon: cc };
   };
   terrainAt.farDist = (x, z) => far(F.dist, x, z);
   terrainAt.STEPT = STEPT;
@@ -133,7 +130,7 @@ function makeTerrain(net) {
 // its own strip, so the coarse ground never paints big dirt wedges.)
 const TILE_CELLS = 40, VIEW = 900;
 let treeAssets = null;
-function makeTileStreamer(scene, terrainAt, { minX, maxX, minZ, maxZ }, { apexNear, water }) {
+function makeTileStreamer(scene, terrainAt, { minX, maxX, minZ, maxZ }, { apexNear, water, rim, clearings }) {
   const STEPT = terrainAt.STEPT, T = TILE_CELLS, SIZE = STEPT * T;
   const GROUND = 340, gx0 = minX - GROUND, gz0 = minZ - GROUND;
   const nti = Math.ceil((maxX + GROUND - gx0) / SIZE), ntj = Math.ceil((maxZ + GROUND - gz0) / SIZE);
@@ -163,7 +160,7 @@ function makeTileStreamer(scene, terrainAt, { minX, maxX, minZ, maxZ }, { apexNe
     for (let j = 0; j < W; j++) for (let i = 0; i < W; i++) {
       const x = x0 + (i - 1) * STEPT, z = z0 + (j - 1) * STEPT;
       const inner = i >= 1 && j >= 1 && i <= T + 1 && j <= T + 1;
-      const built = terrainAt.farDist(x, z) <= BAND;
+      const built = terrainAt.farDist(x, z) <= BAND && rim.beyond(x, z) < 50; // (nothing to see behind the wall)
       if (!built && !inner) { H[j * W + i] = NaN; continue; }
       const t = terrainAt(x, z);
       H[j * W + i] = t.h;
@@ -222,15 +219,16 @@ function makeTileStreamer(scene, terrainAt, { minX, maxX, minZ, maxZ }, { apexNe
   // roads, out of the clearing, off canyon walls (only up on the rim), clear of the apex cut-throughs
   // and in open glades round the water. Trees near the road are shorter, so the chase camera can see
   // over them into the next corner.
-  function forest(tile, rnd) {
+  function forest(tile, rnd, part = 0, parts = 1) {
     const TS = 3.6, trees = []; // dense: the canopy closes over almost all the ground
-    for (let z = tile.z0; z < tile.z0 + SIZE; z += TS) for (let x = tile.x0; x < tile.x0 + SIZE; x += TS) {
+    const zA = tile.z0 + (SIZE * part) / parts, zB = tile.z0 + (SIZE * (part + 1)) / parts;
+    for (let z = zA; z < zB; z += TS) for (let x = tile.x0; x < tile.x0 + SIZE; x += TS) {
       const tx = x + (rnd() - 0.5) * TS * 0.9, tz = z + (rnd() - 0.5) * TS * 0.9;
       if (terrainAt.farDist(tx, tz) > TREE_REACH + 30) continue;
       const t = terrainAt(tx, tz);
-      if (t.dRoad < t.half + t.clear + rnd() * 1.2 || t.dRoad > TREE_REACH || t.clearing < 1.12) continue;
+      if (t.dRoad < t.half + 2.8 + rnd() * 1.2 || t.dRoad > TREE_REACH || t.clearing < 1.12) continue;
       if (t.canyon > 0.25 && t.dRoad < t.half + 30) continue;
-      if (apexNear(tx, tz) || nearWater(water, tx, tz, 10)) continue;
+      if (apexNear(tx, tz) || nearWater(water, tx, tz, 10) || rim.beyond(tx, tz) > -4 || clearings.some((c) => (c.x - tx) ** 2 + (c.z - tz) ** 2 < c.r * c.r)) continue;
       trees.push({ x: tx, z: tz, y: t.h, hgt: Math.min(9 + rnd() * 10, 2.5 + (t.dRoad - t.half) * 0.55), r: 2.4 + rnd() * 1.4, shade: 0.75 + rnd() * 0.4 });
     }
     if (!trees.length) return;
@@ -267,15 +265,15 @@ function makeTileStreamer(scene, terrainAt, { minX, maxX, minZ, maxZ }, { apexNe
       const rx = x + (rnd() - 0.5) * 9, rz = z + (rnd() - 0.5) * 9, a = rnd(), b = rnd();
       if (terrainAt.farDist(rx, rz) > TREE_REACH + 60) continue;
       const t = terrainAt(rx, rz);
-      if (t.dRoad > TREE_REACH + 40 || t.dRoad <= t.half + Math.max(5.4, t.clear + 1) || t.clearing <= 1.15 || t.canyon >= 0.25) continue;
+      if (t.dRoad > TREE_REACH + 40 || t.dRoad <= t.half + 5.4 || t.clearing <= 1.15 || t.canyon >= 0.25 || rim.beyond(rx, rz) > -6) continue;
       const slope = Math.abs(terrainAt(rx + 3, rz).h - terrainAt(rx - 3, rz).h) + Math.abs(terrainAt(rx, rz + 3).h - terrainAt(rx, rz - 3).h);
       if (a < 0.05 + Math.min(0.5, slope * 0.08)) rocks.push({ x: rx, z: rz, y: t.h, s: 0.5 + b * (slope > 3 ? 2.6 : 1.4) });
     }
     addRocks(scene, rocks, rnd);
   }
 
-  // A tile is built in three steps (ground, trees, boulders), so streaming costs a step per frame.
-  const STEPS = [ground, forest, boulders];
+  // A tile is built in steps (ground, trees in four strips, boulders), so streaming costs a step per frame.
+  const STEPS = [ground, ...[0, 1, 2, 3].map((k) => (tile, rnd) => forest(tile, rnd, k, 4)), boulders];
   function step(tile) {
     tile.rnd ||= seeded(1000 + tile.tj * 997 + tile.ti);
     STEPS[tile.stage++](tile, tile.rnd);
@@ -340,7 +338,7 @@ function ribbon(samples, offsetA, offsetB, yA, yB, { every = 1, withUV = false, 
 // How far the dirt cut-through on the inside of each apex reaches past the road edge (m).
 export const APEX_CUT = 4.2;
 // Real trees are planted out to this far from any road (m); beyond it the ground is shaded as canopy.
-const TREE_REACH = 48;
+const TREE_REACH = 70;
 
 // The whole map is one world (built the first time it's needed); every drive and the home screen
 // share it.
@@ -389,7 +387,16 @@ function buildWorld(net) {
   minX -= 130; maxX += 130; minZ -= 130; maxZ += 130;
   const water = findWaterSites(net, baseTerrain, { minX, maxX, minZ, maxZ });
   const farDist = baseTerrain.farDist;
-  carves = [...water.ponds.map((p) => ({ ...p, depth: 1.4 })), ...water.falls.map((f) => ({ x: f.bot.x, z: f.bot.z, r: 4.5, level: f.bot.h + 0.15, depth: 1.0 }))];
+  // The rock wall round the outside of the ring, its big waterfalls (their plunge pools join the
+  // ponds) and the cabins along the ring.
+  const rim = makeRim(RING, baseTerrain);
+  const bigFalls = placeBigFalls(rim, baseTerrain, ROADS);
+  for (const f of bigFalls) water.ponds.push(f.pool);
+  const clearings = [];
+  carves = [...water.ponds.map((p) => ({ ...p, depth: p.depth || 1.4 })), ...water.falls.map((f) => ({ x: f.bot.x, z: f.bot.z, r: 4.5, level: f.bot.h + 0.15, depth: 1.0 }))];
+  buildRimWall(scene, rim, terrainAt);
+  const bigFx = buildBigFalls(scene, rim, bigFalls);
+  buildCabins(scene, terrainAt, ROADS, bigFalls, clearings);
 
   // Roads and shoulders. No guardrails: run wide and you're in the dirt, then the trees. The roads
   // out to the courses start a little under the home loop where they join it, so the two don't fight.
@@ -447,7 +454,7 @@ function buildWorld(net) {
 
   // Dirt cut-throughs on the inside of every apex: packed dirt you can clip to cut the corner.
   // Widest (APEX_CUT m) at the apex, tapering to nothing 14 m either side.
-  const apexCuts = ROADS.filter((road) => !road.track && !road.to).flatMap((road) => apexesOf(road).map((a) => {
+  const apexCuts = ROADS.filter((road) => !road.to).flatMap((road) => apexesOf(road).map((a) => {
     const pos = [], uv = [], idx = [], COLS = 7;
     let n = 0;
     for (let ds = -14; ds <= 14; ds += 1) {
@@ -470,7 +477,6 @@ function buildWorld(net) {
     return { x: q.x + q.nx * off, z: q.z + q.nz * off };
   }));
 
-  for (const r of ROADS) if (r.track) buildTrackside(scene, r, terrainAt);
 
   for (const r of ROADS) {
     // Each road out to a course passes under a wooden arch with the course's name just before it.
@@ -494,7 +500,7 @@ function buildWorld(net) {
     for (let a = -1; a <= 1; a++) for (let b = -1; b <= 1; b++) for (const c of apexCells.get(ak(i + a, j + b)) || []) if ((c.x - x) ** 2 + (c.z - z) ** 2 < 64) return true;
     return false;
   };
-  const tiles = makeTileStreamer(scene, terrainAt, { minX, maxX, minZ, maxZ }, { apexNear, water });
+  const tiles = makeTileStreamer(scene, terrainAt, { minX, maxX, minZ, maxZ }, { apexNear, water, rim, clearings });
 
   // Canyon walls: rock faces rising from the shoulder on both sides, built along the road.
   const canyonRocks = ROADS.flatMap((r) => buildCanyonWalls(scene, r, terrainAt));
@@ -508,6 +514,7 @@ function buildWorld(net) {
   const skids = makeSkids(scene);
   return {
     scene, fire, skids, terrainAt,
+    landmarks: { falls: bigFalls.map((f) => f.i), cabins: clearings.map((c) => ({ x: c.x, z: c.z })) },
     setNight: (on) => { setNight(lights, on); skyMat.color.set(on ? '#1b2440' : '#ffffff'); },
     // Keep the sky panorama centered on the camera, and build the ground around it as it moves.
     follow: (cam) => {
@@ -516,7 +523,7 @@ function buildWorld(net) {
       tiles.update(cam.position.x, cam.position.z);
     },
     // Per-frame animation (waterfalls flowing). t in seconds.
-    update: (t) => waterFx.update(t),
+    update: (t) => { waterFx.update(t); bigFx.update(t); },
   };
 }
 
@@ -561,90 +568,6 @@ function barrier(p, half) {
   g.position.set(p.x, p.e, p.z);
   g.rotation.y = -Math.atan2(p.tz, p.tx);
   return g;
-}
-
-// Closed tracks: barriers along both sides (tyre walls or concrete, with an opening where the access
-// road comes in), red and white kerbs on the inside of the corners, and at Tsukuba a pit building,
-// grandstand and the footbridge over Dunlop corner.
-function buildTrackside(scene, road, terrainAt) {
-  const S = road.samples, N = S.length;
-  const interior = Math.sign(S.reduce((sum, p) => sum + p.kSigned, 0)) || 1; // which side is the infield
-  const gap = (i, side) => (road.wallGaps || []).some((g) => g.side === side && i >= g.i0 && i <= g.i1);
-  // Barriers: one strip per side, broken at the gaps.
-  const tyreTex = (() => {
-    const c = document.createElement('canvas'); c.width = 32; c.height = 16;
-    const g = c.getContext('2d');
-    g.fillStyle = '#1d1d1f'; g.fillRect(0, 0, 32, 16);
-    for (let i = 0; i < 4; i++) { g.fillStyle = '#2c2c30'; g.beginPath(); g.arc(4 + i * 8, 8, 3.2, 0, 7); g.fill(); }
-    g.fillStyle = road.barrier === 'tyres' ? '#d8d8d8' : '#9a9890'; g.fillRect(0, 0, 32, 3);
-    const t = new THREE.CanvasTexture(c); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.magFilter = THREE.NearestFilter; t.colorSpace = THREE.SRGBColorSpace; return t;
-  })();
-  const wallMat = road.barrier === 'tyres' ? new THREE.MeshLambertMaterial({ map: tyreTex, side: THREE.DoubleSide }) : new THREE.MeshLambertMaterial({ map: gravelTex(), color: '#e4e1d8', emissive: '#4a4844', side: THREE.DoubleSide });
-  const H = road.barrier === 'tyres' ? 0.9 : 1.2;
-  for (const side of [-1, 1]) {
-    let pos = [], uv = [], idx = [], rows = 0;
-    const flush = () => {
-      if (rows > 1) {
-        const g = new THREE.BufferGeometry();
-        g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
-        g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
-        g.setIndex(idx); g.computeVertexNormals();
-        scene.add(new THREE.Mesh(g, wallMat));
-      }
-      pos = []; uv = []; idx = []; rows = 0;
-    };
-    for (let i = 0; i <= N; i += 2) {
-      const p = S[i % N];
-      if (gap(i % N, side)) { flush(); continue; }
-      const off = side * (p.half + p.wall), x = p.x + p.nx * off, z = p.z + p.nz * off;
-      const y0 = Math.min(p.e, terrainAt(x, z).h) - 0.3;
-      pos.push(x, y0, z, x, p.e + H, z);
-      uv.push((i % N) / 2, 0, (i % N) / 2, 1);
-      if (rows) { const a = (rows - 1) * 2; idx.push(a, a + 1, a + 2, a + 1, a + 3, a + 2); }
-      rows++;
-    }
-    flush();
-  }
-  // Kerbs on the inside of every real corner.
-  if (road.kerbs) {
-    const c = document.createElement('canvas'); c.width = 8; c.height = 16;
-    const g = c.getContext('2d'); g.fillStyle = '#f2f2f2'; g.fillRect(0, 0, 8, 16); g.fillStyle = '#d42020'; g.fillRect(0, 0, 8, 8);
-    const kt = new THREE.CanvasTexture(c); kt.wrapS = kt.wrapT = THREE.RepeatWrapping; kt.magFilter = THREE.NearestFilter; kt.colorSpace = THREE.SRGBColorSpace;
-    const kerbMat = new THREE.MeshLambertMaterial({ map: kt });
-    let run = [];
-    const emit = () => {
-      if (run.length > 6) {
-        const sg = Math.sign(run.reduce((sum, p) => sum + p.kSigned, 0));
-        scene.add(new THREE.Mesh(ribbon(run, (p) => sg * (p.half - 0.4), (p) => sg * (p.half + 1.0), 0.06, 0.06, { withUV: true, vPer: 3 }), kerbMat));
-      }
-      run = [];
-    };
-    for (let i = 0; i < N; i++) {
-      const p = S[i];
-      if (Math.abs(p.kSigned) > 1 / 140 && (!run.length || Math.sign(run[0].kSigned) === Math.sign(p.kSigned))) run.push(p);
-      else { emit(); if (Math.abs(p.kSigned) > 1 / 140) run.push(p); }
-    }
-    emit();
-  }
-  if (road.id !== 'tsukuba') return;
-  const lam = (c) => new THREE.MeshLambertMaterial({ color: c });
-  const at = (s, lat) => { const q = road.sampleAtS(s); return { x: q.x + q.nx * lat, z: q.z + q.nz * lat, e: q.e, h: Math.atan2(q.tz, q.tx) }; };
-  const box = (w, hgt, d, mat, p, y = 0) => { const b = new THREE.Mesh(new THREE.BoxGeometry(w, hgt, d), mat); b.position.set(p.x, p.e + y + hgt / 2, p.z); b.rotation.y = -p.h; scene.add(b); return b; };
-  // Pit building along the main straight, outside the barrier; grandstand across the track.
-  const out = -interior * (S[0].half + S[0].wall + 9);
-  box(150, 6, 12, lam('#e6e6e0'), at(road.startS - 20, out));
-  box(152, 0.6, 14, lam('#2d5aa0'), at(road.startS - 20, out), 6);
-  const stand = at(road.startS - 30, interior * (S[0].half + S[0].wall + 8));
-  for (let k = 0; k < 5; k++) box(90, 0.9, 2.4, lam(k % 2 ? '#bdbdb5' : '#a7a7a0'), { ...stand, x: stand.x + Math.cos(stand.h + Math.PI / 2) * interior * k * 2.2, z: stand.z + Math.sin(stand.h + Math.PI / 2) * interior * k * 2.2 }, k * 0.9);
-  // The footbridge over Dunlop corner: a yellow span on two towers.
-  if (road.bridgeS !== undefined) {
-    const q = road.sampleAtS(road.bridgeS), w = q.half + 4, yel = lam('#f2c400');
-    const g = new THREE.Group();
-    for (const sd of [-1, 1]) { const t = new THREE.Mesh(new THREE.BoxGeometry(2, 7.5, 2), lam('#8c8c88')); t.position.set(0, 3.75, sd * w); g.add(t); }
-    const span = new THREE.Mesh(new THREE.BoxGeometry(2.6, 1.6, w * 2 + 2), yel); span.position.y = 6.6; g.add(span);
-    g.position.set(q.x, q.e, q.z); g.rotation.y = -Math.atan2(q.tz, q.tx);
-    scene.add(g);
-  }
 }
 
 // A timber arch over the road with the course name on a board, facing traffic.
@@ -903,6 +826,178 @@ function buildCanyonWalls(scene, road, terrainAt) {
     scene.add(new THREE.Mesh(g, mat));
   }
   return out;
+}
+
+// ---------- the rim: rock wall, big waterfalls, cabins ----------
+// The wall stands outside the ring road, `wallAt` m past its centre line (varying), and climbs in
+// cliffs and ledges to RIM_H-ish. `rim.beyond(x, z)` says how far a point is past the wall's foot
+// (negative inside), so the ground and trees stop at the wall.
+const RIM_PROFILE = [[0, -2], [1.2, 16], [2.5, 30], [5, 36], [7, 58], [8.5, 76], [12, 82], [14, 104], [16, 120], [22, 132], [40, 140]];
+function makeRim(ring, terrainAt) {
+  const S = ring.samples, N = S.length;
+  const wallAt = (i) => { const t = (i / N) * Math.PI * 2; return S[i].half + 40 + 14 * Math.sin(17 * t + 1.3) + 8 * Math.sin(41 * t); };
+  const heightAt = (i) => { const t = (i / N) * Math.PI * 2; return 0.8 + 0.25 * Math.sin(11 * t + 0.4) + 0.12 * Math.sin(29 * t + 2); };
+  // Ring points bucketed (every 3rd) for quick "how far past the wall" lookups.
+  const CELL = 60, grid = new Map(), key = (a, b) => (a + 5000) * 10000 + (b + 5000);
+  for (let i = 0; i < N; i += 3) { const k = key(Math.floor(S[i].x / CELL), Math.floor(S[i].z / CELL)); if (!grid.has(k)) grid.set(k, []); grid.get(k).push(i); }
+  const beyond = (x, z) => {
+    const cx = Math.floor(x / CELL), cz = Math.floor(z / CELL);
+    let bd = Infinity, bi = -1;
+    for (let a = -2; a <= 2; a++) for (let b = -2; b <= 2; b++) for (const i of grid.get(key(cx + a, cz + b)) || []) { const d = (S[i].x - x) ** 2 + (S[i].z - z) ** 2; if (d < bd) { bd = d; bi = i; } }
+    if (bi < 0) return -Infinity;
+    const p = S[bi], lat = ((x - p.x) * p.nx + (z - p.z) * p.nz) * p.out;
+    return lat - wallAt(bi);
+  };
+  return { ring, S, N, wallAt, heightAt, beyond, terrainAt };
+}
+
+const jag = (x, z) => Math.sin(x * 0.21 + z * 0.13) * Math.cos(z * 0.17 - x * 0.09) * 3.5 + Math.sin(x * 0.7 - z * 0.55) * 1.4;
+
+// A point on the wall: ring sample i, `u` m out from the foot, at profile height `h` (before jag).
+function rimPoint(rim, i, u, h, k = 1) {
+  i = ((Math.round(i) % rim.N) + rim.N) % rim.N;
+  // Buttresses and gullies: the whole face steps in and out along its length.
+  const bump = 5 * Math.sin(i * 0.045) + 2.5 * Math.sin(i * 0.13 + 1) + 1.5 * Math.sin(i * 0.31);
+  const p = rim.S[i], base = rim.wallAt(i), off = p.out * (base + u + (u > 0.5 ? bump : 0));
+  const x = p.x + p.nx * off, z = p.z + p.nz * off;
+  const foot = rim.terrainAt(p.x + p.nx * p.out * base, p.z + p.nz * p.out * base).h;
+  const j = u > 0.5 && u < 39 ? jag(x, z) : 0;
+  return { x: x + p.nx * p.out * j * 0.8, y: foot + h * k + j, z: z + p.nz * p.out * j * 0.8, foot };
+}
+
+function buildRimWall(scene, rim, terrainAt) {
+  void terrainAt;
+  // Flat-shaded, so every facet of the cliffs catches the light differently.
+  const mat = new THREE.MeshLambertMaterial({ map: rockTex(), vertexColors: true, side: THREE.DoubleSide, flatShading: true });
+  const STEP = 3, CHUNK = 120; // rows per mesh, so the far side of the map isn't drawn
+  const C = RIM_PROFILE.length;
+  for (let r0 = 0; r0 < rim.N; r0 += STEP * CHUNK) {
+    const pos = [], uv = [], col = [], idx = [];
+    let rows = 0;
+    for (let i = r0; i <= Math.min(rim.N, r0 + STEP * CHUNK); i += STEP) {
+      const k = rim.heightAt(i % rim.N);
+      RIM_PROFILE.forEach(([u, h], c) => {
+        const q = rimPoint(rim, i, u, h, k);
+        pos.push(q.x, q.y, q.z);
+        uv.push((i * 1) / 6, (h * k) / 6);
+        // Darker at the foot, warm and cool strata, a mossy tint on the ledges.
+        const f = h / 140, band = Math.sin(q.y * 0.35 + i * 0.002) * 0.08, ledge = c > 0 && RIM_PROFILE[c][1] - RIM_PROFILE[c - 1][1] < 10 ? 1 : 0;
+        const v = 0.9 + 0.35 * f;
+        col.push(v * (1.02 + band) * (ledge ? 0.85 : 1), v * (0.97 + band * 0.5) * (ledge ? 1.05 : 1), v * (0.9 - band * 0.3) * (ledge ? 0.8 : 1));
+      });
+      if (rows) for (let c = 0; c < C - 1; c++) { const a = (rows - 1) * C + c, b = rows * C + c; idx.push(a, b, a + 1, a + 1, b, b + 1); }
+      rows++;
+    }
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+    g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
+    g.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
+    g.setIndex(idx); g.computeVertexNormals(); g.computeBoundingSphere();
+    scene.add(new THREE.Mesh(g, mat));
+  }
+}
+
+// Four big waterfalls spread round the ring, each pouring off the top of the wall into a plunge pool
+// between the wall and the road (kept well away from the junctions).
+function placeBigFalls(rim, terrainAt, roads) {
+  const out = [], others = roads.filter((r) => r !== rim.ring);
+  for (const f of [0.08, 0.31, 0.57, 0.82]) {
+    let i = Math.floor(f * rim.N);
+    for (let tries = 0; tries < 40; tries++, i = (i + 60) % rim.N) {
+      const p = rim.S[i];
+      if (others.some((r) => r.samples.some((q, k) => k % 5 === 0 && (q.x - p.x) ** 2 + (q.z - p.z) ** 2 < 260 * 260))) continue;
+      break;
+    }
+    const p = rim.S[i], base = rim.wallAt(i), pc = base - 13;
+    const x = p.x + p.nx * p.out * pc, z = p.z + p.nz * p.out * pc;
+    const level = terrainAt(x, z).h - 0.4;
+    out.push({ i, pool: { x, z, r: 11, level, depth: 2.2 } });
+  }
+  return out;
+}
+
+function buildBigFalls(scene, rim, falls) {
+  const tex = waterfallTex();
+  tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+  const mat = new THREE.MeshBasicMaterial({ map: tex, side: THREE.DoubleSide, transparent: true, opacity: 0.92 });
+  const foamMat = new THREE.MeshBasicMaterial({ color: '#eef6fb', transparent: true, opacity: 0.8 });
+  // Spray: soft white sprites that swell and fade at the foot.
+  const c = document.createElement('canvas'); c.width = c.height = 32;
+  const g2 = c.getContext('2d'), gr = g2.createRadialGradient(16, 16, 0, 16, 16, 16);
+  gr.addColorStop(0, 'rgba(255,255,255,0.9)'); gr.addColorStop(1, 'rgba(255,255,255,0)'); g2.fillStyle = gr; g2.fillRect(0, 0, 32, 32);
+  const mistTex = new THREE.CanvasTexture(c);
+  const mists = [];
+  for (const f of falls) {
+    const k = rim.heightAt(f.i), W = 7; // half-width in ring samples (m)
+    const pos = [], uv = [], idx = [];
+    const cols = [-W, -W / 2, 0, W / 2, W], rowsU = [...RIM_PROFILE].reverse(); // top to bottom
+    let along = 0, prev = null;
+    rowsU.forEach(([u, h], r) => {
+      const mid = rimPoint(rim, f.i, u, h, k);
+      if (prev) along += Math.hypot(mid.x - prev.x, mid.y - prev.y, mid.z - prev.z);
+      prev = mid;
+      cols.forEach((dc, ci) => {
+        const q = rimPoint(rim, f.i + dc, u, h, k), p = rim.S[(Math.round(f.i + dc) + rim.N) % rim.N];
+        // Just in front of the rock face, falling a little clear of it lower down.
+        const lift = 1.2 + (1 - h / 140) * 2.5;
+        pos.push(q.x - p.nx * p.out * lift, Math.max(q.y, q.foot + 0.2), q.z - p.nz * p.out * lift);
+        uv.push(ci / (cols.length - 1), along / 10);
+      });
+      if (r) for (let ci = 0; ci < cols.length - 1; ci++) { const a = (r - 1) * cols.length + ci, b = r * cols.length + ci; idx.push(a, a + 1, b, a + 1, b + 1, b); }
+    });
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+    g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
+    g.setIndex(idx); g.computeVertexNormals();
+    scene.add(new THREE.Mesh(g, mat));
+    const p = f.pool;
+    const foam = new THREE.Mesh(new THREE.RingGeometry(1.5, 6, 18), foamMat);
+    const fp = rim.S[f.i], fx = p.x + fp.nx * fp.out * 7, fz = p.z + fp.nz * fp.out * 7;
+    foam.rotation.x = -Math.PI / 2; foam.position.set(fx, p.level + 0.25, fz); scene.add(foam);
+    for (let m = 0; m < 6; m++) {
+      const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: mistTex, transparent: true, depthWrite: false, opacity: 0.5 }));
+      sp.position.set(fx + (Math.random() - 0.5) * 8, p.level + 2 + m * 1.5, fz + (Math.random() - 0.5) * 8);
+      sp.scale.setScalar(6 + m * 2); scene.add(sp);
+      mists.push({ sp, y0: sp.position.y, ph: m * 1.1 });
+    }
+  }
+  return {
+    update: (t) => {
+      tex.offset.y = (t * 1.1) % 1;
+      for (const m of mists) { m.sp.position.y = m.y0 + Math.sin(t * 0.8 + m.ph) * 1.2; m.sp.material.opacity = 0.35 + 0.15 * Math.sin(t * 1.3 + m.ph); }
+    },
+  };
+}
+
+// Log cabins set back from the ring road every so often (not by the junctions or waterfalls), each
+// in its own little clearing.
+function buildCabins(scene, terrainAt, roads, falls, clearings) {
+  const ring = roads.find((r) => r.id === 'ring'), others = roads.filter((r) => r !== ring);
+  const S = ring.samples, N = S.length, rnd = seeded(404);
+  const logs = new THREE.MeshLambertMaterial({ map: logTex() }), roof = new THREE.MeshLambertMaterial({ map: roofTex() });
+  const stone = new THREE.MeshLambertMaterial({ color: '#8d8a84' }), dark = new THREE.MeshLambertMaterial({ color: '#2a2018' }), glass = new THREE.MeshLambertMaterial({ color: '#9fb6c8', emissive: '#2a3440' });
+  for (let i = 300; i < N; i += 1400 + Math.floor(rnd() * 400)) {
+    const p = S[i];
+    if (falls.some((f) => Math.abs(f.i - i) < 300 || Math.abs(f.i - i) > N - 300)) continue;
+    if (others.some((r) => r.samples.some((q, k) => k % 5 === 0 && (q.x - p.x) ** 2 + (q.z - p.z) ** 2 < 180 * 180))) continue;
+    const side = rnd() < 0.7 ? -p.out : p.out; // mostly on the inside of the ring
+    const off = side * (p.half + 15), x = p.x + p.nx * off, z = p.z + p.nz * off, y = terrainAt(x, z).h;
+    const g = new THREE.Group();
+    const W = 6 + rnd() * 2, D = 4.5 + rnd(), H = 2.8;
+    const box = (w, h, d, m, bx, by, bz) => { const b = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), m); b.position.set(bx, by, bz); g.add(b); return b; };
+    box(W + 0.4, 1, D + 0.4, stone, 0, -0.1, 0);                 // stone footing
+    box(W, H, D, logs, 0, 0.4 + H / 2, 0);
+    for (const sd of [-1, 1]) { const r = box(W + 1, 0.15, D / 2 / Math.cos(0.55) + 0.6, roof, 0, 0.4 + H + Math.tan(0.55) * D / 4, sd * D / 4); r.rotation.x = sd * 0.55; }
+    box(0.9, 2.2, 0.9, stone, W / 2 - 0.9, 0.4 + H + 1, D / 4);  // chimney
+    box(1, 1.9, 0.08, dark, 0, 0.4 + 0.95, -D / 2 - 0.02);         // door, facing the road
+    for (const wx of [-W / 3, W / 3]) box(1.1, 0.8, 0.06, glass, wx, 0.4 + 1.7, -D / 2 - 0.03);
+    box(W, 0.2, 1.6, new THREE.MeshLambertMaterial({ color: '#6b4a2c' }), 0, 0.4, -D / 2 - 0.8); // porch
+    g.position.set(x, y, z);
+    // Face the road: the door side (-z) points back at the ring.
+    g.rotation.y = Math.atan2(side * p.nx, side * p.nz);
+    scene.add(g);
+    clearings.push({ x, z, r: 11 });
+  }
 }
 
 // A hazy ring of snow-capped mountains on the horizon. It follows the camera (like the sky), so it

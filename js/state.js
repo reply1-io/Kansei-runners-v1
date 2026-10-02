@@ -136,11 +136,6 @@ export function factorySpecs(model) {
   return { hp: model.hp, weight: model.weight, handling: Math.round(driveGrip * 100), drive: model.drive };
 }
 
-// Drift tires count once bought and installed, unless swapped back off in the Garage.
-export function hasDriftTires(car) {
-  return (car.upgrades.drift || 0) > 0 && !car.driftOff;
-}
-
 export function canRun(car) {
   if (car.cond.engine < DEAD_THRESHOLD) return 'Engine is dead — it won\'t start.';
   if (car.cond.trans < DEAD_THRESHOLD) return 'Transmission is shot — it won\'t move.';
@@ -160,7 +155,6 @@ export function performance(car) {
   const grip = driveGrip
     * (0.72 + 0.28 * c.tires / 100) * (1 + 0.08 * u.tires)
     * (0.85 + 0.15 * c.susp / 100) * (1 + 0.05 * u.coilovers);
-  const driftTires = hasDriftTires(car);
   const brake = (0.55 + 0.45 * c.brakes / 100) * (1 + 0.2 * u.bbk);
   const pw = hp / weight;
   const launch = m.drive === 'AWD' ? 1.1 : m.drive === 'FWD' ? 0.95 : 1;
@@ -171,8 +165,7 @@ export function performance(car) {
     drive: m.drive,
     topSpeed: 350 + 2400 * pw,              // px/s
     accel: 1800 * pw * transFactor * launch, // px/s^2
-    grip: grip * (driftTires ? 0.92 : 1),
-    driftTires,
+    grip,
     brake,
     turn: 2.5 * (1 + 0.06 * u.coilovers) * (0.9 + 0.1 * c.susp / 100),
   };

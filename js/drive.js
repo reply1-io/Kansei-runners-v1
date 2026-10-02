@@ -66,7 +66,6 @@ export function carSpec(perf) {
     brake: 9.0 * perf.brake,     // m/s^2
     lat: 9.5 * perf.grip,        // m/s^2 lateral grip on asphalt
     drive: perf.drive,
-    driftTires: !!perf.driftTires,
   };
 }
 
@@ -87,10 +86,7 @@ export function startDrive({ canvas, hud, car, perf, rivalBase, mode, event, dif
   const spec = carSpec(perf);
   const road = net.road, S = road.samples, SN = S.length;
   const sampleAtS = (v) => road.sampleAtS(v);
-  // Point to point on a course; on a closed track, `laps` times round from the start line.
-  const laps = race && road.loop ? event.laps || 1 : 0;
-  const route = race ? { from: net.startS, to: laps ? net.startS + laps * road.length : net.finishS } : null;
-  const drift = race && event.mode === 'drift';
+  const route = race ? { from: net.startS, to: net.finishS } : null;
   const night = !!(race && event.night);
 
   // ---- racing line helpers (for the rivals) ----
@@ -131,7 +127,7 @@ export function startDrive({ canvas, hud, car, perf, rivalBase, mode, event, dif
   // ---- player ----
   // Grid: rivals staggered a car length apart on alternating sides; you start one slot behind the last.
   // Rival i: row floor(i/2), left/right lane, the right lane a half-row back. You start one row behind the last.
-  const nRivals = race && !window.__krNoRivals && !drift ? difficulty.rivals.length : 0;
+  const nRivals = race && !window.__krNoRivals ? difficulty.rivals.length : 0;
   const gridSlot = (i) => route.from - 2 - Math.floor(i / 2) * 6.5 - (i % 2) * 3.25;
   const gridBack = race ? (nRivals ? gridSlot(nRivals - 1) - 6.5 : route.from - 2) : 0;
   const P = { yr: 0, x: 0, z: 0, h: 0, vx: 0, vz: 0, steer: 0, hint: -1, e: 0, pitch: 0, roll: 0, drifting: false, sAbs: 0, lastL: null, lastR: null, slip: 0 };
@@ -166,7 +162,7 @@ export function startDrive({ canvas, hud, car, perf, rivalBase, mode, event, dif
   const rivals = [];
   if (race) {
     const rs = carSpec(rivalBase || perf);
-    (window.__krNoRivals || drift ? [] : difficulty.rivals).forEach((name, i) => { // test hook: solo time trial
+    (window.__krNoRivals ? [] : difficulty.rivals).forEach((name, i) => { // test hook: solo time trial
       // The second rival is a touch less sharp than the first (except when both are flawless: `equalPair`).
       const weaker = i && !difficulty.equalPair;
       const q = Math.max(0, difficulty.line - (weaker ? 0.05 : 0));
@@ -198,30 +194,8 @@ export function startDrive({ canvas, hud, car, perf, rivalBase, mode, event, dif
   let done = false, raf = 0, last = performance.now();
   let message = '', messageT = 0, noPowerT = 0, engineBlown = false, blownT = 0, hitCool = 0, place = 0;
   let bonus = 0, apexHits = 0, contacts = 0; // race money: +$ per apex clipped (contacts are only counted)
-  // Drift scoring: while the car is sideways (12-100° between where it points and where it's going)
-  // at speed on the tarmac, points flow in (angle x speed x combo). Keep a drift going and the combo
-  // climbs to x5; straighten up for more than DRIFT_GRACE s and the chain is banked. Hitting a wall or
-  // spinning out loses the chain.
-  let driftScore = 0, chain = 0, combo = 1, driftGrace = 0, driftAngle = 0;
-  const DRIFT_GRACE = 1.2;
-  function bankChain() { if (chain > 0) { driftScore += Math.round(chain); flash(`+${Math.round(chain)}`, 1); } chain = 0; combo = 1; }
-  const chainLost = { spin: 0, wall: 0 };
-  function loseChain(why = 'wall') { if (chain > 0) { flash('Chain lost!', 1.2); chainLost[why]++; } chain = 0; combo = 1; driftGrace = 0; }
-  function scoreDrift(dt, vf, vl, speed, onTarmac) {
-    driftAngle = vf > 0.5 ? Math.atan2(Math.abs(vl), vf) * 180 / Math.PI : vf < -0.5 ? 180 : 0;
-    if (time <= 0) return;
-    if (driftAngle > 110 && speed > 4) return loseChain('spin'); // spun
-    if (onTarmac && speed > 7 && driftAngle >= 12) {
-      chain += dt * Math.min(driftAngle, 70) * speed * combo;
-      combo = Math.min(5, combo + dt * 0.25);
-      driftGrace = DRIFT_GRACE;
-    } else if (chain > 0 && (driftGrace -= dt) <= 0) bankChain();
-  }
-
   // ---- apex markers (races): clip the inside of each apex for a bonus ----
-  // On a closed track each marker sits at its first pass after the start line and re-arms every lap.
-  const apexList = race ? apexesOf(road).map((a) => ({ ...a, s: laps && a.s < route.from + 5 ? a.s + road.length : a.s })) : [];
-  const apexMarks = race && !drift ? apexList.filter((a) => a.s > route.from + 5 && a.s < route.to - 5).map((a) => {
+  const apexMarks = race ? apexesOf(road).filter((a) => a.s > route.from + 5 && a.s < route.to - 5).map((a) => {
     const q = sampleAtS(a.s), lat = a.inside * (q.half - 0.9);
     const x = q.x + q.nx * lat, z = q.z + q.nz * lat;
     const g = new THREE.Group();
@@ -242,13 +216,6 @@ export function startDrive({ canvas, hud, car, perf, rivalBase, mode, event, dif
         flash(`APEX +$${APEX_BONUS}`, 0.9);
       } else if (P.sAbs - m.s > 6) {
         m.state = 'missed'; m.gem.visible = false; m.ring.material.opacity = 0.25; m.ring.material.color.set('#888');
-      }
-    }
-    // Next lap: markers behind you come back for another go.
-    if (laps) for (const m of apexMarks) {
-      if (m.state !== 'open' && P.sAbs - m.s > 40 && m.s + road.length < route.to - 5) {
-        m.s += road.length; m.state = 'open'; m.gem.visible = true;
-        m.gem.material.color.set('#ffd200'); m.ring.material.color.set('#ffd200'); m.ring.material.opacity = 0.8;
       }
     }
   }
@@ -347,8 +314,8 @@ export function startDrive({ canvas, hud, car, perf, rivalBase, mode, event, dif
   // `m` is always the main road (the course you're racing, or the home loop); `rd`/`n` is the road
   // you're actually on, which can be any road on the map.
   const home = (x, z) => net.home && inHome(x, z);
-  // Trees 4.5 m past the edge by default; a barrier (`wall`) or canyon wall can stand closer.
-  const limitOf = (n) => n.p.half + (n.p.wall ?? 5.45) - 0.95 - 2.9 * n.p.canyon;
+  // Trees 4.5 m past the edge; a canyon wall can stand closer.
+  const limitOf = (n) => n.p.half + 4.5 - 2.9 * n.p.canyon;
   const hints = new Map();
   function where(x, z) {
     const m = road.nearest(x, z, P.hint);
@@ -421,9 +388,7 @@ export function startDrive({ canvas, hud, car, perf, rivalBase, mode, event, dif
     const maxAngle = 0.6 / (1 + speed / 16);
     let yaw = (vf / WHEELBASE) * Math.tan(P.steer * maxAngle);
     let k = 1.25;
-    // Drift tires: the rear lets go much more readily on power (and AWD gets some slide too).
-    if (input.gas && spec.drive === 'RWD') k = spec.driftTires ? 2.1 : 1.6;
-    if (input.gas && spec.drive === 'AWD' && spec.driftTires) k = 1.6;
+    if (input.gas && spec.drive === 'RWD') k = 1.6;
     if (input.gas && spec.drive === 'FWD') k = 1.05;
     const yawCap = (spec.lat * surf.grip * k) / Math.max(Math.abs(vf), 4);
     yaw = clamp(yaw, -yawCap, yawCap);
@@ -434,17 +399,7 @@ export function startDrive({ canvas, hud, car, perf, rivalBase, mode, event, dif
       P.yr += (yaw * 1.3 + spin - P.yr) * Math.min(1, dt * 7);
     } else {
       // Grip returns: the car's rotation settles back to what the steering asks for.
-      // (On drift tires the rotation carries on longer, so a slide is easier to hold.)
-      P.yr += (yaw - P.yr) * Math.min(1, dt * (Math.abs(P.yr) > Math.abs(yaw) + 0.3 ? (spec.driftTires ? 2.2 : 3.5) : 25));
-    }
-    // Drift tires also catch a slide that's getting away from you (touch steering is all or nothing):
-    // past ~40° of angle, rotation further sideways is damped, so the car holds a big angle instead of
-    // spinning.
-    if (spec.driftTires && speed > 6) {
-      let a = P.h - Math.atan2(P.vz, P.vx);
-      while (a > Math.PI) a -= 2 * Math.PI;
-      while (a < -Math.PI) a += 2 * Math.PI;
-      if (Math.abs(a) > 0.7 && Math.abs(a) < 2 && Math.sign(P.yr) === Math.sign(a)) P.yr *= 1 - Math.min(1, dt * 6 * (Math.abs(a) - 0.6));
+      P.yr += (yaw - P.yr) * Math.min(1, dt * (Math.abs(P.yr) > Math.abs(yaw) + 0.3 ? 3.5 : 25));
     }
     P.h += P.yr * dt;
 
@@ -470,17 +425,13 @@ export function startDrive({ canvas, hud, car, perf, rivalBase, mode, event, dif
     if (time <= 0) vf = 0;
 
     // Lateral grip: what the tires can't cancel becomes a slide.
-    // Drift tires grip less once they're sliding, so the slide keeps going instead of snapping back,
-    // and the car scrubs less speed while it's sideways.
-    const slideGrip = spec.driftTires && Math.abs(vl) > 0.8 ? 0.9 : 1;
-    const cap = latCap * slideGrip * dt;
+    const cap = latCap * dt;
     P.drifting = (Math.abs(vl) > 1.3 && speed > 5) || (hb && speed > 4);
     if (Math.abs(vl) <= cap) vl = 0; else vl -= Math.sign(vl) * cap;
-    if (P.drifting) { vf -= vf * (spec.driftTires ? 0.05 : 0.1) * dt; wear.tires += (Math.abs(vl) + (hb ? 2 : 0)) * dt * 0.02; }
+    if (P.drifting) { vf -= vf * 0.1 * dt; wear.tires += (Math.abs(vl) + (hb ? 2 : 0)) * dt * 0.02; }
     wear.tires += speed * dt * 0.0004;
     if (!w0.asphalt && !atHome && speed > 3) wear.susp += dt * 0.6;
     P.slip = clamp(Math.abs(vl) / 6 + (hb && speed > 4 ? 0.5 : 0), 0, 1);
-    if (drift) scoreDrift(dt, vf, vl, speed, w0.asphalt);
 
     P.vx = fx * vf + rx * vl;
     P.vz = fz * vf + rz * vl;
@@ -503,8 +454,7 @@ export function startDrive({ canvas, hud, car, perf, rivalBase, mode, event, dif
       }
       if (into > 3 && hitCool <= 0) {
         wear.body += into * 0.5; wear.susp += into * 0.15;
-        flash(w1.pastEnd ? 'ROAD CLOSED' : w1.n.p.wall !== undefined ? 'Into the wall!' : w1.n.p.canyon > 0.5 ? 'Into the rock!' : 'Into the trees!', 0.8);
-        if (drift) loseChain();
+        flash(w1.pastEnd ? 'ROAD CLOSED' : w1.n.p.canyon > 0.5 ? 'Into the rock!' : 'Into the trees!', 0.8);
         sound.hit(into); hitCool = 0.5;
       }
     }
@@ -797,14 +747,9 @@ export function startDrive({ canvas, hud, car, perf, rivalBase, mode, event, dif
     if (race) {
       const my = progress();
       const all = [{ me: true, prog: my }, ...rivals.map((r) => ({ prog: r.sAbs - route.from }))].sort((a, b) => b.prog - a.prog);
-      $('[data-pos-label]').textContent = drift ? 'DRIFT SCORE' : 'POSITION';
-      $('[data-pos]').textContent = drift ? driftScore.toLocaleString() : all.findIndex((x) => x.me) + 1;
-      $('[data-pos-of]').textContent = drift ? '' : `/${all.length}`;
-      if (drift) {
-        $('[data-gap-label]').textContent = chain > 0 ? `CHAIN x${combo.toFixed(1)}` : 'BEST';
-        $('[data-gap]').textContent = chain > 0 ? `+${Math.round(chain).toLocaleString()}` : event.best ? event.best.toLocaleString() : '—';
-        $('[data-gap]').style.color = chain > 0 ? 'var(--good)' : '#fff';
-      } else if (rivals.length) {
+      $('[data-pos]').textContent = all.findIndex((x) => x.me) + 1;
+      $('[data-pos-of]').textContent = `/${all.length}`;
+      if (rivals.length) {
         $('[data-gap-label]').textContent = 'GAP';
         const gap = Math.max(...rivals.map((r) => r.sAbs - route.from)) - my;
         $('[data-gap]').textContent = gap > 0 ? `-${Math.round(gap)}m` : `+${Math.round(-gap)}m`;
@@ -815,8 +760,7 @@ export function startDrive({ canvas, hud, car, perf, rivalBase, mode, event, dif
         $('[data-gap]').style.color = '#fff';
       }
       $('[data-time]').textContent = time > 0 ? fmtTime(time) : '0:00.0';
-      const lap = laps ? `LAP ${Math.min(laps, Math.floor(Math.max(0, my) / road.length) + 1)}/${laps} · ` : '';
-      $('[data-togo]').textContent = `${lap}${Math.max(0, Math.round(route.to - route.from - my))} m to go\n${drift ? `${Math.round(driftAngle)}° sideways` : `${bonus < 0 ? '−' : '+'}$${Math.abs(bonus)} apex bonus`}`;
+      $('[data-togo]').textContent = `${Math.max(0, Math.round(route.to - route.from - my))} m to go\n${bonus < 0 ? '−' : '+'}$${Math.abs(bonus)} apex bonus`;
     }
     const msg = $('[data-msg]');
     if (race && time <= 0) msg.textContent = time < -2.2 ? '3' : time < -1.2 ? '2' : time < -0.2 ? '1' : 'GO!';
@@ -837,7 +781,7 @@ export function startDrive({ canvas, hud, car, perf, rivalBase, mode, event, dif
       stepPlayer(dt / 2); stepPlayer(dt / 2);
       stepRivals(dt);
       if (engineBlown) { blownT -= dt; if (blownT <= 0) finish(true); }
-      if (race && !done && progress() >= route.to - route.from) { place = 1 + rivals.filter((r) => r.finished).length; if (drift) bankChain(); finish(false); }
+      if (race && !done && progress() >= route.to - route.from) { place = 1 + rivals.filter((r) => r.finished).length; finish(false); }
     }
     if (done) return; // finished (or moved on to another road) during this frame
     updateSmoke(Math.min(0.05, realDt));
@@ -852,7 +796,7 @@ export function startDrive({ canvas, hud, car, perf, rivalBase, mode, event, dif
     done = true;
     cancelAnimationFrame(raf);
     cleanup();
-    onExit({ mode, dnf: race ? dnf : false, place: dnf ? null : place, time, engineBlown, wear, bonus, apexHits, apexTotal: apexMarks.length, contacts, driftScore });
+    onExit({ mode, dnf: race ? dnf : false, place: dnf ? null : place, time, engineBlown, wear, bonus, apexHits, apexTotal: apexMarks.length, contacts });
   }
 
   function cleanup() {
@@ -874,7 +818,7 @@ export function startDrive({ canvas, hud, car, perf, rivalBase, mode, event, dif
   }
 
   // Test/debug hook.
-  window.__kr = { time: () => time, drift: () => ({ driftScore, chain, combo, driftAngle, chainLost }), onRoad: () => { const w = where(P.x, P.z); return { id: w.rd.id, s: w.n.s, lat: w.lat, valid: w.valid }; }, smokeCount: () => smoke.filter((p) => p.m.visible).length, spinT: () => spinT, money: () => ({ bonus, apexHits, contacts }), apexMarks, player: P, rivals, input, spec, wear, race, route, road, net, bestLine: road.bestLine && getLine(road, net.id, 1), sampleAtS, progress };
+  window.__kr = { time: () => time, onRoad: () => { const w = where(P.x, P.z); return { id: w.rd.id, s: w.n.s, lat: w.lat, valid: w.valid }; }, smokeCount: () => smoke.filter((p) => p.m.visible).length, spinT: () => spinT, money: () => ({ bonus, apexHits, contacts }), apexMarks, player: P, rivals, input, spec, wear, race, route, road, net, bestLine: road.bestLine && getLine(road, net.id, 1), sampleAtS, progress };
   raf = requestAnimationFrame(loop);
 }
 

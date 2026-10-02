@@ -510,58 +510,8 @@ function connectorPts(E, S) {
   return pts;
 }
 
-// ---------- closed tracks ----------
-// Tsukuba Circuit: modelled on Tsukuba TC2000 (2,045 m, clockwise): the main straight, the fast 1st
-// corner, the S-curve, the 1st hairpin, the long Dunlop left under the footbridge, 80R, the 2nd
-// hairpin, the long back straight and the sweeping final corner (which closes the loop). 12 m wide
-// with kerbs, grass run-off and tyre walls.
-// Meihan Drift: in the style of Meihan Sportsland's drift courses: tight, hilly and lined with
-// concrete walls close to the edge, with two hairpins, a downhill esse and a long sweeper.
-// Per point: `apron` is flat ground past the edge (run-off), `wall` how far past the edge the
-// barrier stands.
-const CIRCUIT_DEFS = {
-  tsukuba: {
-    id: 'tsukuba', name: 'Tsukuba Circuit', half: 6, apron: 13, wall: 13, clear: 42, barrier: 'tyres', kerbs: true, startS: 210, style: 'track',
-    segs: [
-      { len: 325, grade: 0, name: 'Main straight' },
-      { r: 52, turn: 89, grade: -0.005, name: '1st corner' }, { len: 63, grade: -0.01 },
-      { r: 48, turn: -59, grade: -0.01, name: 'S-curve' }, { r: 55, turn: 40, grade: -0.01 }, { len: 87, grade: -0.005 },
-      { r: 15, turn: 132, grade: 0, name: 'Hairpin' }, { len: 106, grade: 0.015 },
-      { r: 53, turn: -189, grade: 0.02, mark: 'dunlop' }, { len: 39, grade: 0.01 },
-      { r: 76, turn: 71, grade: -0.005 }, { len: 100, grade: -0.01 },
-      { r: 13, turn: 124, grade: 0, name: 'Hairpin' }, { len: 394, grade: 0.004 },
-    ],
-  },
-  meihan: {
-    id: 'meihan', name: 'Meihan Drift', half: 4.6, apron: 0, wall: 2.2, clear: 4.5, barrier: 'concrete', startS: 40, hill: 2.6, style: 'drift',
-    segs: [
-      { len: 90, grade: 0 }, { r: 30, turn: 70, grade: 0.03 }, { len: 40, grade: 0.05 }, { r: 12, turn: 170, grade: 0.03, name: 'Hairpin' },
-      { len: 50, grade: -0.04 }, { r: 22, turn: -80, grade: -0.05 }, { r: 22, turn: 75, grade: -0.05 }, { len: 40, grade: -0.03 },
-      { r: 35, turn: 120, grade: 0 }, { len: 60, grade: 0.02 }, { r: 14, turn: -160, grade: 0.03, name: 'Hairpin' }, { len: 45, grade: 0 },
-      { r: 25, turn: 90, grade: -0.03 }, { r: 25, turn: -45, grade: -0.03 }, { len: 70, grade: -0.02 },
-    ],
-  },
-};
-function localCircuit(def) {
-  const marks = {};
-  const w = walk(def.segs.map((sg) => ({ ...sg, grade: sg.grade * (def.hill || 1) })), 0, 0, 0, 0, marks);
-  const closing = hermite({ x: w.x, z: w.z }, w.h, { x: 0, z: 0 }, 0);
-  closing.forEach((p, i) => { p.e = w.e * (1 - (i + 1) / (closing.length + 1)); });
-  const pts = [{ x: 0, z: 0, e: 0 }, ...w.pts, ...closing];
-  smoothElevation(pts, 15, true);
-  for (const p of pts) { p.half = def.half; p.canyon = 0; p.apron = def.apron; p.wall = def.wall; p.clear = def.clear; }
-  return { pts, segs: def.segs, marks: Object.fromEntries(Object.entries(marks).map(([k, i]) => [k, i + 1])) };
-}
-const LOCAL_LOOPS = Object.fromEntries(Object.entries(CIRCUIT_DEFS).map(([k, d]) => [k, localCircuit(d)]));
-// Move a closed track into the world so its point `j` sits at (x, z, e) heading h.
-function placeLoop(pts, j, { x, z, h, e }) {
-  const P = pts[j], n = pts[(j + 1) % pts.length], hj = Math.atan2(n.z - P.z, n.x - P.x);
-  const c = Math.cos(h - hj), sn = Math.sin(h - hj);
-  return pts.map((p) => ({ ...p, x: x + (p.x - P.x) * c - (p.z - P.z) * sn, z: z + (p.x - P.x) * sn + (p.z - P.z) * c, e: p.e - P.e + e }));
-}
-
 // Test hook for laying the courses out (scratch scripts).
-export const __layout = { LOCAL, LOCAL_LOOPS, placePts, placeLoop, connectorPts, makeRoad, BRANCH_STARTS, hermite };
+export const __layout = { LOCAL, placePts, connectorPts, makeRoad, BRANCH_STARTS, hermite };
 
 // Where a road leaves (or joins) another one at an angle, its mouth flares out like a real junction:
 // it widens over FLARE_LEN m from the other road's edge, and the renderer pins the flared edges onto
@@ -619,60 +569,129 @@ for (const st of BRANCH_STARTS) {
     hairpins: local.segs.filter((x) => x.name === 'Hairpin').length,
   };
 }
-// The closed tracks, placed off the home loop: the track's point `anchor` sits `d` m from the loop at
-// `at` (on the `side`, `a` degrees off square), heading `b` degrees off that line. Each has its own
-// access road from the loop (`conn`), meeting the track at point `join`, arriving `dh` degrees off the
-// track's direction (90 = a T-junction).
-const TRACK_PLACES = {
-  tsukuba: { anchor: 1223, at: 900, side: -1, a: 0, d: 300, b: -60, conn: { name: 'Circuit Road', at: 820, side: -1, join: 1260, dh: 90 } },
-  meihan: { anchor: 10, at: 2160, side: -1, a: -60, d: 250, b: 0, conn: { name: 'Drift Park Road', at: 2160, side: -1, join: 10, dh: 0 } },
-};
-const outFrom = (at, side) => { const j = ROAD.sampleAtS(at); return { j, h: Math.atan2(j.tz, j.tx) + side * (Math.PI / 2) * 0.85 }; };
-for (const [id, pl] of Object.entries(TRACK_PLACES)) {
-  const def = CIRCUIT_DEFS[id], local = LOCAL_LOOPS[id];
-  const { j, h } = outFrom(pl.at, pl.side);
-  const S = { x: j.x + Math.cos(h + pl.a * D2R) * pl.d, z: j.z + Math.sin(h + pl.a * D2R) * pl.d, h: h + pl.b * D2R, e: j.e };
-  const road = makeRoad(placeLoop(local.pts, pl.anchor, S), true);
-  road.bestLine = optimalOffsets(road);
-  Object.assign(road, { id, name: def.name, style: def.style, track: true, kerbs: !!def.kerbs, barrier: def.barrier, startS: def.startS });
-  if (local.marks.dunlop !== undefined) road.bridgeS = road.samples[local.marks.dunlop].s + 45;
-  // The access road.
-  const c = pl.conn, from = outFrom(c.at, c.side), P = road.samples[c.join];
-  const end = { x: P.x, z: P.z, h: Math.atan2(P.tz, P.tx) + c.dh * D2R, e: P.e };
-  const cp = [{ x: from.j.x, z: from.j.z, e: from.j.e }, ...connectorPts({ x: from.j.x, z: from.j.z, h: from.h, e: from.j.e }, end)];
-  smoothElevation(cp, 8, false);
-  smoothWidths(cp, CONNECTOR_HALF);
-  const conn = makeRoad(cp, false);
-  Object.assign(conn, { id: `${id}-road`, name: c.name, to: id, style: 'two', junctionS: c.at, joinedStart: true, joinedEnd: true });
-  flareMouths(conn, [{ road: ROAD, at: 'start' }, ...(c.dh ? [{ road, at: 'end' }] : [])]);
-  CONNECTORS.push(conn);
-  // An opening in the barrier wherever the access road crosses it.
-  road.wallGaps = [];
-  for (const side of [-1, 1]) {
-    const hit = road.samples.filter((p) => { const off = side * (p.half + p.wall), wx = p.x + p.nx * off, wz = p.z + p.nz * off; return conn.samples.some((q) => (q.x - wx) ** 2 + (q.z - wz) ** 2 < 9 * 9); }).map((p) => p.i);
-    if (!hit.length) continue;
-    // The hits form one run round the loop (it may wrap past point 0): find where it starts.
-    const N = road.samples.length;
-    hit.sort((a, b) => a - b);
-    let k0 = 0, big = -1;
-    hit.forEach((v, k) => { const gapTo = (hit[(k + 1) % hit.length] - v + N) % N; if (gapTo > big) { big = gapTo; k0 = (k + 1) % hit.length; } });
-    const i0 = hit[k0] - 2, i1 = hit[(k0 + hit.length - 1) % hit.length] + 2;
-    if (i0 <= i1) road.wallGaps.push({ side, i0, i1 });
-    else road.wallGaps.push({ side, i0, i1: N + 2 }, { side, i0: -2, i1 });
-  }
-  COURSE_ROADS[id] = road;
-  COURSES[id] = {
-    id, name: def.name, home: false, worldId: 'world', road, track: true,
-    lines: [def.startS], startS: def.startS, gateway: conn.id,
-    hairpins: local.segs.filter((x) => x.name === 'Hairpin').length,
-  };
-}
-
 // Keep the courses in the order of the Touge app.
-const ORDER = ['pass', 'ladder', 'canyon', 'yamabiko', 'tsukuba', 'meihan'];
+const ORDER = ['pass', 'ladder', 'canyon', 'yamabiko'];
 for (const k of ORDER) { const c = COURSES[k]; delete COURSES[k]; COURSES[k] = c; }
 
-export const ALL_ROADS = [ROAD, ...CONNECTORS, ...ORDER.map((k) => COURSE_ROADS[k])];
+// ---------- the ring road ----------
+// A big loop round the outside of the whole map, inside a tall rock wall. MAP RULE: every road on
+// the map lives inside the ring; new roads go inside it, never outside.
+// Its shape is a rounded rectangle (superellipse) RING_MARGIN m outside everything else, with long
+// flowing bends layered on; its height follows the land inside it, plus some rise and fall.
+const RING_MARGIN = 330;
+function buildRing(inner) {
+  const all = inner.flatMap((r) => r.samples);
+  let x0 = Infinity, x1 = -Infinity, z0 = Infinity, z1 = -Infinity;
+  for (const p of all) { x0 = Math.min(x0, p.x); x1 = Math.max(x1, p.x); z0 = Math.min(z0, p.z); z1 = Math.max(z1, p.z); }
+  const cx = (x0 + x1) / 2, cz = (z0 + z1) / 2, ax = (x1 - x0) / 2 + RING_MARGIN, az = (z1 - z0) / 2 + RING_MARGIN;
+  const raw = [];
+  const M = 6000, n = 4;
+  for (let i = 0; i < M; i++) {
+    const t = (i / M) * Math.PI * 2, c = Math.cos(t), sn = Math.sin(t);
+    const bx = Math.sign(c) * Math.abs(c) ** (2 / n) * ax, bz = Math.sign(sn) * Math.abs(sn) ** (2 / n) * az;
+    // Bends: pushed in and out along the direction from the centre.
+    const w = 60 + 70 * Math.sin(9 * t + 1) + 35 * Math.sin(23 * t + 2) + 16 * Math.sin(47 * t + 0.5);
+    const L = Math.hypot(bx, bz) || 1;
+    raw.push({ x: cx + bx + (bx / L) * w, z: cz + bz + (bz / L) * w });
+  }
+  // Even spacing, then smoothed (moving average round the loop) so no bend is tighter than intended.
+  let pts = resample([...raw, raw[0]]).slice(0, -1);
+  for (let pass = 0; pass < 3; pass++) {
+    const N0 = pts.length, W = 30;
+    pts = pts.map((_, i) => { let x = 0, z = 0; for (let k = -W; k <= W; k++) { const q = pts[(i + k + N0) % N0]; x += q.x; z += q.z; } return { x: x / (2 * W + 1), z: z / (2 * W + 1) }; });
+  }
+  pts = resample([...pts, pts[0]]).slice(0, -1);
+  // Height: what the land inside is doing nearby (an inverse-distance blend of the inner roads), smoothed
+  // out a lot, plus long rises and dips.
+  const coarse = all.filter((_, i) => i % 9 === 0), N = pts.length;
+  const base = [];
+  for (let i = 0; i < N; i += 25) {
+    const p = pts[i]; let ws = 0, es = 0;
+    for (const q of coarse) { const w = 1 / ((q.x - p.x) ** 2 + (q.z - p.z) ** 2 + 1e4) ** 1.5; ws += w; es += w * q.e; }
+    base.push(es / ws);
+  }
+  pts.forEach((p, i) => {
+    const k = i / 25, a = Math.floor(k), f = k - a, b0 = base[a % base.length], b1 = base[(a + 1) % base.length];
+    const t = (i / N) * Math.PI * 2;
+    p.e = b0 + (b1 - b0) * f + 22 * Math.sin(5 * t + 0.7) + 9 * Math.sin(13 * t + 2.1);
+    p.half = ROAD_HALF; p.canyon = 0;
+  });
+  smoothElevation(pts, 120, true);
+  smoothElevation(pts, 40, true);
+  const road = makeRoad(pts, true);
+  Object.assign(road, { id: 'ring', name: 'Ring Road', style: 'two', center: { x: cx, z: cz } });
+  // Which way is outward at each point (towards the wall).
+  for (const p of road.samples) p.out = Math.sign((p.x - cx) * p.nx + (p.z - cz) * p.nz) || 1;
+  return road;
+}
+export const RING = buildRing([ROAD, ...CONNECTORS, ...Object.values(COURSE_ROADS)]);
+
+// Links out to the ring: from the home loop, and on from the far end of each course that runs out
+// towards the edge. Each one meets the ring at a T-junction, at the nearby point that gives the
+// shortest smooth road clear of every other road.
+const RING_LINKS = [
+  { id: 'ring-west', name: 'Ring Road West', from: { loop: 820, side: -1 } },
+  { id: 'ring-north', name: 'Pass Ring Link', from: { course: 'pass' } },
+  { id: 'ring-yamabiko', name: 'Yamabiko Ring Link', from: { course: 'yamabiko' } },
+  { id: 'ring-east', name: 'Canyon Ring Link', from: { course: 'canyon' } },
+];
+function buildRingLinks() {
+  const others = [ROAD, ...CONNECTORS, ...Object.values(COURSE_ROADS)];
+  const CELL = 40, grid = new Map(), key = (x, z) => `${Math.floor(x / CELL)},${Math.floor(z / CELL)}`;
+  for (const r of others) r.samples.forEach((p, i) => { if (i % 3) return; const k = key(p.x, p.z); if (!grid.has(k)) grid.set(k, []); grid.get(k).push({ p, r }); });
+  const clearOf = (pts, skip) => {
+    for (let i = 0; i < pts.length; i += 3) {
+      const q = pts[i], cxk = Math.floor(q.x / CELL), czk = Math.floor(q.z / CELL);
+      for (let a = -1; a <= 1; a++) for (let b = -1; b <= 1; b++) for (const o of grid.get(`${cxk + a},${czk + b}`) || []) {
+        if (skip(o, i)) continue;
+        if ((o.p.x - q.x) ** 2 + (o.p.z - q.z) ** 2 < 40 * 40) return false;
+      }
+    }
+    return true;
+  };
+  const minR = (pts) => { let mr = Infinity; for (let i = 5; i < pts.length - 5; i++) { const a = pts[i - 5], b = pts[i], c = pts[i + 5]; let d = Math.atan2(c.z - b.z, c.x - b.x) - Math.atan2(b.z - a.z, b.x - a.x); while (d > Math.PI) d -= 2 * Math.PI; while (d < -Math.PI) d += 2 * Math.PI; mr = Math.min(mr, 10 / Math.max(1e-6, Math.abs(d))); } return mr; };
+  const links = [];
+  for (const L of RING_LINKS) {
+    let start, startRoad, startHalf;
+    if (L.from.loop !== undefined) {
+      const j = ROAD.sampleAtS(L.from.loop);
+      start = { x: j.x, z: j.z, e: j.e, h: Math.atan2(j.tz, j.tx) + L.from.side * (Math.PI / 2) * 0.85 };
+      startRoad = ROAD; startHalf = CONNECTOR_HALF;
+    } else {
+      const c = COURSE_ROADS[L.from.course], e = c.samples[c.samples.length - 1];
+      start = { x: e.x, z: e.z, e: e.e, h: Math.atan2(e.tz, e.tx) };
+      startRoad = c; startHalf = e.half;
+    }
+    let best = null;
+    for (let i = 0; i < RING.samples.length; i += 15) {
+      const P = RING.samples[i], d = Math.hypot(P.x - start.x, P.z - start.z);
+      if (d > 1300 || d < 120) continue;
+      const end = { x: P.x, z: P.z, h: Math.atan2(P.nz * P.out, P.nx * P.out) };
+      const mid = hermite(start, start.h, end, end.h);
+      if (mid.length > (best ? best.pts.length : Infinity)) continue;
+      if (Math.abs(P.e - start.e) / mid.length > 0.08) continue;
+      if (minR([start, ...mid, end]) < 45) continue;
+      if (!clearOf(mid, (o, k) => (o.r === startRoad && k < 40))) continue;
+      best = { pts: mid, P, end };
+    }
+    if (!best) continue; // (no clean route from here)
+    const cp = [{ x: start.x, z: start.z, e: start.e }, ...best.pts];
+    cp.forEach((p, i) => { const f = (i + 1) / (cp.length + 1); p.e = start.e + (best.P.e - start.e) * f; p.half = startHalf + (CONNECTOR_HALF - startHalf) * Math.min(1, i / 40); p.canyon = 0; });
+    smoothElevation(cp, 8, false);
+    const link = makeRoad(cp, false);
+    Object.assign(link, { id: L.id, name: L.name, style: 'two', joinedStart: true, joinedEnd: true, link: true });
+    if (L.from.loop !== undefined) { link.junctionS = L.from.loop; flareMouths(link, [{ road: ROAD, at: 'start' }, { road: RING, at: 'end' }]); }
+    else {
+      flareMouths(link, [{ road: RING, at: 'end' }]);
+      startRoad.joinedEnd = true; startRoad.closedEnd = false; // the course carries on to the ring
+    }
+    links.push(link);
+  }
+  return links;
+}
+const LINKS = buildRingLinks();
+
+export const ALL_ROADS = [ROAD, ...CONNECTORS, ...ORDER.map((k) => COURSE_ROADS[k]), RING, ...LINKS];
 for (const r of ALL_ROADS) {
   let x0 = Infinity, x1 = -Infinity, z0 = Infinity, z1 = -Infinity;
   for (const p of r.samples) { x0 = Math.min(x0, p.x); x1 = Math.max(x1, p.x); z0 = Math.min(z0, p.z); z1 = Math.max(z1, p.z); }

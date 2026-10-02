@@ -23,7 +23,11 @@ You start at **your cabin, deep in the forest**, shown top-down. It has a carpor
 - **Tap the cabin** to sleep until tomorrow, which brings new listings.
 - **📱 Phone** pulls out your phone. **▾ Put away** puts it back.
 
-**The home road** is a 2.7 km touge loop around the mountain in front of the cabin, for free driving. It has 7 hairpins, a ridge over the summit and no guardrails (run wide and you're in the dirt, then the trees), with four side roads. **Everything is one connected map:** each side road is a real road out to a race course, passing under a wooden arch with the course's name and running straight onto the course's start line. Free drive any course from end to end; the far end of each course is closed off, so turn around and drive back. The minimap shows the roads around you.
+**The home road** is a 2.7 km touge loop around the mountain in front of the cabin, for free driving. It has 7 hairpins, a ridge over the summit and no guardrails (run wide and you're in the dirt, then the trees), with four side roads. **Everything is one connected map:** each side road is a real road out to a race course, passing under a wooden arch with the course's name and running straight onto the course's start line. Free drive any course from end to end. The minimap shows the roads around you.
+
+**The Ring Road** runs right round the outside of the map: 18.4 km of two-lane road with long flowing bends, rising and falling with the land, about 10 minutes all the way round. Just outside it stands a tall rock wall, up to about 140 m of cliffs and ledges, with four big waterfalls pouring down it into pools beside the road. Eleven log cabins sit back from the road, and the forest is thick all the way round. The Ring Road West link joins it from the home loop. The far ends of the Pass, Yamabiko and Kuroiwa Canyon carry straight on into links to the ring, so they're no longer dead ends (the Ladder's end is still closed).
+
+**Map rule:** every road on the map lives inside the Ring Road. New roads always go inside it.
 
 | Side road | Leads to |
 |---|---|
@@ -31,8 +35,7 @@ You start at **your cabin, deep in the forest**, shown top-down. It has a carpor
 | Cliff Road | Switchback Ladder |
 | Road to Town | Kuroiwa Canyon |
 | Old Logging Road | Yamabiko Mountain Road |
-| Circuit Road | Tsukuba Circuit (meets the back straight) |
-| Drift Park Road | Meihan Drift |
+| Ring Road West | the Ring Road |
 
 **Race courses** (from the phone's Touge app). Each one is different:
 - **Kansei Pass** (about 1:45): ultra-winding downhill. It's 1.7 km of hairpins, sharp esses and square 90s with almost no straight road, and the corners are tight enough that passing is hard.
@@ -42,16 +45,10 @@ You start at **your cabin, deep in the forest**, shown top-down. It has a carpor
 
 The two long courses pay **double** purses.
 
-**Tracks:**
-- **Tsukuba Circuit** (3 laps, about 1:10 a lap in an E30): modelled on Tsukuba TC2000, 2.04 km clockwise. The main straight, the fast 1st corner, the S-curve, the 1st hairpin, the long Dunlop left under the yellow footbridge, 80R, the 2nd hairpin, the long back straight and the sweeping final corner. 12 m wide, with red and white kerbs, wide grass run-off, tyre walls, a pit building and a grandstand. Races pay **1.5×**; the Hot Lap is one lap from a standing start.
-- **Meihan Drift** (in the style of Meihan Sportsland): a tight, hilly 1 km drift park with concrete walls right at the edge, two hairpins, a downhill esse and a long sweeper. **Drift Attack** instead of a race: 2 laps, no rivals, scored on drifting.
-
-**Drift scoring:** while the car is 12° to 100° sideways at speed on the tarmac, points flow in (angle × speed × combo). Linked drifts build the combo up to ×5; straighten up for more than 1.2 s and the chain is banked. Touch a wall or spin out and you lose the chain. Drift Attack pays $250 / $500 / $1,000 / $2,000 at 3,000 / 8,000 / 15,000 / 24,000 points, plus $500 for a new personal best. Clean grip driving scores about 2,500; a rough drifting bot scores about 13,000.
 
 **The loop:**
 1. **Marketplace:** 6–10 used cars under $5k each day, all real cars: **1980 Volvo 242, Mercedes-Benz 190E 2.3, 1987 BMW 325i (E30), Toyota Supra Turbo (Mk3), Nissan 180SX, Nissan Skyline GTS-t (R32) and 1999 Honda Civic Si hatch (FWD)**. Each has its real factory specs, and a model built from its real dimensions (length, width, height, wheelbase, overhangs, track, tire size and pillar positions). The pricier ones only show up in your budget as project cars. Each listing shows a price, factory specs (hp, handling, weight) and condition. Striped `??` bars are hidden problems, so tap **Inspect ($80)** before you buy.
 2. **Parts Shop:** buy parts for anything marked ⚠️, plus performance mods. They go in your trunk.
-   - **Drift Tires** ($700, one set): a slide is easier to start and hold. Power oversteer comes on readily, rotation carries on longer, less speed is scrubbed while sideways, and past about 40° of angle the slide is caught instead of spinning (helpful with all-or-nothing touch steering). They cost 8% outright grip, so once you own a set you can swap between drift and street tires for free in the Garage.
 3. **Garage:** tap **Install** / **Install all**. Each car also has a **paint shop**: respray the body or refinish the wheels, $100 per change.
 4. **Touge app:** pick a course and a difficulty: **Easy, Medium, Hard or Impossible**. Every race is free to enter and every difficulty is always open. Winning pays **$750 / $1,500 / $3,000 / $5,000** (Easy to Impossible; double on Kuroiwa Canyon and Yamabiko) and 2nd pays a fifth of that, on top of apex bonuses. Your best time for each shows on its button.
 5. **Hot Lap:** each course also has a free Hot Lap with no rivals. The tiers ($250 / $500 / $1,000 / $2,000) are:
@@ -62,7 +59,6 @@ The two long courses pay **double** purses.
 | Switchback Ladder | 1:52 | 1:44 | 1:39 | 1:35 |
 | Kuroiwa Canyon | 4:07 | 3:50 | 3:39 | 3:29 |
 | Yamabiko | 4:18 | 4:00 | 3:48 | 3:37 |
-| Tsukuba Circuit (1 lap) | 1:11 | 1:06 | 1:03 | 1:00 |
  You get the best tier you beat, plus **$500 every time you beat your own hot-lap record**. Apex markers still pay.
 6. **Rivals are always fair.** They drive a car with **exactly your car's numbers** (power-to-weight, grip, brakes). Difficulty only changes how well they drive:
    - **Easy** rivals mostly keep to their lane, brake early and make mistakes, so the other lane is open to pass.
@@ -106,13 +102,13 @@ python3 -m http.server 8000
 | File | What's in it | Add… |
 |---|---|---|
 | `js/data.js` | Content and balance numbers | **Cars** → `MODELS` (real specs and paint colors), **repair parts** → `COMPONENTS`, **mods** → `UPGRADES`, **races** → `RACES` and `DIFFICULTIES` |
-| `js/road.js` | The map: the home loop, the roads out to the courses, the race courses (`COURSES`) placed around it, road width and canyon sections per point, and racing lines | Reshape roads, move or add a course |
+| `js/road.js` | The map: the home loop, the roads out to the courses, the race courses (`COURSES`) placed around it, the Ring Road (`RING`) and its links, road width and canyon sections per point, and racing lines | Reshape roads, move or add a course (inside the ring) |
 | `js/state.js` | Game state, save/load, car generation, pricing, performance math | New stats or economy rules |
 | `js/drive.js` | Driving and racing: physics, rival AI, chase camera, HUD and tachometer, controls, wear | Race and driving mechanics |
 | `js/ps1.js` | The PlayStation-style renderer: low-res buffer, dithering, vertex snapping, affine textures | Tweak the retro look (`lines`, dithering) |
 | `js/textures.js` | Pixel-art textures drawn in code (road, grass, rock, trees, sky, cabin, car details) | New textures |
 | `js/carmodel.js` | Low-poly models of the real cars (`CARS`: real dimensions, profile, grille, lights, taillights, bumpers, wheels), glossy paint | New car models |
-| `js/world3d.js` | The one 3D world for the whole map: roads, canyon walls, arches, sky, cabin, lighting, skid marks, and the ground, sprite forest and boulders, which are streamed in 320 m tiles as the camera gets near | Scenery and props |
+| `js/world3d.js` | The one 3D world for the whole map: roads, canyon walls, arches, the rock wall round the ring with its waterfalls and cabins, sky, cabin, lighting, skid marks, and the ground, sprite forest and boulders, which are streamed in 320 m tiles as the camera gets near | Scenery and props |
 | `js/homeview.js` | The 3D home screen: cabin from above, parked cars, traffic, Select buttons, taps | Home screen behavior |
 | `js/turntable.js` | The garage turntable | |
 | `js/map.js` | Home layout (`HOME`) and parking spots (`PARKING`) | Move things at the cabin, more parking |

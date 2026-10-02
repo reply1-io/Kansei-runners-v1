@@ -52,9 +52,6 @@ export const UPGRADES = [
   { id: 'coilovers',name:'Coilovers',        desc: '+5% grip, sharper turn-in', max: 2, cost: [1200, 2600] },
   { id: 'bbk',     name: 'Big Brake Kit',    desc: '+20% braking per level',    max: 2, cost: [900, 2000] },
   { id: 'weight',  name: 'Weight Reduction', desc: '-5% weight per level',      max: 3, cost: [500, 1300, 3000] },
-  // Drift tires: hard compound that lets go progressively and holds a slide. Swap them on or off in
-  // the Garage once you own a set (on, they cost a little outright grip).
-  { id: 'drift',   name: 'Drift Tires',      desc: 'Easier to slide and hold a drift; -8% grip when fitted. Swap on/off in the Garage', max: 1, cost: [700] },
 ];
 
 export const SELLERS = [
@@ -81,9 +78,8 @@ export const PAINT_COLORS = ['#f2f2ee', '#141414', '#b3231e', '#e8a317', '#1f4fa
 export const WHEEL_COLORS = [['Silver', '#d8dbe0'], ['Gunmetal', '#5a6068'], ['Black', '#2a2a2a'], ['Gold', '#d4a640'], ['Bronze', '#9c6b3c'], ['White', '#ffffff']];
 export const COLORS = ['#e8e8e8', '#d63031', '#0984e3', '#2d3436', '#fdcb6e', '#00b894', '#6c5ce7', '#e17055', '#b2bec3', '#fab1a0'];
 
-// Race courses (geometry in js/road.js): two short touge courses (~2 minutes), two long ones (4-5
-// minutes, paying double: `purseScale`), a circuit (`laps`), each at four difficulties; and a drift
-// park (`mode: 'drift'`), scored on drifting and paid by score (`drift`: [score, reward] tiers).
+// Race courses (geometry in js/road.js): two short touge courses (~2 minutes) and two long ones (4-5
+// minutes, paying double: `purseScale`), each at four difficulties.
 // Rivals ALWAYS drive a car with exactly your car's numbers (power-to-weight, grip, brakes), so it's
 // always fair. Difficulty only changes how well they drive:
 //   line:    how close to the ideal racing line they drive (0 = keeps to one lane, 1 = perfect line
@@ -111,13 +107,6 @@ export const RACES = [
     desc: 'A narrow back road that climbs and drops over the mountains: tight esses, hairpins and blind crests for five minutes straight.',
     hotlap: [[258, 250], [240, 500], [228, 1000], [217, 2000]],
     levels: { easy: { commit: 1.16, brake: 1.35 }, medium: { commit: 1.33, brake: 1.6 }, hard: { commit: 1.47, brake: 1.85 }, impossible: { commit: 1.72, brake: 2.2 } } },
-  { id: 'tsukuba', course: 'tsukuba', name: 'Tsukuba Circuit', style: 'Circuit race · 3 laps', laps: 3, purseScale: 1.5,
-    desc: 'A proper racetrack, modelled on Tsukuba TC2000: the main straight, the 1st corner, the S-curve, two hairpins, the long Dunlop left under the footbridge, 80R, the back straight and the fast final corner. Wide, with kerbs and run-off.',
-    hotlap: [[71, 250], [66, 500], [63, 1000], [60, 2000]],
-    levels: { easy: { commit: 1.12, brake: 1.3 }, medium: { commit: 1.38, brake: 1.7 }, hard: { commit: 1.6, brake: 2.08 }, impossible: { commit: 1.95, brake: 2.6 } } },
-  { id: 'meihan', course: 'meihan', name: 'Meihan Drift', style: 'Drift attack · 2 laps', mode: 'drift', laps: 2,
-    desc: 'A tight, hilly drift park in the style of Meihan Sportsland, with concrete walls right at the edge. No rivals: get sideways and stay sideways. Points for angle and speed; link drifts to build the combo up to x5. Touch a wall or spin and you lose the chain.',
-    drift: [[3000, 250], [8000, 500], [15000, 1000], [24000, 2000]] },
 ];
 
 // Hot lap: no rivals, just you against the clock. Each race's `hotlap` lists [time in seconds, reward]:

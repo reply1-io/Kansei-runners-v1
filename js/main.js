@@ -4,7 +4,7 @@ import { COMPONENTS, UPGRADES, RACES, DIFFICULTIES, INSPECTION_COST, PROBLEM_THR
 import {
   state, load, save, resetGame, refreshListings, addLog, carName, modelOf, carValue,
   repairCost, upgradeCost, repair, performance, factorySpecs, canRun, applyWear, activeCar,
-  spend, earn, nextDay, money, clamp, uid, hasDriftTires,
+  spend, earn, nextDay, money, clamp, uid,
 } from './state.js';
 import { startDrive, fmtTime } from './drive.js';
 import { PARKING, parkingAssignments } from './map.js';
@@ -225,15 +225,6 @@ function installList(car) {
   </div>`;
 }
 
-// Once a car has a set of drift tires, swap between them and its street tires (free).
-function tireSwap(car) {
-  if (!(car.upgrades.drift > 0)) return '';
-  const on = hasDriftTires(car);
-  return `<div class="list-item"><div class="grow"><div class="title">🌀 Tires: ${on ? 'Drift' : 'Street'}</div>
-      <div class="sub">${on ? 'Slides easily and holds a drift. A little less grip for racing.' : 'Full grip. Drift tires are in the trunk.'}</div></div>
-    <button class="btn" data-action="tires" data-arg="${car.id}">Fit ${on ? 'street' : 'drift'} tires</button></div>`;
-}
-
 // Paint shop inside each garage card: body colour and wheel finish, PAINT_COST each.
 function paintPanel(car) {
   const body = [...new Set([...(modelOf(car).colors || []), ...PAINT_COLORS])];
@@ -256,7 +247,6 @@ function renderGarage() {
         ${clsBadge(perf)}</div>
       ${dead ? `<div class="small" style="color:var(--bad);margin-top:8px">🚫 ${dead}</div>` : ''}
       ${installList(car)}
-      ${tireSwap(car)}
       ${paintPanel(car)}
       ${statGrid(perf)}
       ${bars(car)}
@@ -272,19 +262,7 @@ function renderRaces() {
   const perf = car && performance(car);
   const cards = RACES.map((race) => {
     const c = COURSES[race.course];
-    const info = c.track ? `${(c.road.length / 1000).toFixed(2)} km lap${race.laps ? ` · ${race.laps} laps` : ''}` : `${(c.road.length / 1000).toFixed(1)} km · ${c.hairpins} hairpins`;
-    if (race.mode === 'drift') {
-      const best = state.records[`${race.id}:drift`];
-      const tiers = race.drift.map(([sc, r]) => `${sc.toLocaleString()} → ${money(r)}`).join(' · ');
-      return `<div class="card">
-      <div class="row between"><h2>${race.name}</h2><span class="small muted">${info}</span></div>
-      <div class="small muted">${race.style}</div>
-      <div class="notes">${race.desc}</div>
-      <div class="diffs"><button class="diff diff-hotlap" data-action="race" data-arg="${race.id}:drift" ${!car ? 'disabled' : ''}>
-        <b>🌀 Drift Attack</b><span>Free · up to ${money(race.drift[race.drift.length - 1][1])}</span><small>${best ? `🏆 ${best.toLocaleString()} pts` : '&nbsp;'}</small></button></div>
-      <div class="small muted" style="margin-top:6px">Score pays: ${tiers} · +${money(HOTLAP_RECORD_BONUS)} for a new record</div>
-    </div>`;
-    }
+    const info = `${(c.road.length / 1000).toFixed(1)} km · ${c.hairpins} hairpins`;
     const diffs = Object.entries(DIFFICULTIES).map(([key, d]) => {
       const best = state.records[`${race.id}:${key}`];
       return `<button class="diff diff-${key}" data-action="race" data-arg="${race.id}:${key}" ${!car ? 'disabled' : ''}>
@@ -340,7 +318,6 @@ function renderMsgs() {
     ['Kenji', 'Buy parts for anything marked ⚠️ in the Parts Shop, then install them in the Garage before you run it hard. A bad engine WILL let go.'],
     ['Kenji', 'Tap Select next to a car to get in and take it up the mountain. Learn the hairpins before you race anyone.'],
     ['Kenji', 'Four roads to race: Kansei Pass (all corners), the Switchback Ladder (straights and hairpins), Kuroiwa Canyon (wide and fast, through the rock) and Yamabiko (five minutes of narrow mountain road). Everyone runs the same numbers as you, so start on Easy and learn the lines.'],
-    ['Kenji', 'There\'s a real racetrack out west now, Tsukuba Circuit, and a drift park east of the loop. Drift park pays for style, not speed.'],
     ['Kenji', 'Every side road off the loop runs out to one of them. Follow it under the arch and you\'re on the course. Best way to learn a course for free.'],
   ];
   if (car && Object.keys(car.problems).length) msgs.push(['Kenji', `That ${modelOf(car).name}... you gonna fix it or just pray?`]);
@@ -530,14 +507,6 @@ const ACTIONS = {
     save(); render.keepScroll = true; render();
   },
 
-  tires: (carId) => {
-    const car = state.cars.find((c) => c.id === carId);
-    if (!car) return;
-    car.driftOff = hasDriftTires(car);
-    toast(hasDriftTires(car) ? 'Drift tires on' : 'Street tires on');
-    save(); render.keepScroll = true; render();
-  },
-
   installall: (carId) => {
     const items = state.inventory.filter((p) => p.carId === carId);
     items.forEach((it) => installItem(it.id));
@@ -564,7 +533,6 @@ const ACTIONS = {
     const [raceId, diffKey] = arg.split(':');
     const race = RACES.find((r) => r.id === raceId);
     if (diffKey === 'hotlap') return startHotLap(race);
-    if (diffKey === 'drift') return startDrift(race);
     const diff = { ...DIFFICULTIES[diffKey], ...race.levels[diffKey] };
     const ev = { ...race, key: `${raceId}:${diffKey}`, diffLabel: diff.label, purse: diff.purse.map((v) => v * (race.purseScale || 1)), rivals: diff.rivals };
     const car = activeCar();
@@ -636,7 +604,6 @@ function installItem(itemId) {
     return fixed ? `Fixed: ${fixed}` : `${name} is like new`;
   }
   car.upgrades[it.target] = Math.max(car.upgrades[it.target] || 0, it.level);
-  if (it.target === 'drift') car.driftOff = false;
   const u = UPGRADES.find((x) => x.id === it.target);
   addLog(`Installed ${u.name} L${it.level} on ${carName(car)}`);
   return `${u.name} installed!`;
@@ -652,31 +619,15 @@ function parkedInMeters() {
 }
 
 // Hot lap: just you and the clock. Free to enter.
-// Drift attack: no rivals, scored on drifting, paid by score. Free to enter.
-async function startDrift(race) {
-  const car = activeCar();
-  if (!car) return;
-  const dead = canRun(car);
-  if (dead) return modal(`<h2>Not happening</h2><p>${dead}</p>`);
-  const key = `${race.id}:drift`;
-  const ev = { ...race, key, diffLabel: 'Drift Attack', purse: [], rivals: [], isDrift: true, best: state.records[key] };
-  const tiers = race.drift.map(([sc, r]) => `<li>${sc.toLocaleString()} pts → <b>${money(r)}</b></li>`).join('');
-  const ok = await confirmBox(`<h2>${ev.name} · 🌀 Drift Attack</h2><p>${race.laps} laps, no rivals. Get sideways: points for angle × speed, and linked drifts build a combo up to x5. Walls and spins cost you the chain. Free to enter.</p>
-    <ul class="tiers">${tiers}<li>New personal best → <b>+${money(HOTLAP_RECORD_BONUS)}</b></li></ul>
-    <p class="small muted">${ev.best ? `Your best: ${ev.best.toLocaleString()} pts` : 'No score yet.'} Tip: lift and pull the handbrake to start a slide, then catch it with steering and gas.</p>`, 'Go!');
-  if (!ok) return;
-  runDrive('race', car, ev, { label: 'Drift Attack', rivals: [], line: 1, mistakeEvery: 1e9, commit: 1, brake: 1 });
-}
-
 async function startHotLap(race) {
   const car = activeCar();
   if (!car) return;
   const dead = canRun(car);
   if (dead) return modal(`<h2>Not happening</h2><p>${dead}</p>`);
   const key = `${race.id}:hotlap`;
-  const ev = { ...race, key, diffLabel: 'Hot Lap', purse: [], rivals: [], isHotLap: true, best: state.records[key], laps: race.laps ? 1 : undefined };
+  const ev = { ...race, key, diffLabel: 'Hot Lap', purse: [], rivals: [], isHotLap: true, best: state.records[key] };
   const tiers = race.hotlap.map(([t, r]) => `<li>Under ${fmtTime(t)} → <b>${money(r)}</b></li>`).join('');
-  const ok = await confirmBox(`<h2>${ev.name} · ⏱ Hot Lap</h2><p>No rivals: just you against the clock${ev.laps ? ', one lap from a standing start' : ''}. Free to enter.</p>
+  const ok = await confirmBox(`<h2>${ev.name} · ⏱ Hot Lap</h2><p>No rivals: just you against the clock. Free to enter.</p>
     <ul class="tiers">${tiers}<li>New personal record → <b>+${money(HOTLAP_RECORD_BONUS)}</b></li></ul>
     <p class="small muted">${ev.best ? `Your record: ${fmtTime(ev.best)}` : 'No record yet.'} Apex markers still pay +$50.</p>`, 'Go!');
   if (!ok) return;
@@ -758,12 +709,6 @@ async function finishRace(car, ev, res) {
   let lapReward = 0, recordBonus = 0;
   if (res.dnf) {
     title = res.engineBlown ? '💥 DNF — Engine' : 'DNF';
-  } else if (ev.isDrift) {
-    title = '🌀 Drift Attack';
-    for (const [sc, r] of ev.drift) if (res.driftScore >= sc) lapReward = r;
-    const prev = state.records[ev.key];
-    if (prev && res.driftScore > prev) recordBonus = HOTLAP_RECORD_BONUS;
-    payout = lapReward + recordBonus;
   } else if (ev.isHotLap) {
     title = '⏱ Hot Lap';
     for (const [t, r] of ev.hotlap) if (res.time < t) lapReward = r;
@@ -775,21 +720,20 @@ async function finishRace(car, ev, res) {
     title = ['', '🥇 1st', '🥈 2nd', '🥉 3rd'][res.place];
     if (res.place === 1) state.stats.wins += 1;
   }
-  // Best time (or, for drifting, best score) for this event.
   const prevBest = state.records[ev.key];
-  const newBest = !res.dnf && (ev.isDrift ? res.driftScore > (prevBest || 0) : !prevBest || res.time < prevBest);
-  if (newBest) state.records[ev.key] = ev.isDrift ? res.driftScore : res.time;
+  const newBest = !res.dnf && (!prevBest || res.time < prevBest);
+  if (newBest) state.records[ev.key] = res.time;
   if (payout) earn(payout);
   // Apex bonuses and contact fines from the race itself.
   const bonus = res.bonus || 0;
   if (bonus > 0) earn(bonus); else if (bonus < 0) spend(-bonus);
-  addLog(`${ev.name} (${ev.diffLabel}): ${res.dnf ? 'DNF' : ev.isDrift ? `${res.driftScore.toLocaleString()} pts` : `P${res.place}`}${payout ? ` (+${money(payout)})` : ''}`);
+  addLog(`${ev.name} (${ev.diffLabel}): ${res.dnf ? 'DNF' : `P${res.place}`}${payout ? ` (+${money(payout)})` : ''}`);
   nextDay();
   save();
 
   await modal(`<div class="result-place">${title}</div>
-    <p style="text-align:center" class="muted">${ev.name} · ${ev.diffLabel}${res.dnf ? '' : ` · ${ev.isDrift ? `${res.driftScore.toLocaleString()} pts` : fmtTime(res.time)}${newBest ? ' · 🏁 new best' : ''}`}</p>
-    <div class="stats"><div class="stat"><b style="color:var(--good)">${money(payout)}</b><small>${ev.isDrift ? `Score ${money(lapReward)}${recordBonus ? ` + record ${money(recordBonus)}` : ''}` : ev.isHotLap ? `Lap ${money(lapReward)}${recordBonus ? ` + record ${money(recordBonus)}` : ''}` : 'Prize'}</small></div>
+    <p style="text-align:center" class="muted">${ev.name} · ${ev.diffLabel}${res.dnf ? '' : ` · ${fmtTime(res.time)}${newBest ? ' · 🏁 new best' : ''}`}</p>
+    <div class="stats"><div class="stat"><b style="color:var(--good)">${money(payout)}</b><small>${ev.isHotLap ? `Lap ${money(lapReward)}${recordBonus ? ` + record ${money(recordBonus)}` : ''}` : 'Prize'}</small></div>
       <div class="stat"><b style="color:${bonus < 0 ? 'var(--bad)' : 'var(--good)'}">${money(bonus)}</b><small>Apex bonus ${res.apexHits || 0}/${res.apexTotal || 0}</small></div>
       <div class="stat"><b>${money(payout + bonus)}</b><small>Total</small></div></div>
     <h3 class="small muted" style="margin:14px 0 4px">WEAR &amp; TEAR</h3>
