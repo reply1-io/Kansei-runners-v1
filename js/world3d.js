@@ -6,6 +6,7 @@ import { U, apexesOf, COURSES, WORLD, FLARE_LEN, RING } from './road.js';
 import { HOME } from './map.js';
 import { seeded } from './draw.js';
 import { roadTex, shoulderTex, grassTex, rockTex, treeTex, treeTopTex, skyTex, logTex, roofTex, canvasTex, gravelTex, waterfallTex } from './textures.js';
+import { buildHomeLife } from './homelife.js';
 export { makeCarMesh } from './carmodel.js';
 
 const m = (v) => v * U; // map units -> meters
@@ -570,6 +571,7 @@ function buildWorld(net) {
 
 
   const fire = net.home ? buildHome(scene) : null;
+  const life = net.home ? buildHomeLife(scene, mistTexture()) : null;
   const skids = makeSkids(scene);
   return {
     scene, fire, skids, terrainAt, groundAt,
@@ -585,7 +587,7 @@ function buildWorld(net) {
       tiles.update(cam.position.x, cam.position.z);
     },
     // Per-frame animation (waterfalls flowing). t in seconds.
-    update: (t) => { waterFx.update(t); bigFx.update(t); },
+    update: (t) => { waterFx.update(t); bigFx.update(t); if (life) life.update(t); },
   };
 }
 
