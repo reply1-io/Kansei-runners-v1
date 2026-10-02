@@ -563,6 +563,28 @@ function placeLoop(pts, j, { x, z, h, e }) {
 // Test hook for laying the courses out (scratch scripts).
 export const __layout = { LOCAL, LOCAL_LOOPS, placePts, placeLoop, connectorPts, makeRoad, BRANCH_STARTS, hermite };
 
+// Where a road leaves (or joins) another one at an angle, its mouth flares out like a real junction:
+// it widens over FLARE_LEN m from the other road's edge, and the renderer pins the flared edges onto
+// that edge so its lines sweep round into it. Records `mouths` ({ road, at, s }: s = where the road
+// clears the other one's edge).
+const FLARE_W = 4;
+export const FLARE_LEN = 14;
+function flareMouths(conn, joins) {
+  const S = conn.samples, N = S.length;
+  conn.mouths = joins.map(({ road, at }) => {
+    const order = at === 'start' ? [...S.keys()] : [...S.keys()].reverse();
+    let edge = order[order.length - 1];
+    for (const i of order) { const n = road.nearest(S[i].x, S[i].z, -1); if (n.dist > n.p.half + 0.2) { edge = i; break; } }
+    const sEdge = S[edge].s;
+    for (const p of S) {
+      const d = at === 'start' ? p.s - sEdge : sEdge - p.s;
+      if (d < FLARE_LEN) p.half += FLARE_W * (1 - Math.max(0, d) / FLARE_LEN) ** 2;
+    }
+    return { road, at, s: sEdge };
+  });
+  void N;
+}
+
 // ---------- the whole map ----------
 // Everything is one connected world: the home loop, a road out from it to each course, and the
 // courses themselves. Every road knows its id, name, surface style and whether its far end is closed.
@@ -581,7 +603,8 @@ for (const st of BRANCH_STARTS) {
   smoothElevation(cp, 8, false);
   smoothWidths(cp, CONNECTOR_HALF);
   const conn = makeRoad(cp, false);
-  Object.assign(conn, { id: d.id, name: d.name, to: d.to, style: 'narrow', junctionS: st.junctionS, joinedStart: true, joinedEnd: true });
+  Object.assign(conn, { id: d.id, name: d.name, to: d.to, style: 'two', junctionS: st.junctionS, joinedStart: true, joinedEnd: true });
+  flareMouths(conn, [{ road: ROAD, at: 'start' }]);
   CONNECTORS.push(conn);
   // The course, moved into place.
   const local = LOCAL[d.to];
@@ -620,7 +643,8 @@ for (const [id, pl] of Object.entries(TRACK_PLACES)) {
   smoothElevation(cp, 8, false);
   smoothWidths(cp, CONNECTOR_HALF);
   const conn = makeRoad(cp, false);
-  Object.assign(conn, { id: `${id}-road`, name: c.name, to: id, style: 'narrow', junctionS: c.at, joinedStart: true, joinedEnd: true });
+  Object.assign(conn, { id: `${id}-road`, name: c.name, to: id, style: 'two', junctionS: c.at, joinedStart: true, joinedEnd: true });
+  flareMouths(conn, [{ road: ROAD, at: 'start' }, ...(c.dh ? [{ road, at: 'end' }] : [])]);
   CONNECTORS.push(conn);
   // An opening in the barrier wherever the access road crosses it.
   road.wallGaps = [];

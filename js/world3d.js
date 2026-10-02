@@ -2,7 +2,7 @@
 // around the roads, road surfaces, barriers, forest, and (at home) the cabin/tent/driveway.
 // Each world is built the first time it's needed and then reused.
 import * as THREE from '../lib/three.module.min.js';
-import { U, apexesOf, COURSES, WORLD } from './road.js';
+import { U, apexesOf, COURSES, WORLD, FLARE_LEN } from './road.js';
 import { HOME } from './map.js';
 import { seeded } from './draw.js';
 import { roadTex, shoulderTex, grassTex, rockTex, treeTex, treeTopTex, skyTex, logTex, roofTex, canvasTex, gravelTex, waterfallTex } from './textures.js';
@@ -129,7 +129,8 @@ function makeTerrain(net) {
 // The map is cut into 320 m square tiles. A tile's ground (only where it's within BAND of a road),
 // trees and boulders are built the first time the camera comes near it, a tile or two per frame, so
 // the whole map never has to be built up front; tiles off screen aren't drawn. Each ground triangle is
-// grass, rock (steep cuts and banks) or dirt (road shoulders): hard edges, PS1 style.
+// grass or rock (steep cuts and banks): hard edges, PS1 style. (The dirt shoulder beside each road is
+// its own strip, so the coarse ground never paints big dirt wedges.)
 const TILE_CELLS = 40, VIEW = 900;
 let treeAssets = null;
 function makeTileStreamer(scene, terrainAt, { minX, maxX, minZ, maxZ }, { apexNear, water }) {
@@ -194,7 +195,6 @@ function makeTileStreamer(scene, terrainAt, { minX, maxX, minZ, maxZ }, { apexNe
     const groups = [[], [], []];
     const kind = (a, b, c) => {
       const ta = info[a], tb = info[b], tc = info[c];
-      if (Math.max(ta.dRoad - ta.half, tb.dRoad - tb.half, tc.dRoad - tc.half) < 3.2 && ta.clear < 20) return 2; // (circuit run-off stays grass)
       const hs = [pos[a * 3 + 1], pos[b * 3 + 1], pos[c * 3 + 1]];
       return Math.max(...hs) - Math.min(...hs) > STEPT * 1.15 ? 1 : 0;
     };
@@ -314,15 +314,17 @@ function addRocks(scene, rocks, rnd) {
 }
 
 // ---------- geometry helpers ----------
-function ribbon(samples, offsetA, offsetB, yA, yB, { every = 1, withUV = false, closed = false, length = 0, uAcross = 1, vPer = 8 } = {}) {
+function ribbon(samples, offsetA, offsetB, yA, yB, { every = 1, withUV = false, closed = false, length = 0, uAcross = 1, vPer = 8, adjust = null } = {}) {
   const pos = [], uv = [], idx = [];
   const pts = samples.filter((_, i) => i % every === 0 || i === samples.length - 1);
   if (closed) pts.push({ ...pts[0], s: length });
   const off = (o, p) => (typeof o === 'function' ? o(p) : o);
   pts.forEach((p, i) => {
     const oa = off(offsetA, p), ob = off(offsetB, p);
-    pos.push(p.x + p.nx * oa, p.e + yA, p.z + p.nz * oa);
-    pos.push(p.x + p.nx * ob, p.e + yB, p.z + p.nz * ob);
+    const A = [p.x + p.nx * oa, p.z + p.nz * oa], B = [p.x + p.nx * ob, p.z + p.nz * ob];
+    if (adjust) { adjust(A, p); adjust(B, p); }
+    pos.push(A[0], p.e + yA, A[1]);
+    pos.push(B[0], p.e + yB, B[1]);
     if (withUV) uv.push(0, p.s / vPer, uAcross, p.s / vPer);
     if (i > 0) { const a = (i - 1) * 2; idx.push(a, a + 1, a + 2, a + 1, a + 3, a + 2); }
   });
@@ -393,8 +395,24 @@ function buildWorld(net) {
   // out to the courses start a little under the home loop where they join it, so the two don't fight.
   const shoulderMat = new THREE.MeshLambertMaterial({ map: shoulderTex() });
   for (const r of ROADS) {
-    const S = r.to ? r.samples.slice(3) : r.samples, closed = r.loop, length = r.length, dy = r.to ? -0.03 : 0;
-    scene.add(new THREE.Mesh(ribbon(S, (p) => -p.half - 1.1, (p) => p.half + 1.1, -0.12 + dy, -0.12 + dy, { every: 2, closed, length, withUV: true, uAcross: 3, vPer: 3 }), shoulderMat));
+    // A road that branches off another starts at the other's edge, with its flared mouth pinned onto
+    // that edge (see flareMouths), and sits a hair above it so the junction reads as one surface.
+    let S = r.samples, adjust = null, dy = 0, sdy = 0;
+    if (r.mouths) {
+      const st = r.mouths.find((m) => m.at === 'start'), en = r.mouths.find((m) => m.at === 'end');
+      S = S.filter((p) => (!st || p.s >= st.s - 5) && (!en || p.s <= en.s + 5));
+      const pin = (margin) => (v, p) => {
+        for (const m of r.mouths) {
+          if (Math.abs(p.s - m.s) > FLARE_LEN + 12) continue;
+          const n = m.road.nearest(v[0], v[1], -1), lim = n.p.half + margin;
+          if (Math.abs(n.lat) < lim) { const push = Math.sign(n.lat || 1) * lim - n.lat; v[0] += n.p.nx * push; v[1] += n.p.nz * push; }
+        }
+      };
+      adjust = { road: pin(-0.05), shoulder: pin(1.0) };
+      dy = 0.015; sdy = -0.02;
+    }
+    const closed = r.loop, length = r.length;
+    scene.add(new THREE.Mesh(ribbon(S, (p) => -p.half - 1.1, (p) => p.half + 1.1, -0.12 + sdy, -0.12 + sdy, { every: 2, closed, length, withUV: true, uAcross: 3, vPer: 3, adjust: adjust && adjust.shoulder }), shoulderMat));
     // The surface changes with the road: two lanes, a narrow mountain road, or a single lane.
     const style = (p) => (p.half < 2.8 ? 'lane' : r.style || 'two');
     if (closed) scene.add(new THREE.Mesh(ribbon(S, (p) => -p.half, (p) => p.half, 0.03, 0.03, { withUV: true, closed, length, vPer: 10 }), new THREE.MeshLambertMaterial({ map: roadTex(style(S[0])) })));
@@ -402,15 +420,34 @@ function buildWorld(net) {
       for (let i0 = 0; i0 < S.length - 1;) {
         let i1 = i0 + 1;
         while (i1 < S.length - 1 && style(S[i1]) === style(S[i0])) i1++;
-        scene.add(new THREE.Mesh(ribbon(S.slice(i0, i1 + 1), (p) => -p.half, (p) => p.half, 0.03 + dy, 0.03 + dy, { withUV: true, vPer: 10 }), new THREE.MeshLambertMaterial({ map: roadTex(style(S[i0])) })));
+        scene.add(new THREE.Mesh(ribbon(S.slice(i0, i1 + 1), (p) => -p.half, (p) => p.half, 0.03 + dy, 0.03 + dy, { withUV: true, vPer: 10, adjust: adjust && adjust.road }), new THREE.MeshLambertMaterial({ map: roadTex(style(S[i0])) })));
         i0 = i1;
       }
     }
   }
 
+  // Junction mouths: the main road's edge line is broken where a side road joins, and the side road
+  // has a white stop line just before it.
+  const plainMat = new THREE.MeshLambertMaterial({ map: roadTex('plain') }), stopMat = new THREE.MeshLambertMaterial({ color: '#e9e9e2' });
+  for (const r of ROADS) for (const m of r.mouths || []) {
+    const main = m.road, q = r.sampleAtS(m.s), inward = m.at === 'start' ? 1 : -1;
+    const corners = [-1, 1].map((sd) => main.nearest(q.x + q.nx * sd * q.half, q.z + q.nz * sd * q.half, -1));
+    let s0 = Math.min(corners[0].s, corners[1].s), s1 = Math.max(corners[0].s, corners[1].s);
+    if (main.loop && s1 - s0 > main.length / 2) [s0, s1] = [s1, s0 + main.length];
+    const ahead = r.sampleAtS(m.s + inward * 10), side = Math.sign(main.nearest(ahead.x, ahead.z, -1).lat) || 1;
+    const patch = [];
+    for (let s = s0 - 1.5; s <= s1 + 1.5; s += 0.5) { const p = main.sampleAtS(s); patch.push({ ...p, s }); }
+    scene.add(new THREE.Mesh(ribbon(patch, (p) => side * (p.half - 0.45), (p) => side * (p.half + 0.1), 0.055, 0.055, { withUV: true, vPer: 10 }), plainMat));
+    // Stop line across the lane heading into the junction (traffic keeps left).
+    const sl = m.s + inward * 2.5, a = r.sampleAtS(sl - 0.25), b = r.sampleAtS(sl + 0.25);
+    const laneSide = inward; // +n is on the left of traffic heading back along the road
+    const base = r.sampleAtS(m.s + inward * 8).half;
+    scene.add(new THREE.Mesh(ribbon([{ ...a, s: sl - 0.25 }, { ...b, s: sl + 0.25 }], () => 0, () => laneSide * (base - 0.3), 0.06, 0.06), stopMat));
+  }
+
   // Dirt cut-throughs on the inside of every apex: packed dirt you can clip to cut the corner.
   // Widest (APEX_CUT m) at the apex, tapering to nothing 14 m either side.
-  const apexCuts = ROADS.filter((road) => !road.track).flatMap((road) => apexesOf(road).map((a) => {
+  const apexCuts = ROADS.filter((road) => !road.track && !road.to).flatMap((road) => apexesOf(road).map((a) => {
     const pos = [], uv = [], idx = [], COLS = 7;
     let n = 0;
     for (let ds = -14; ds <= 14; ds += 1) {

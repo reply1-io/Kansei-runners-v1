@@ -41,6 +41,8 @@ export const roadTex = (kind = 'two') => tex(kind === 'two' ? 'road' : `road-${k
     for (let y = 0; y < h; y += 5) { px(g, 1, y, '#56565a'); px(g, 30, y + 2, '#56565a'); px(g, 15 + Math.floor(rnd() * 2), Math.floor(rnd() * 26), '#56565a'); }
   } else if (kind === 'track') {
     g.fillStyle = '#ececec'; g.fillRect(0, 0, 2, h); g.fillRect(30, 0, 2, h);          // circuit: white edges only
+  } else if (kind === 'plain') {
+    // bare asphalt (patches over junction mouths)
   } else if (kind === 'drift') {
     for (let i = 0; i < 6; i++) { g.fillStyle = 'rgba(20,20,22,0.55)'; g.fillRect(4 + Math.floor(rnd() * 22), 0, 2, h); } // tyre streaks
   } else {
