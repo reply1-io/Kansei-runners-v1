@@ -104,7 +104,8 @@ function makeTerrain(net) {
     const d = exact ? de : Math.max(24, far(F.dist, x, z));
     const half = exact ? np.half : far(F.half, x, z);
     const farH = far(F.mean, x, z) + noise(x, z) * smooth(8, 40, d) + 0.22 * Math.max(0, d - 18) + hills(x, z) * smooth(20, 90, d);
-    let h = exact ? np.e + (farH - np.e) * smooth(half + 1.2 + FLAT, half + 16 + FLAT, d) - SINK * (1 - smooth(half + FLAT, half + 3 + FLAT, d)) : farH;
+    const flat = FLAT + (exact ? np.apron || 0 : 0); // run-off areas are flat too
+    let h = exact ? np.e + (farH - np.e) * smooth(half + 1.2 + flat, half + 16 + flat, d) - SINK * (1 - smooth(half + flat, half + 3 + flat, d)) : farH;
     const cc = exact ? np.canyon : far(F.cc, x, z);
     if (cc > 0.01) {
       const rise = canyonProfile(d - half - CANYON_TUCK);
@@ -115,7 +116,9 @@ function makeTerrain(net) {
       r = Math.hypot((x - CL.x) / CL.rx, (z - CL.z) / CL.rz);
       h = -0.05 + (h + 0.05) * smooth(1.0, 1.5, r);
     }
-    return { h, dRoad: d, clearing: r, half, canyon: cc };
+    // How far past the edge trees and boulders must stay: clear of any barrier, else 2.8 m.
+    const clear = exact && np.clear !== undefined ? np.clear : 2.8;
+    return { h, dRoad: d, clearing: r, half, canyon: cc, clear };
   };
   terrainAt.farDist = (x, z) => far(F.dist, x, z);
   terrainAt.STEPT = STEPT;
@@ -191,7 +194,7 @@ function makeTileStreamer(scene, terrainAt, { minX, maxX, minZ, maxZ }, { apexNe
     const groups = [[], [], []];
     const kind = (a, b, c) => {
       const ta = info[a], tb = info[b], tc = info[c];
-      if (Math.max(ta.dRoad - ta.half, tb.dRoad - tb.half, tc.dRoad - tc.half) < 3.2) return 2;
+      if (Math.max(ta.dRoad - ta.half, tb.dRoad - tb.half, tc.dRoad - tc.half) < 3.2 && ta.clear < 20) return 2; // (circuit run-off stays grass)
       const hs = [pos[a * 3 + 1], pos[b * 3 + 1], pos[c * 3 + 1]];
       return Math.max(...hs) - Math.min(...hs) > STEPT * 1.15 ? 1 : 0;
     };
@@ -225,7 +228,7 @@ function makeTileStreamer(scene, terrainAt, { minX, maxX, minZ, maxZ }, { apexNe
       const tx = x + (rnd() - 0.5) * TS * 0.9, tz = z + (rnd() - 0.5) * TS * 0.9;
       if (terrainAt.farDist(tx, tz) > TREE_REACH + 30) continue;
       const t = terrainAt(tx, tz);
-      if (t.dRoad < t.half + 2.8 + rnd() * 1.2 || t.dRoad > TREE_REACH || t.clearing < 1.12) continue;
+      if (t.dRoad < t.half + t.clear + rnd() * 1.2 || t.dRoad > TREE_REACH || t.clearing < 1.12) continue;
       if (t.canyon > 0.25 && t.dRoad < t.half + 30) continue;
       if (apexNear(tx, tz) || nearWater(water, tx, tz, 10)) continue;
       trees.push({ x: tx, z: tz, y: t.h, hgt: Math.min(9 + rnd() * 10, 2.5 + (t.dRoad - t.half) * 0.55), r: 2.4 + rnd() * 1.4, shade: 0.75 + rnd() * 0.4 });
@@ -264,7 +267,7 @@ function makeTileStreamer(scene, terrainAt, { minX, maxX, minZ, maxZ }, { apexNe
       const rx = x + (rnd() - 0.5) * 9, rz = z + (rnd() - 0.5) * 9, a = rnd(), b = rnd();
       if (terrainAt.farDist(rx, rz) > TREE_REACH + 60) continue;
       const t = terrainAt(rx, rz);
-      if (t.dRoad > TREE_REACH + 40 || t.dRoad <= t.half + 5.4 || t.clearing <= 1.15 || t.canyon >= 0.25) continue;
+      if (t.dRoad > TREE_REACH + 40 || t.dRoad <= t.half + Math.max(5.4, t.clear + 1) || t.clearing <= 1.15 || t.canyon >= 0.25) continue;
       const slope = Math.abs(terrainAt(rx + 3, rz).h - terrainAt(rx - 3, rz).h) + Math.abs(terrainAt(rx, rz + 3).h - terrainAt(rx, rz - 3).h);
       if (a < 0.05 + Math.min(0.5, slope * 0.08)) rocks.push({ x: rx, z: rz, y: t.h, s: 0.5 + b * (slope > 3 ? 2.6 : 1.4) });
     }
@@ -407,7 +410,7 @@ function buildWorld(net) {
 
   // Dirt cut-throughs on the inside of every apex: packed dirt you can clip to cut the corner.
   // Widest (APEX_CUT m) at the apex, tapering to nothing 14 m either side.
-  const apexCuts = ROADS.flatMap((road) => apexesOf(road).map((a) => {
+  const apexCuts = ROADS.filter((road) => !road.track).flatMap((road) => apexesOf(road).map((a) => {
     const pos = [], uv = [], idx = [], COLS = 7;
     let n = 0;
     for (let ds = -14; ds <= 14; ds += 1) {
@@ -429,6 +432,8 @@ function buildWorld(net) {
     const q = road.sampleAtS(a.s), off = (q.half + APEX_CUT / 2) * a.inside;
     return { x: q.x + q.nx * off, z: q.z + q.nz * off };
   }));
+
+  for (const r of ROADS) if (r.track) buildTrackside(scene, r, terrainAt);
 
   for (const r of ROADS) {
     // Each road out to a course passes under a wooden arch with the course's name just before it.
@@ -519,6 +524,90 @@ function barrier(p, half) {
   g.position.set(p.x, p.e, p.z);
   g.rotation.y = -Math.atan2(p.tz, p.tx);
   return g;
+}
+
+// Closed tracks: barriers along both sides (tyre walls or concrete, with an opening where the access
+// road comes in), red and white kerbs on the inside of the corners, and at Tsukuba a pit building,
+// grandstand and the footbridge over Dunlop corner.
+function buildTrackside(scene, road, terrainAt) {
+  const S = road.samples, N = S.length;
+  const interior = Math.sign(S.reduce((sum, p) => sum + p.kSigned, 0)) || 1; // which side is the infield
+  const gap = (i, side) => (road.wallGaps || []).some((g) => g.side === side && i >= g.i0 && i <= g.i1);
+  // Barriers: one strip per side, broken at the gaps.
+  const tyreTex = (() => {
+    const c = document.createElement('canvas'); c.width = 32; c.height = 16;
+    const g = c.getContext('2d');
+    g.fillStyle = '#1d1d1f'; g.fillRect(0, 0, 32, 16);
+    for (let i = 0; i < 4; i++) { g.fillStyle = '#2c2c30'; g.beginPath(); g.arc(4 + i * 8, 8, 3.2, 0, 7); g.fill(); }
+    g.fillStyle = road.barrier === 'tyres' ? '#d8d8d8' : '#9a9890'; g.fillRect(0, 0, 32, 3);
+    const t = new THREE.CanvasTexture(c); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.magFilter = THREE.NearestFilter; t.colorSpace = THREE.SRGBColorSpace; return t;
+  })();
+  const wallMat = road.barrier === 'tyres' ? new THREE.MeshLambertMaterial({ map: tyreTex, side: THREE.DoubleSide }) : new THREE.MeshLambertMaterial({ map: gravelTex(), color: '#e4e1d8', emissive: '#4a4844', side: THREE.DoubleSide });
+  const H = road.barrier === 'tyres' ? 0.9 : 1.2;
+  for (const side of [-1, 1]) {
+    let pos = [], uv = [], idx = [], rows = 0;
+    const flush = () => {
+      if (rows > 1) {
+        const g = new THREE.BufferGeometry();
+        g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+        g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
+        g.setIndex(idx); g.computeVertexNormals();
+        scene.add(new THREE.Mesh(g, wallMat));
+      }
+      pos = []; uv = []; idx = []; rows = 0;
+    };
+    for (let i = 0; i <= N; i += 2) {
+      const p = S[i % N];
+      if (gap(i % N, side)) { flush(); continue; }
+      const off = side * (p.half + p.wall), x = p.x + p.nx * off, z = p.z + p.nz * off;
+      const y0 = Math.min(p.e, terrainAt(x, z).h) - 0.3;
+      pos.push(x, y0, z, x, p.e + H, z);
+      uv.push((i % N) / 2, 0, (i % N) / 2, 1);
+      if (rows) { const a = (rows - 1) * 2; idx.push(a, a + 1, a + 2, a + 1, a + 3, a + 2); }
+      rows++;
+    }
+    flush();
+  }
+  // Kerbs on the inside of every real corner.
+  if (road.kerbs) {
+    const c = document.createElement('canvas'); c.width = 8; c.height = 16;
+    const g = c.getContext('2d'); g.fillStyle = '#f2f2f2'; g.fillRect(0, 0, 8, 16); g.fillStyle = '#d42020'; g.fillRect(0, 0, 8, 8);
+    const kt = new THREE.CanvasTexture(c); kt.wrapS = kt.wrapT = THREE.RepeatWrapping; kt.magFilter = THREE.NearestFilter; kt.colorSpace = THREE.SRGBColorSpace;
+    const kerbMat = new THREE.MeshLambertMaterial({ map: kt });
+    let run = [];
+    const emit = () => {
+      if (run.length > 6) {
+        const sg = Math.sign(run.reduce((sum, p) => sum + p.kSigned, 0));
+        scene.add(new THREE.Mesh(ribbon(run, (p) => sg * (p.half - 0.4), (p) => sg * (p.half + 1.0), 0.06, 0.06, { withUV: true, vPer: 3 }), kerbMat));
+      }
+      run = [];
+    };
+    for (let i = 0; i < N; i++) {
+      const p = S[i];
+      if (Math.abs(p.kSigned) > 1 / 140 && (!run.length || Math.sign(run[0].kSigned) === Math.sign(p.kSigned))) run.push(p);
+      else { emit(); if (Math.abs(p.kSigned) > 1 / 140) run.push(p); }
+    }
+    emit();
+  }
+  if (road.id !== 'tsukuba') return;
+  const lam = (c) => new THREE.MeshLambertMaterial({ color: c });
+  const at = (s, lat) => { const q = road.sampleAtS(s); return { x: q.x + q.nx * lat, z: q.z + q.nz * lat, e: q.e, h: Math.atan2(q.tz, q.tx) }; };
+  const box = (w, hgt, d, mat, p, y = 0) => { const b = new THREE.Mesh(new THREE.BoxGeometry(w, hgt, d), mat); b.position.set(p.x, p.e + y + hgt / 2, p.z); b.rotation.y = -p.h; scene.add(b); return b; };
+  // Pit building along the main straight, outside the barrier; grandstand across the track.
+  const out = -interior * (S[0].half + S[0].wall + 9);
+  box(150, 6, 12, lam('#e6e6e0'), at(road.startS - 20, out));
+  box(152, 0.6, 14, lam('#2d5aa0'), at(road.startS - 20, out), 6);
+  const stand = at(road.startS - 30, interior * (S[0].half + S[0].wall + 8));
+  for (let k = 0; k < 5; k++) box(90, 0.9, 2.4, lam(k % 2 ? '#bdbdb5' : '#a7a7a0'), { ...stand, x: stand.x + Math.cos(stand.h + Math.PI / 2) * interior * k * 2.2, z: stand.z + Math.sin(stand.h + Math.PI / 2) * interior * k * 2.2 }, k * 0.9);
+  // The footbridge over Dunlop corner: a yellow span on two towers.
+  if (road.bridgeS !== undefined) {
+    const q = road.sampleAtS(road.bridgeS), w = q.half + 4, yel = lam('#f2c400');
+    const g = new THREE.Group();
+    for (const sd of [-1, 1]) { const t = new THREE.Mesh(new THREE.BoxGeometry(2, 7.5, 2), lam('#8c8c88')); t.position.set(0, 3.75, sd * w); g.add(t); }
+    const span = new THREE.Mesh(new THREE.BoxGeometry(2.6, 1.6, w * 2 + 2), yel); span.position.y = 6.6; g.add(span);
+    g.position.set(q.x, q.e, q.z); g.rotation.y = -Math.atan2(q.tz, q.tx);
+    scene.add(g);
+  }
 }
 
 // A timber arch over the road with the course name on a board, facing traffic.

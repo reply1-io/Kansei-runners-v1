@@ -30,6 +30,8 @@ You start at **your cabin, deep in the forest**, shown top-down. It has a carpor
 | Cliff Road | Switchback Ladder |
 | Road to Town | Kuroiwa Canyon |
 | Old Logging Road | Yamabiko Mountain Road |
+| Circuit Road | Tsukuba Circuit (meets the back straight) |
+| Drift Park Road | Meihan Drift |
 
 **Race courses** (from the phone's Touge app). Each one is different:
 - **Kansei Pass** (about 1:45): ultra-winding downhill. It's 1.7 km of hairpins, sharp esses and square 90s with almost no straight road, and the corners are tight enough that passing is hard.
@@ -38,6 +40,12 @@ You start at **your cabin, deep in the forest**, shown top-down. It has a carpor
 - **Yamabiko Mountain Road** (about 5 minutes): 4.3 km of **narrow** road (two 3.3 m lanes, dashed centre line) with tight esses, square 90s and nine hairpins. It climbs, drops, climbs again and drops to the finish, about 145 m from top to bottom.
 
 The two long courses pay **double** purses.
+
+**Tracks:**
+- **Tsukuba Circuit** (3 laps, about 1:10 a lap in an E30): modelled on Tsukuba TC2000, 2.04 km clockwise. The main straight, the fast 1st corner, the S-curve, the 1st hairpin, the long Dunlop left under the yellow footbridge, 80R, the 2nd hairpin, the long back straight and the sweeping final corner. 12 m wide, with red and white kerbs, wide grass run-off, tyre walls, a pit building and a grandstand. Races pay **1.5×**; the Hot Lap is one lap from a standing start.
+- **Meihan Drift** (in the style of Meihan Sportsland): a tight, hilly 1 km drift park with concrete walls right at the edge, two hairpins, a downhill esse and a long sweeper. **Drift Attack** instead of a race: 2 laps, no rivals, scored on drifting.
+
+**Drift scoring:** while the car is 12° to 100° sideways at speed on the tarmac, points flow in (angle × speed × combo). Linked drifts build the combo up to ×5; straighten up for more than 1.2 s and the chain is banked. Touch a wall or spin out and you lose the chain. Drift Attack pays $250 / $500 / $1,000 / $2,000 at 3,000 / 8,000 / 15,000 / 24,000 points, plus $500 for a new personal best. Clean grip driving scores about 2,500; a rough drifting bot scores about 13,000.
 
 **The loop:**
 1. **Marketplace:** 6–10 used cars under $5k each day, all real cars: **1980 Volvo 242, Mercedes-Benz 190E 2.3, 1987 BMW 325i (E30), Toyota Supra Turbo (Mk3), Nissan 180SX, Nissan Skyline GTS-t (R32) and 1999 Honda Civic Si hatch (FWD)**. Each has its real factory specs, and a model built from its real dimensions (length, width, height, wheelbase, overhangs, track, tire size and pillar positions). The pricier ones only show up in your budget as project cars. Each listing shows a price, factory specs (hp, handling, weight) and condition. Striped `??` bars are hidden problems, so tap **Inspect ($80)** before you buy.
@@ -52,6 +60,7 @@ The two long courses pay **double** purses.
 | Switchback Ladder | 1:52 | 1:44 | 1:39 | 1:35 |
 | Kuroiwa Canyon | 4:07 | 3:50 | 3:39 | 3:29 |
 | Yamabiko | 4:18 | 4:00 | 3:48 | 3:37 |
+| Tsukuba Circuit (1 lap) | 1:11 | 1:06 | 1:03 | 1:00 |
  You get the best tier you beat, plus **$500 every time you beat your own hot-lap record**. Apex markers still pay.
 6. **Rivals are always fair.** They drive a car with **exactly your car's numbers** (power-to-weight, grip, brakes). Difficulty only changes how well they drive:
    - **Easy** rivals mostly keep to their lane, brake early and make mistakes, so the other lane is open to pass.

@@ -510,8 +510,58 @@ function connectorPts(E, S) {
   return pts;
 }
 
+// ---------- closed tracks ----------
+// Tsukuba Circuit: modelled on Tsukuba TC2000 (2,045 m, clockwise): the main straight, the fast 1st
+// corner, the S-curve, the 1st hairpin, the long Dunlop left under the footbridge, 80R, the 2nd
+// hairpin, the long back straight and the sweeping final corner (which closes the loop). 12 m wide
+// with kerbs, grass run-off and tyre walls.
+// Meihan Drift: in the style of Meihan Sportsland's drift courses: tight, hilly and lined with
+// concrete walls close to the edge, with two hairpins, a downhill esse and a long sweeper.
+// Per point: `apron` is flat ground past the edge (run-off), `wall` how far past the edge the
+// barrier stands.
+const CIRCUIT_DEFS = {
+  tsukuba: {
+    id: 'tsukuba', name: 'Tsukuba Circuit', half: 6, apron: 13, wall: 13, clear: 42, barrier: 'tyres', kerbs: true, startS: 210, style: 'track',
+    segs: [
+      { len: 325, grade: 0, name: 'Main straight' },
+      { r: 52, turn: 89, grade: -0.005, name: '1st corner' }, { len: 63, grade: -0.01 },
+      { r: 48, turn: -59, grade: -0.01, name: 'S-curve' }, { r: 55, turn: 40, grade: -0.01 }, { len: 87, grade: -0.005 },
+      { r: 15, turn: 132, grade: 0, name: 'Hairpin' }, { len: 106, grade: 0.015 },
+      { r: 53, turn: -189, grade: 0.02, mark: 'dunlop' }, { len: 39, grade: 0.01 },
+      { r: 76, turn: 71, grade: -0.005 }, { len: 100, grade: -0.01 },
+      { r: 13, turn: 124, grade: 0, name: 'Hairpin' }, { len: 394, grade: 0.004 },
+    ],
+  },
+  meihan: {
+    id: 'meihan', name: 'Meihan Drift', half: 4.6, apron: 0, wall: 2.2, clear: 4.5, barrier: 'concrete', startS: 40, hill: 2.6, style: 'drift',
+    segs: [
+      { len: 90, grade: 0 }, { r: 30, turn: 70, grade: 0.03 }, { len: 40, grade: 0.05 }, { r: 12, turn: 170, grade: 0.03, name: 'Hairpin' },
+      { len: 50, grade: -0.04 }, { r: 22, turn: -80, grade: -0.05 }, { r: 22, turn: 75, grade: -0.05 }, { len: 40, grade: -0.03 },
+      { r: 35, turn: 120, grade: 0 }, { len: 60, grade: 0.02 }, { r: 14, turn: -160, grade: 0.03, name: 'Hairpin' }, { len: 45, grade: 0 },
+      { r: 25, turn: 90, grade: -0.03 }, { r: 25, turn: -45, grade: -0.03 }, { len: 70, grade: -0.02 },
+    ],
+  },
+};
+function localCircuit(def) {
+  const marks = {};
+  const w = walk(def.segs.map((sg) => ({ ...sg, grade: sg.grade * (def.hill || 1) })), 0, 0, 0, 0, marks);
+  const closing = hermite({ x: w.x, z: w.z }, w.h, { x: 0, z: 0 }, 0);
+  closing.forEach((p, i) => { p.e = w.e * (1 - (i + 1) / (closing.length + 1)); });
+  const pts = [{ x: 0, z: 0, e: 0 }, ...w.pts, ...closing];
+  smoothElevation(pts, 15, true);
+  for (const p of pts) { p.half = def.half; p.canyon = 0; p.apron = def.apron; p.wall = def.wall; p.clear = def.clear; }
+  return { pts, segs: def.segs, marks: Object.fromEntries(Object.entries(marks).map(([k, i]) => [k, i + 1])) };
+}
+const LOCAL_LOOPS = Object.fromEntries(Object.entries(CIRCUIT_DEFS).map(([k, d]) => [k, localCircuit(d)]));
+// Move a closed track into the world so its point `j` sits at (x, z, e) heading h.
+function placeLoop(pts, j, { x, z, h, e }) {
+  const P = pts[j], n = pts[(j + 1) % pts.length], hj = Math.atan2(n.z - P.z, n.x - P.x);
+  const c = Math.cos(h - hj), sn = Math.sin(h - hj);
+  return pts.map((p) => ({ ...p, x: x + (p.x - P.x) * c - (p.z - P.z) * sn, z: z + (p.x - P.x) * sn + (p.z - P.z) * c, e: p.e - P.e + e }));
+}
+
 // Test hook for laying the courses out (scratch scripts).
-export const __layout = { LOCAL, placePts, connectorPts, makeRoad, BRANCH_STARTS };
+export const __layout = { LOCAL, LOCAL_LOOPS, placePts, placeLoop, connectorPts, makeRoad, BRANCH_STARTS, hermite };
 
 // ---------- the whole map ----------
 // Everything is one connected world: the home loop, a road out from it to each course, and the
@@ -546,8 +596,56 @@ for (const st of BRANCH_STARTS) {
     hairpins: local.segs.filter((x) => x.name === 'Hairpin').length,
   };
 }
+// The closed tracks, placed off the home loop: the track's point `anchor` sits `d` m from the loop at
+// `at` (on the `side`, `a` degrees off square), heading `b` degrees off that line. Each has its own
+// access road from the loop (`conn`), meeting the track at point `join`, arriving `dh` degrees off the
+// track's direction (90 = a T-junction).
+const TRACK_PLACES = {
+  tsukuba: { anchor: 1223, at: 900, side: -1, a: 0, d: 300, b: -60, conn: { name: 'Circuit Road', at: 820, side: -1, join: 1260, dh: 90 } },
+  meihan: { anchor: 10, at: 2160, side: -1, a: -60, d: 250, b: 0, conn: { name: 'Drift Park Road', at: 2160, side: -1, join: 10, dh: 0 } },
+};
+const outFrom = (at, side) => { const j = ROAD.sampleAtS(at); return { j, h: Math.atan2(j.tz, j.tx) + side * (Math.PI / 2) * 0.85 }; };
+for (const [id, pl] of Object.entries(TRACK_PLACES)) {
+  const def = CIRCUIT_DEFS[id], local = LOCAL_LOOPS[id];
+  const { j, h } = outFrom(pl.at, pl.side);
+  const S = { x: j.x + Math.cos(h + pl.a * D2R) * pl.d, z: j.z + Math.sin(h + pl.a * D2R) * pl.d, h: h + pl.b * D2R, e: j.e };
+  const road = makeRoad(placeLoop(local.pts, pl.anchor, S), true);
+  road.bestLine = optimalOffsets(road);
+  Object.assign(road, { id, name: def.name, style: def.style, track: true, kerbs: !!def.kerbs, barrier: def.barrier, startS: def.startS });
+  if (local.marks.dunlop !== undefined) road.bridgeS = road.samples[local.marks.dunlop].s + 45;
+  // The access road.
+  const c = pl.conn, from = outFrom(c.at, c.side), P = road.samples[c.join];
+  const end = { x: P.x, z: P.z, h: Math.atan2(P.tz, P.tx) + c.dh * D2R, e: P.e };
+  const cp = [{ x: from.j.x, z: from.j.z, e: from.j.e }, ...connectorPts({ x: from.j.x, z: from.j.z, h: from.h, e: from.j.e }, end)];
+  smoothElevation(cp, 8, false);
+  smoothWidths(cp, CONNECTOR_HALF);
+  const conn = makeRoad(cp, false);
+  Object.assign(conn, { id: `${id}-road`, name: c.name, to: id, style: 'narrow', junctionS: c.at, joinedStart: true, joinedEnd: true });
+  CONNECTORS.push(conn);
+  // An opening in the barrier wherever the access road crosses it.
+  road.wallGaps = [];
+  for (const side of [-1, 1]) {
+    const hit = road.samples.filter((p) => { const off = side * (p.half + p.wall), wx = p.x + p.nx * off, wz = p.z + p.nz * off; return conn.samples.some((q) => (q.x - wx) ** 2 + (q.z - wz) ** 2 < 9 * 9); }).map((p) => p.i);
+    if (!hit.length) continue;
+    // The hits form one run round the loop (it may wrap past point 0): find where it starts.
+    const N = road.samples.length;
+    hit.sort((a, b) => a - b);
+    let k0 = 0, big = -1;
+    hit.forEach((v, k) => { const gapTo = (hit[(k + 1) % hit.length] - v + N) % N; if (gapTo > big) { big = gapTo; k0 = (k + 1) % hit.length; } });
+    const i0 = hit[k0] - 2, i1 = hit[(k0 + hit.length - 1) % hit.length] + 2;
+    if (i0 <= i1) road.wallGaps.push({ side, i0, i1 });
+    else road.wallGaps.push({ side, i0, i1: N + 2 }, { side, i0: -2, i1 });
+  }
+  COURSE_ROADS[id] = road;
+  COURSES[id] = {
+    id, name: def.name, home: false, worldId: 'world', road, track: true,
+    lines: [def.startS], startS: def.startS, gateway: conn.id,
+    hairpins: local.segs.filter((x) => x.name === 'Hairpin').length,
+  };
+}
+
 // Keep the courses in the order of the Touge app.
-const ORDER = ['pass', 'ladder', 'canyon', 'yamabiko'];
+const ORDER = ['pass', 'ladder', 'canyon', 'yamabiko', 'tsukuba', 'meihan'];
 for (const k of ORDER) { const c = COURSES[k]; delete COURSES[k]; COURSES[k] = c; }
 
 export const ALL_ROADS = [ROAD, ...CONNECTORS, ...ORDER.map((k) => COURSE_ROADS[k])];
