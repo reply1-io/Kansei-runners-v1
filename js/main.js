@@ -132,7 +132,6 @@ function renderHome() {
     <div class="apps">${apps.map(([id, ico, label]) =>
       `<button class="app-icon" data-action="open" data-arg="${id}"><span class="ico ${id}">${ico}${id === 'garage' && state.inventory.length ? `<span class="dot">${state.inventory.length}</span>` : ''}</span>${label}</button>`).join('')}
     </div>
-    <div style="margin-top:28px"><button class="btn block" data-action="sleep">😴 Sleep until tomorrow</button></div>
   </div>`;
 }
 
@@ -159,9 +158,9 @@ function renderMarket() {
           <button class="btn primary" data-action="buy" data-arg="${l.id}" ${l.price > state.money || spotsFull() ? 'disabled' : ''}>${spotsFull() ? 'No room' : 'Buy'}</button>
         </div>
       </div>`;
-    }).join('') || '<div class="empty"><div class="big">🕸️</div>Nothing listed today. Sleep and check tomorrow.</div>';
+    }).join('') || '<div class="empty"><div class="big">🕸️</div>Nothing listed right now. Check back after your next race.</div>';
     const room = `Parking at the cabin: <b>${state.cars.length}/${PARKING.length}</b>${spotsFull() ? ' — full. Sell a car to make room.' : ''}`;
-    body = `<div class="hint">New listings every day. Sellers don't always mention the bad stuff — an inspection reveals everything.<br>${room}</div>` + body;
+    body = `<div class="hint">Every model is listed every day, in all sorts of condition. Sellers don't always mention the bad stuff — an inspection reveals everything.<br>${room}</div>` + body;
   } else {
     body = state.cars.map((car) => {
       const offer = Math.round(carValue(car) * 0.85 / 50) * 50;
@@ -351,7 +350,7 @@ function renderMapHud() {
     ? 'No car yet. Pull out your phone and check the Marketplace.'
     : state.inventory.length
       ? 'Parts are waiting in your trunk. Tap a car to install them.'
-      : 'Tap Select to get in and drive · tap a car to work on it · tap the cabin to sleep';
+      : 'Tap Select to get in and drive · tap a car to work on it';
 }
 
 // ---------- phone + map ----------
@@ -369,17 +368,7 @@ function closePhone() {
   renderMapHud();
 }
 
-async function sleepAtCabin() {
-  const ok = await confirmBox(`<h2>Call it a night?</h2><p>Sleep until Day ${state.day + 1}. New cars get listed on the Marketplace in the morning.</p>`, 'Sleep');
-  if (!ok) return;
-  nextDay();
-  save();
-  toast(`Day ${state.day}. Fresh listings on Marketplace.`);
-  render();
-}
-
 function onMapTap(hit) {
-  if (hit.type === 'cabin') return sleepAtCabin();
   if (hit.type === 'spot') return openPhone('market');
   if (hit.type === 'car') {
     state.activeCarId = hit.carId; // tapping a car pulls it into the tent as your ride
@@ -414,12 +403,6 @@ const ACTIONS = {
   closephone: () => closePhone(),
   open: (arg) => go(arg),
   tab: (arg) => { ui.tab = arg; render(); },
-  sleep: () => {
-    nextDay();
-    save();
-    toast(`Day ${state.day}. Fresh listings on Marketplace.`);
-    render();
-  },
 
   inspect: (id) => {
     const l = state.listings.find((x) => x.id === id);

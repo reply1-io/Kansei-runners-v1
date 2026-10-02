@@ -15,7 +15,7 @@ export const setAffine = (v) => { AFFINE.value = v; };
 // Patch three.js shader chunks once, before any material compiles.
 function installPsxShaders() {
   const C = THREE.ShaderChunk;
-  C.common += '\nuniform vec2 psxSnap;\nuniform float psxAffine;\n';
+  C.common += '\nuniform vec2 psxSnap;\nuniform float psxAffine;\nuniform float psxAffineMat;\n';
   C.uv_pars_vertex += '\n#ifdef USE_MAP\n\tvarying vec3 vMapAffine;\n#endif\n';
   C.uv_pars_fragment += '\n#ifdef USE_MAP\n\tvarying vec3 vMapAffine;\n#endif\n';
   C.project_vertex += `
@@ -26,9 +26,14 @@ function installPsxShaders() {
     vMapAffine = vec3( vMapUv * gl_Position.w, gl_Position.w );
   #endif
   `;
-  C.map_fragment = C.map_fragment.replace('texture2D( map, vMapUv )', 'texture2D( map, mix( vMapUv, vMapAffine.xy / vMapAffine.z, psxAffine ) )');
+  C.map_fragment = C.map_fragment.replace('texture2D( map, vMapUv )', 'texture2D( map, mix( vMapUv, vMapAffine.xy / vMapAffine.z, psxAffine * psxAffineMat ) )');
   // Every material gets the snap uniform.
-  THREE.Material.prototype.onBeforeCompile = function (shader) { shader.uniforms.psxSnap = SNAP; shader.uniforms.psxAffine = AFFINE; };
+  // (A material can tone its own warp down with userData.affine, e.g. road markings.)
+  THREE.Material.prototype.onBeforeCompile = function (shader) {
+    shader.uniforms.psxSnap = SNAP; shader.uniforms.psxAffine = AFFINE;
+    shader.uniforms.psxAffineMat = { value: this.userData.affine ?? 1 };
+  };
+  THREE.Material.prototype.customProgramCacheKey = function () { return `affine${this.userData.affine ?? 1}`; };
 }
 
 const POST_VERT = 'varying vec2 vUv; void main() { vUv = uv; gl_Position = vec4( position.xy, 0.0, 1.0 ); }';

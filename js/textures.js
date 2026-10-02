@@ -160,6 +160,16 @@ export const rimTex = () => tex('rim', 16, 16, (g) => {
   g.fillStyle = '#e8ebef'; g.fillRect(7, 7, 2, 2);
 }, { repeat: false });
 
+// EK9 Civic Type R headlight: a wedge of clear lens over two chrome reflectors, the amber indicator at
+// the outer end (the texture runs inner -> outer edge, bottom -> top).
+export const ek9LampTex = () => tex('ek9-lamp', 32, 12, (g) => {
+  g.fillStyle = '#121418'; g.fillRect(0, 0, 32, 12);
+  g.fillStyle = '#5d6774'; g.fillRect(1, 1, 30, 10);
+  for (const [x, r] of [[7, 4.2], [16, 3.6]]) { g.fillStyle = '#b8c0ca'; g.beginPath(); g.arc(x, 6, r, 0, 7); g.fill(); g.fillStyle = '#fbf8e6'; g.beginPath(); g.arc(x, 6, r - 1.4, 0, 7); g.fill(); }
+  g.fillStyle = '#f0a020'; g.fillRect(22, 2, 8, 7);
+  g.fillStyle = '#c9d2dc'; g.fillRect(2, 1, 19, 1);
+}, { repeat: false });
+
 // ---- Real-car details (fronts, rears, wheels) ----
 const lamp = (g, x, y, r, rim = '#9aa0a8', glass = '#fdf8d8') => {
   g.fillStyle = rim; g.beginPath(); g.arc(x, y, r, 0, 7); g.fill();
@@ -171,13 +181,6 @@ export const kidneyTex = () => tex('kidney', 16, 8, (g) => {
   g.fillStyle = '#c9ced6'; g.fillRect(1, 0, 6, 8); g.fillRect(9, 0, 6, 8);
   g.fillStyle = '#15171a'; g.fillRect(2, 1, 4, 6); g.fillRect(10, 1, 4, 6);
   g.fillStyle = '#3c4048'; for (let x = 2; x < 14; x += 2) if (x !== 8) g.fillRect(x, 1, 1, 6);
-}, { repeat: false });
-export const volvoGrilleTex = () => tex('volvo-grille', 32, 12, (g) => {
-  g.fillStyle = '#d6dae0'; g.fillRect(0, 0, 32, 12);
-  g.fillStyle = '#1a1c20'; g.fillRect(1, 1, 30, 10);
-  g.fillStyle = '#50545c'; for (let x = 2; x < 31; x += 2) g.fillRect(x, 1, 1, 10);
-  g.strokeStyle = '#d6dae0'; g.lineWidth = 1.5; g.beginPath(); g.moveTo(3, 11); g.lineTo(29, 1); g.stroke();
-  g.fillStyle = '#d6dae0'; g.beginPath(); g.arc(16, 6, 2.5, 0, 7); g.fill();
 }, { repeat: false });
 export const mercGrilleTex = () => tex('merc-grille', 16, 16, (g) => {
   g.fillStyle = '#e1e5ea'; g.fillRect(0, 0, 16, 16);
@@ -241,6 +244,12 @@ export const wheelTex = (style) => tex(`wheel-${style}`, 32, 32, (g) => {
   } else if (style === 'holes') {
     g.beginPath(); g.arc(16, 16, 10, 0, 7); g.fill();
     g.fillStyle = dark; for (let i = 0; i < 15; i++) { const a = (i / 15) * Math.PI * 2; g.beginPath(); g.arc(16 + Math.cos(a) * 7.5, 16 + Math.sin(a) * 7.5, 1.3, 0, 7); g.fill(); }
+  } else if (style === 'speedline') {
+    // 3-piece split rim: wide polished lip, ten thin spokes, the red brake caliper showing through.
+    g.fillStyle = '#c01818'; g.beginPath(); g.arc(16, 16, 8.5, -1.2, -0.2); g.arc(16, 16, 5, -0.2, -1.2, true); g.fill();
+    g.fillStyle = face;
+    for (let i = 0; i < 10; i++) { const a = (i / 10) * Math.PI * 2; g.save(); g.translate(16, 16); g.rotate(a); g.fillRect(2.5, -0.7, 8, 1.4); g.restore(); }
+    g.strokeStyle = '#eef1f4'; g.lineWidth = 2; g.beginPath(); g.arc(16, 16, 10, 0, 7); g.stroke();
   } else if (style === 'turbine') {
     g.beginPath(); g.arc(16, 16, 10, 0, 7); g.fill();
     g.fillStyle = dark; for (let i = 0; i < 10; i++) { const a = (i / 10) * Math.PI * 2; g.beginPath(); g.moveTo(16 + Math.cos(a) * 4, 16 + Math.sin(a) * 4); g.lineTo(16 + Math.cos(a + 0.35) * 9.5, 16 + Math.sin(a + 0.35) * 9.5); g.lineTo(16 + Math.cos(a + 0.5) * 9.5, 16 + Math.sin(a + 0.5) * 9.5); g.closePath(); g.fill(); }

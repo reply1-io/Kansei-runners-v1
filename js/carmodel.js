@@ -6,7 +6,7 @@
 // Forward is +x, up is +y, meters.
 import * as THREE from '../lib/three.module.min.js';
 import {
-  envCube, headlightTex, taillightTex, grilleTex, roundLampTex, kidneyTex, volvoGrilleTex, mercGrilleTex,
+  envCube, headlightTex, taillightTex, grilleTex, roundLampTex, kidneyTex, mercGrilleTex, ek9LampTex,
   blackGrilleTex, rectLampTex, tailBarTex, roundTailTex, ribbedTailTex, plateTex, wheelTex,
 } from './textures.js';
 
@@ -25,14 +25,6 @@ const CARS = {
               ws0: 0.55, ws1: 1.07, rf1: 2.46, rw0: 2.9, sg: 2.64, nose: 0.79, cowl: 0.91, beltR: 0.9, tail: 0.89, tumble: 0.2, taper: 0.12, doors: 2, beltIn: 0.15, tuck: 0.1, bumperW: 1.61, smallMirrors: true,
               rubY: 0.52, mirrorBack: 0.26, paintMirrors: true, tailY: 0.7, tailZ: 0.55, plateY: 0.69, lampZ: [0.43, 0.61],
               front: 'kidney', lights: 'quad', tails: 'rect', bumper: 'us', rim: 'mesh', plate: 'us', chromeTrim: true, rubStrip: true, exhausts: 2, extras: ['sunroof', 'antenna', 'markers', 'rocker', 'lamppanel'] },
-  // 1980 Volvo 242: 4785 x 1710 x 1435, wb 2640, track 1420/1360, 185/70R14
-  // Profile measured off side/front/rear photos: tall, square body; upright glass with a thin C-pillar;
-  // high flat hood and trunk; black 5-mph bumpers 14 cm proud; chrome side strip; round lamps in square
-  // black housings either side of the diagonal-bar grille.
-  volvo242: { L: 4.785, W: 1.71, H: 1.435, wb: 2.64, fo: 0.88, track: 1.39, tireR: 0.308, tireW: 0.185, sill: 0.27, bumperOut: 0.14, arch: 0.36,
-              ws0: 0.64, ws1: 1.04, rf1: 2.46, rw0: 2.82, sg: 2.62, nose: 0.85, cowl: 0.98, beltR: 1.0, tail: 0.99, tumble: 0.22, taper: 0.05, doors: 2,
-              bumperYs: [0.475, 0.475, 0.16], chromeLine: 0.79, markerY: 0.71, fuelBack: 0.46, tailY: 0.64, tailZ: 0.63, plateY: 0.64, mirrorBack: 0.12,
-              front: 'volvo', lights: 'volvo', tails: 'volvo', bumper: 'us', rim: 'turbine', plate: 'us', chromeTrim: true, extras: ['gutters', 'antenna', 'mudflaps', 'markers'] },
   // Mercedes-Benz 190E (W201): 4420 x 1678 x 1390, wb 2665, track 1445/1430, 185/65R15
   mb190e:   { L: 4.42, W: 1.678, H: 1.39, wb: 2.665, fo: 0.78, track: 1.44, tireR: 0.311, tireW: 0.185, sill: 0.21,
               ws0: 0.4, ws1: 1.2, rf1: 2.26, rw0: 2.86, sg: 2.48, nose: 0.72, cowl: 0.9, beltR: 0.98, tail: 1.0, tumble: 0.2, taper: 0.1, doors: 4,
@@ -53,14 +45,23 @@ const CARS = {
   r32:      { L: 4.53, W: 1.695, H: 1.34, wb: 2.615, fo: 0.85, track: 1.46, tireR: 0.315, tireW: 0.205, sill: 0.19,
               ws0: 0.45, ws1: 1.26, rf1: 2.2, rw0: 2.88, sg: 2.46, nose: 0.66, cowl: 0.88, beltR: 0.96, tail: 0.96, tumble: 0.21, taper: 0.14, doors: 2,
               front: 'nissan', lights: 'slim', tails: 'quadround', bumper: 'body', rim: '5spoke', plate: 'jp', spoiler: 'small', extras: ['fogs'] },
-  // 1999 Honda Civic Si hatch (EK): 4180 x 1695 x 1360, wb 2620, track 1475/1470, 195/55R15
+  // Honda Civic Type R (EK9): 4180 x 1695 x 1360, wb 2620, track 1475/1470, 195/55R15
   // Profile measured off side/front/rear photos: long sloping hood, windshield base well behind the
-  // front axle, roof running almost to the tail, big roof spoiler, deep body-colour bumpers.
+  // front axle, roof running almost to the tail, big roof spoiler, deep body-colour bumpers. Headlights
+  // are wedges sitting on the slope of the nose, tallest inboard and sweeping back round the corners.
   civic:    { L: 4.18, W: 1.695, H: 1.36, wb: 2.62, fo: 0.87, track: 1.47, tireR: 0.298, tireW: 0.195, sill: 0.15, arch: 0.34,
-              ws0: 0.47, ws1: 1.12, rf1: 2.45, rw0: 3.04, sg: 2.58, nose: 0.67, cowl: 0.86, beltR: 0.92, tail: 0.95, tumble: 0.26, taper: 0.12, doors: 2, hatch: true, frontPlate: false,
-              bumperF: [0.31, 0.4], bumperR: [0.37, 0.34], intake: [0.82, 0.14, 0.3], lampSize: [0.31, 0.16], lampZ: 0.56, lampY: 0.62, grille: [0.77, 0.12, 0.58],
+              ws0: 0.47, ws1: 1.12, rf1: 2.45, rw0: 3.04, sg: 2.58, nose: 0.7, cowl: 0.86, beltR: 0.92, tail: 0.95, tumble: 0.26, taper: 0.12, doors: 2, hatch: true, frontPlate: false,
+              bumperF: [0.31, 0.4], bumperR: [0.37, 0.34], intake: [0.82, 0.14, 0.3], lampSize: [0.31, 0.16], lampZ: 0.56, lampY: 0.62, grille: [0.56, 0.07, 0.575],
               tailY: 0.74, tailZ: 0.7, plateY: 0.7, exhaustZ: 0.4, exhaustY: 0.18, mirrorBack: 0.31, paintMirrors: true, markerF: 0.36,
-              front: 'honda', lights: 'swept', tails: 'hatch', bumper: 'body', rim: 'holes', plate: 'us', spoiler: 'roof', extras: ['markers', 'antenna', 'rearwiper'] },
+              front: 'honda', lights: 'ek9', tails: 'hatch', bumper: 'body', rim: '5spoke', plate: 'jp', spoiler: 'roof', extras: ['markers', 'antenna', 'rearwiper'] },
+  // Porsche 911 Turbo (964): 4250 x 1775 x 1290, wb 2272, track 1442/1506, 205/50ZR17 + 255/40ZR17
+  // The 911 shape: low nose between raised front wings carrying upright round headlights, steep
+  // windscreen, roof sweeping down in one curve to the engine lid, wide rear hips (the body narrows
+  // towards the front), the flat "tea tray" whale tail, a full-width red light bar, twin pipes each side.
+  p964t:    { L: 4.25, W: 1.775, H: 1.29, wb: 2.272, fo: 0.9, track: 1.47, tireR: 0.318, tireW: 0.235, sill: 0.17, arch: 0.37,
+              ws0: 0.8, ws1: 1.32, rf1: 1.84, rw0: 2.62, sg: 2.02, bpillar: 1.72, nose: 0.6, cowl: 0.9, beltR: 0.95, tail: 0.92, tumble: 0.28, taper: 0.17, doors: 2, beltIn: 0.13,
+              frontNarrow: 0.1, fenders: 0.12, bumperF: [0.36, 0.28], bumperR: [0.4, 0.26], intake: [1.05, 0.07, 0.28], tailY: 0.79, plateY: 0.45, mirrorBack: 0.32, paintMirrors: true,
+              front: 'none', lights: 'frog', tails: 'bar', bumper: 'body', rim: 'speedline', plate: 'jp', spoiler: 'whale', exhaustsBoth: true, extras: ['markers'] },
 };
 
 // Piecewise-linear lookup through sorted [x, y] points.
@@ -158,7 +159,9 @@ export function makeCarMesh(color, modelId, opts = {}) {
     for (const ax of axles) { const d = Math.abs(x - ax); if (d < ARCH_R) y = Math.max(y, WHEEL_R + Math.sqrt(ARCH_R * ARCH_R - d * d)); }
     return y;
   };
-  const hw = (x) => { const u = Math.max(0, Math.min(1, (Math.abs(x) - (b.L / 2 - 0.55)) / 0.55)); return W / 2 - b.taper * u * u; };
+  // Half-width: tapering in at both ends, and (frontNarrow) narrower ahead of the doors than at the hips.
+  const sm = (a, c, v) => { const t = Math.max(0, Math.min(1, (v - a) / (c - a))); return t * t * (3 - 2 * t); };
+  const hw = (x) => { const u = Math.max(0, Math.min(1, (Math.abs(x) - (b.L / 2 - 0.55)) / 0.55)); return W / 2 - b.taper * u * u - (b.frontNarrow || 0) * sm(axF - 1.2, axF - 0.5, x); };
   const roofLine = piecewise([[rwBase, b.beltR], [roofR, b.roof], [roofF, b.roof], [wsBase, b.cowl]]);
   // beltIn: how far the glass sits in from the body sides at the window line (the shoulder).
   const beltW = (x) => hw(x) - (b.beltIn ?? 0.07), roofW = (x) => hw(x) - b.tumble;
@@ -171,10 +174,14 @@ export function makeCarMesh(color, modelId, opts = {}) {
   const stations = [...new Set(xs.map((x) => +x.toFixed(4)))].sort((p, q) => p - q);
 
   // ---- body shell: rounded section, sides leaning in slightly, soft shoulders, crowned top ----
+  // fenders: the front wings rise above a lower bonnet (911), most at the nose, fading out at the screen.
+  const fenderRise = (x) => (b.fenders ? b.fenders * sm(wsBase + 0.05, xF - 0.25, x) : 0);
   const bodyRing = (x) => {
-    const h = hw(x), t = top(x), bt = bottom(x), mid = Math.min(bt + 0.14, t - 0.13);
+    const h = hw(x), t = top(x), bt = bottom(x), mid = Math.min(bt + 0.14, t - 0.13), fr = fenderRise(x);
     const tuck = b.tuck ?? 0.05; // how far the lower sides curve in under the car
-    const half = [[h - tuck, bt], [h, mid], [h, t - 0.13], [h - 0.05, t - 0.035], [h - 0.17, t]];
+    const half = b.fenders // (same point count at every station)
+      ? [[h - tuck, bt], [h, mid], [h, t - 0.13 + fr * 0.6], [h - 0.04, t - 0.02 + fr], [h - 0.17, t + fr * 1.05], [h - 0.3, t + fr * 0.4], [h - 0.36, t]]
+      : [[h - tuck, bt], [h, mid], [h, t - 0.13], [h - 0.05, t - 0.035], [h - 0.17, t]];
     return [...half.map(([z, y]) => [-z, y]), [0, t + 0.015], ...half.reverse().map(([z, y]) => [z, y])];
   };
   add(loft(stations, bodyRing, { capStart: true, capEnd: true }), paint);
@@ -258,7 +265,7 @@ export function makeCarMesh(color, modelId, opts = {}) {
       box(d + 0.005, 0.012, bw + 0.005, chrome, cx, y + bh / 2 - 0.01, 0);
       for (const z of [-1, 1]) box(0.34, bh, 0.04, plastic, x0 - s * 0.17, y, z * (Math.min(bw / 2, hw(x0 - s * 0.17)) - 0.005));
     }
-    if (b.lights !== 'volvo') for (const z of [-1, 1]) face(0.13, 0.05, amber, xF + bo + 0.005, byF, z * (W / 2 - 0.13)); // indicators
+    for (const z of [-1, 1]) face(0.13, 0.05, amber, xF + bo + 0.005, byF, z * (W / 2 - 0.13)); // indicators
   } else if (b.bumper === 'cladding') {
     for (const x of [xF + 0.02, xR - 0.02]) box(0.14, 0.2, W - 0.06, alu, x, 0.44, 0);
     for (const s of [-1, 1]) box(b.wb - 0.8, 0.16, 0.04, alu, 0, 0.42, s * (hw(0) + 0.01));
@@ -276,21 +283,38 @@ export function makeCarMesh(color, modelId, opts = {}) {
   const fy = (0.46 + b.nose) / 2 + 0.03;
   const fx = xF + 0.012;
   if (b.front === 'kidney') face(0.3, 0.15, decal('kidney', kidneyTex()), fx, fy, 0);
-  if (b.front === 'volvo') face(0.86, 0.25, decal('volvo', volvoGrilleTex()), fx, fy, 0);
   if (b.front === 'mercedes') face(0.34, 0.26, decal('merc', mercGrilleTex()), fx, fy + 0.02, 0);
   if (b.front === 'nissan') face(0.5, 0.1, decal('nissan', blackGrilleTex()), fx, fy, 0);
   if (b.front === 'honda') { const [gw, gh, gy] = b.grille || [0.44, 0.07, fy + 0.03]; face(gw, gh, decal('nissan', blackGrilleTex()), fx, gy, 0); }
   if (b.front === 'slot') face(0.6, 0.06, decal('slot', grilleTex()), xF + 0.03, 0.4, 0);
   if (b.extras?.includes('lamppanel')) face(W - 2 * b.taper - 0.06, 0.2, black, xF + 0.008, fy, 0);
   if (b.lights === 'quad') { const [a, c] = b.lampZ || [0.36, 0.54]; for (const z of [-c, -a, a, c]) face(0.155, 0.155, decal('lamp', roundLampTex()), fx, fy, z); }
-  if (b.lights === 'volvo') for (const s of [-1, 1]) {
-    // Round sealed-beam lamps in square black housings, clear-over-amber indicators outboard.
-    face(0.27, 0.25, black, fx - 0.002, fy, s * 0.57);
-    face(0.19, 0.19, decal('lamp', roundLampTex()), fx, fy, s * 0.57);
-    face(0.09, 0.12, amber, fx, fy - 0.06, s * 0.77);
-    face(0.09, 0.12, decal('lamprect', rectLampTex()), fx, fy + 0.06, s * 0.77);
+  if (b.lights === 'ek9') for (const s of [-1, 1]) {
+    // A grid of quads: up the face of the nose then leaning back over the bonnet edge (rows), from the
+    // inner edge across the front and back round the corner along the wing (columns).
+    const hwx = (x) => hw(x) + 0.006;
+    const rows = [
+      [[xF + 0.006, 0.505, 0.27], [xF + 0.006, 0.52, 0.68], [xF - 0.2, 0.57, hwx(xF - 0.2)]],
+      [[xF + 0.006, 0.645, 0.27], [xF + 0.006, 0.64, 0.66], [xF - 0.22, 0.66, hwx(xF - 0.22) - 0.005]],
+      [[xF - 0.05, 0.692, 0.27], [xF - 0.05, 0.686, 0.63], [xF - 0.26, 0.712, hwx(xF - 0.26) - 0.02]],
+    ];
+    const us = [0, 0.62, 1], vs = [0, 0.72, 1], pos = [], uv = [], idx = [];
+    rows.forEach((row, r) => row.forEach(([x, y, z], k) => { pos.push(x, y, s * z); uv.push(us[k], vs[r]); }));
+    for (let r = 0; r < 2; r++) for (let k = 0; k < 2; k++) { const a = r * 3 + k; idx.push(a, a + 1, a + 3, a + 1, a + 4, a + 3); }
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+    geo.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
+    geo.setIndex(idx); geo.computeVertexNormals();
+    add(geo, once('ek9lamp', () => new THREE.MeshBasicMaterial({ map: ek9LampTex(), side: THREE.DoubleSide })));
   }
-  if (b.lights === 'rect') for (const s of [-1, 1]) face(0.34, 0.16, decal('lamprect', rectLampTex()), fx, fy, s * (W / 2 - 0.3));
+  if (b.lights === 'frog') for (const s of [-1, 1]) {
+    // Upright round headlights in the noses of the raised wings, each in a dark recess.
+    const lz = s * (hw(xF) - 0.17), ly = top(xF) + fenderRise(xF) * 0.6;
+    face(0.25, 0.25, once('lampring', () => new THREE.MeshBasicMaterial({ map: roundLampTex(), color: '#2a2c30', transparent: true, alphaTest: 0.4 })), xF + 0.004, ly, lz);
+    face(0.21, 0.21, decal('lamp', roundLampTex()), xF + 0.008, ly, lz);
+    face(0.12, 0.05, amber, xF + 0.02, (b.bumperF[0] + 0.06), s * (W / 2 - 0.24));   // indicator in the bumper
+    face(0.12, 0.05, decal('lamprect', rectLampTex()), xF + 0.02, (b.bumperF[0] + 0.0), s * (W / 2 - 0.24));
+  }  if (b.lights === 'rect') for (const s of [-1, 1]) face(0.34, 0.16, decal('lamprect', rectLampTex()), fx, fy, s * (W / 2 - 0.3));
   if (b.lights === 'swept') { const [lw, lh] = b.lampSize || [0.42, 0.13]; for (const s of [-1, 1]) face(lw, lh, decal('lampslim', headlightTex()), fx - 0.02, b.lampY ?? fy + 0.02, s * (b.lampZ ?? W / 2 - 0.26)); }
   if (b.lights === 'slim') for (const s of [-1, 1]) face(0.4, 0.09, decal('lampslim', headlightTex()), fx, fy + 0.02, s * (W / 2 - 0.3));
   if (b.lights === 'popup') {
@@ -312,7 +336,6 @@ export function makeCarMesh(color, modelId, opts = {}) {
   const tail = new THREE.MeshBasicMaterial({ map: taillightTex(), color: '#8a5a5a', transparent: true, alphaTest: 0.4 });
   const tailWith = (t) => { tail.map = t; return tail; };
   if (b.tails === 'rect') for (const s of [-1, 1]) face(0.46, 0.15, tailWith(taillightTex()), bx, ty, s * (b.tailZ ?? W / 2 - 0.3), 'back');
-  if (b.tails === 'volvo') for (const s of [-1, 1]) face(0.33, 0.16, tailWith(taillightTex()), bx, ty, s * b.tailZ, 'back');
   if (b.tails === 'tall') for (const s of [-1, 1]) face(0.26, 0.26, tailWith(ribbedTailTex()), bx, ty - 0.04, s * (W / 2 - 0.2), 'back');
   if (b.tails === 'ribbed') for (const s of [-1, 1]) face(0.5, 0.2, tailWith(ribbedTailTex()), bx, ty, s * (W / 2 - 0.3), 'back');
   if (b.tails === 'twin') {
@@ -331,7 +354,8 @@ export function makeCarMesh(color, modelId, opts = {}) {
   const py = b.plateY ?? Math.min(ty - 0.16, 0.66), onBumper = b.bumperR && py < b.bumperR[0] + b.bumperR[1] / 2;
   face(0.34, 0.14, decal(`plate-${b.plate}`, plateTex(b.plate)), onBumper ? xR - 0.025 : bx - 0.001, py, 0, 'back');
   const pipe = once('pipe', () => { const c = new THREE.CylinderGeometry(0.04, 0.04, 0.18, 8); c.rotateZ(Math.PI / 2); return c; });
-  for (let i = 0; i < (b.exhausts || 1); i++) add(pipe, chrome, xR - 0.04 - bo * 0.7, b.exhaustY ?? 0.3, (b.exhausts === 2 ? -0.42 - i * 0.1 : b.exhaustZ ?? -0.45));
+  if (b.exhaustsBoth) for (const s of [-1, 1]) for (const dz of [0, 0.09]) add(pipe, chrome, xR - 0.04, 0.24, s * (0.42 + dz));
+  else for (let i = 0; i < (b.exhausts || 1); i++) add(pipe, chrome, xR - 0.04 - bo * 0.7, b.exhaustY ?? 0.3, (b.exhausts === 2 ? -0.42 - i * 0.1 : b.exhaustZ ?? -0.45));
   if (b.spoiler === 'wing') {
     // Big rear wing on uprights at the outer ends of the deck, rising towards its trailing edge.
     const wy = b.tail + 0.16, wx = xR + 0.2;
@@ -340,6 +364,16 @@ export function makeCarMesh(color, modelId, opts = {}) {
     for (const z of [-1, 1]) box(0.24, 0.16, 0.04, paint, wx + 0.02, b.tail + 0.07, z * (W / 2 - 0.13));
   }
   if (b.spoiler === 'lip') box(0.16, 0.05, W - 0.4, paint, xR + 0.12, b.tail + 0.01, 0);
+  if (b.spoiler === 'whale') {
+    // The flat "tea tray" whale tail on the engine lid: a raised plinth, the tray with its intake grille
+    // on top, and a black rubber lip round the trailing edge.
+    const tw = 2 * hw(xR + 0.4) - 0.3, tx = xR + 0.36, ty2 = b.tail + 0.1;
+    box(0.5, 0.08, tw - 0.12, paint, tx + 0.04, b.tail + 0.04, 0);
+    box(0.66, 0.045, tw, paint, tx, ty2, 0);
+    const gr = add(new THREE.PlaneGeometry(0.32, tw * 0.55), decal('nissan', blackGrilleTex()), tx + 0.08, ty2 + 0.025, 0);
+    gr.rotation.x = -Math.PI / 2; gr.rotation.z = Math.PI / 2;
+    box(0.035, 0.05, tw + 0.02, black, tx - 0.335, ty2 + 0.01, 0);
+  }
   if (b.spoiler === 'roof') {
     // Big roof spoiler overhanging the hatch glass, with a dark centre (the brake light).
     const sw = 2 * roofW(roofR) + 0.02;

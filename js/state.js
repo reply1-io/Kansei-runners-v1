@@ -1,6 +1,6 @@
 // Game state, car generation, performance math, economy and save/load.
 import {
-  START_MONEY, MARKET_PRICE_CAP, MODELS, COMPONENTS, UPGRADES, SELLERS, SELLER_NOTES, COLORS,
+  START_MONEY, MODELS, COMPONENTS, UPGRADES, SELLERS, SELLER_NOTES, COLORS,
   PROBLEM_THRESHOLD, DEAD_THRESHOLD,
 } from './data.js';
 
@@ -42,7 +42,7 @@ export function load() {
     if (raw) {
       state = Object.assign(newState(), JSON.parse(raw));
       // Older saves had made-up car names; swap them for the closest real car.
-      const OLD = { camra: 'volvo242', accordo: 'mb190e', civix: 'e30', roadstar: 'e30', kaze86: 'e30', s13: 's180sx', fc: 'supra', s14: 's180sx', wrx: 'r32', evo: 'r32', supremo: 'supra' };
+      const OLD = { volvo242: 'mb190e', camra: 'mb190e', accordo: 'mb190e', civix: 'e30', roadstar: 'e30', kaze86: 'e30', s13: 's180sx', fc: 'supra', s14: 's180sx', wrx: 'r32', evo: 'r32', supremo: 'supra' };
       const fix = (car) => { if (!MODELS.some((m) => m.id === car.modelId)) car.modelId = OLD[car.modelId] || 'e30'; };
       state.cars.forEach(fix);
       if (state.listings.some((l) => !MODELS.some((m) => m.id === l.car.modelId))) refreshListings();
@@ -202,18 +202,11 @@ export function repair(car, compId) {
 
 export function refreshListings() {
   const listings = [];
-  const n = randInt(6, 10);
-  for (let i = 0; i < n; i++) {
-    // Everything listed is under the price cap. Nice cars only get there by being wrecks,
-    // so keep rolling until we get a car + condition combo that is cheap enough.
-    let car, price;
-    for (let tries = 0; tries < 60; tries++) {
-      const model = tries < 50 ? pick(MODELS) : MODELS[0];
-      car = generateCar(model, rand(0.3, 0.85));
-      price = Math.round(carValue(car) * rand(0.8, 1.15) / 50) * 50;
-      if (price <= MARKET_PRICE_CAP) break;
-    }
-    price = Math.min(price, MARKET_PRICE_CAP);
+  // Every model is for sale every day (one of each, in random condition), plus a few extra cheap ones.
+  const models = [...MODELS, ...Array.from({ length: randInt(1, 3) }, () => pick(MODELS))];
+  for (const model of models) {
+    const car = generateCar(model, rand(0.3, 0.85));
+    const price = Math.round(carValue(car) * rand(0.8, 1.15) / 50) * 50;
     // Sellers hide some of the mechanical problems unless you pay for an inspection.
     const hidden = ['engine', 'trans', 'susp', 'brakes', 'tires'].filter(() => Math.random() < 0.45);
     listings.push({

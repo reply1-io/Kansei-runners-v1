@@ -400,7 +400,9 @@ function buildWorld(net) {
 
   // Roads and shoulders. No guardrails: run wide and you're in the dirt, then the trees. The roads
   // out to the courses start a little under the home loop where they join it, so the two don't fight.
-  const shoulderMat = new THREE.MeshLambertMaterial({ map: shoulderTex() });
+  // Road surfaces keep only a hint of the PS1 texture warp, so their paint lines don't zigzag.
+  const roadMats = {}, roadMat = (st) => roadMats[st] || (roadMats[st] = Object.assign(new THREE.MeshLambertMaterial({ map: roadTex(st) }), { userData: { affine: 0.2 } }));
+  const shoulderMat = Object.assign(new THREE.MeshLambertMaterial({ map: shoulderTex() }), { userData: { affine: 0.3 } });
   for (const r of ROADS) {
     // A road that branches off another starts at the other's edge, with its flared mouth pinned onto
     // that edge (see flareMouths), and sits a hair above it so the junction reads as one surface.
@@ -422,12 +424,12 @@ function buildWorld(net) {
     scene.add(new THREE.Mesh(ribbon(S, (p) => -p.half - 1.1, (p) => p.half + 1.1, -0.12 + sdy, -0.12 + sdy, { every: 2, closed, length, withUV: true, uAcross: 3, vPer: 3, adjust: adjust && adjust.shoulder }), shoulderMat));
     // The surface changes with the road: two lanes, a narrow mountain road, or a single lane.
     const style = (p) => (p.half < 2.8 ? 'lane' : r.style || 'two');
-    if (closed) scene.add(new THREE.Mesh(ribbon(S, (p) => -p.half, (p) => p.half, 0.03, 0.03, { withUV: true, closed, length, vPer: 10 }), new THREE.MeshLambertMaterial({ map: roadTex(style(S[0])) })));
+    if (closed) scene.add(new THREE.Mesh(ribbon(S, (p) => -p.half, (p) => p.half, 0.03, 0.03, { withUV: true, closed, length, vPer: 10 }), roadMat(style(S[0]))));
     else {
       for (let i0 = 0; i0 < S.length - 1;) {
         let i1 = i0 + 1;
         while (i1 < S.length - 1 && style(S[i1]) === style(S[i0])) i1++;
-        scene.add(new THREE.Mesh(ribbon(S.slice(i0, i1 + 1), (p) => -p.half, (p) => p.half, 0.03 + dy, 0.03 + dy, { withUV: true, vPer: 10, adjust: adjust && adjust.road }), new THREE.MeshLambertMaterial({ map: roadTex(style(S[i0])) })));
+        scene.add(new THREE.Mesh(ribbon(S.slice(i0, i1 + 1), (p) => -p.half, (p) => p.half, 0.03 + dy, 0.03 + dy, { withUV: true, vPer: 10, adjust: adjust && adjust.road }), roadMat(style(S[i0]))));
         i0 = i1;
       }
     }
@@ -435,7 +437,7 @@ function buildWorld(net) {
 
   // Junction mouths: the main road's edge line is broken where a side road joins, and the side road
   // has a white stop line just before it.
-  const plainMat = new THREE.MeshLambertMaterial({ map: roadTex('plain') }), stopMat = new THREE.MeshLambertMaterial({ color: '#e9e9e2' });
+  const plainMat = Object.assign(new THREE.MeshLambertMaterial({ map: roadTex('plain') }), { userData: { affine: 0.2 } }), stopMat = new THREE.MeshLambertMaterial({ color: '#e9e9e2' });
   for (const r of ROADS) for (const m of r.mouths || []) {
     const main = m.road, q = r.sampleAtS(m.s), inward = m.at === 'start' ? 1 : -1;
     const corners = [-1, 1].map((sd) => main.nearest(q.x + q.nx * sd * q.half, q.z + q.nz * sd * q.half, -1));

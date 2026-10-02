@@ -502,6 +502,19 @@ const COURSE_DEFS = {
 };
 const LOCAL = Object.fromEntries(Object.entries(COURSE_DEFS).map(([k, d]) => [k, localCourse(d)]));
 
+// Heights along a joining road: a smooth cubic over its length from e0 (leaving at grade g0) to e1
+// (arriving at grade g1), so it meets both roads without a step or a kink. `tail` is any distance left
+// between the last point and the road it meets.
+function easeElevation(pts, e0, g0, e1, g1, tail = 0) {
+  const s = [0];
+  for (let i = 1; i < pts.length; i++) s.push(s[i - 1] + Math.hypot(pts[i].x - pts[i - 1].x, pts[i].z - pts[i - 1].z));
+  const L = s[s.length - 1] + tail || 1;
+  pts.forEach((p, i) => {
+    const t = s[i] / L, t2 = t * t, t3 = t2 * t;
+    p.e = (2 * t3 - 3 * t2 + 1) * e0 + (t3 - 2 * t2 + t) * L * g0 + (-2 * t3 + 3 * t2) * e1 + (t3 - t2) * L * g1;
+  });
+}
+
 // The road from the end of a side road's first bends to a course's start line: a smooth curve that
 // arrives lined up with the course, climbing or dropping evenly.
 function connectorPts(E, S) {
@@ -547,11 +560,13 @@ for (const st of BRANCH_STARTS) {
   const S = { x: E.x + Math.cos(E.h + P.a * D2R) * P.d, z: E.z + Math.sin(E.h + P.a * D2R) * P.d, h: E.h + P.b * D2R, e: E.e };
   // The connector: first bends, then the curve onto the course's first point.
   const cp = [...st.pts, ...connectorPts(E, S)];
-  // Widen (or narrow) over the last 40 m to meet the course's width.
-  const endHalf = LOCAL[d.to].pts[0].half;
-  cp.forEach((p, i) => { const t = Math.max(0, 1 - (cp.length - 1 - i) / 40); p.half = CONNECTOR_HALF + (endHalf - CONNECTOR_HALF) * t; });
-  smoothElevation(cp, 8, false);
+  // Height: one smooth curve from the junction (level across the loop) onto the course's own slope.
+  const lp = LOCAL[d.to].pts;
+  easeElevation(cp, st.pts[0].e, 0, S.e + lp[0].e - 120, (lp[6].e - lp[0].e) / 6, Math.hypot(S.x - cp[cp.length - 1].x, S.z - cp[cp.length - 1].z));
   smoothWidths(cp, CONNECTOR_HALF);
+  // Widen (or narrow) over the last 40 m to meet the course's width exactly.
+  const endHalf = lp[0].half;
+  cp.forEach((p, i) => { const t = Math.max(0, 1 - (cp.length - 1 - i) / 40); p.half = CONNECTOR_HALF + (endHalf - CONNECTOR_HALF) * t * t * (3 - 2 * t); });
   const conn = makeRoad(cp, false);
   Object.assign(conn, { id: d.id, name: d.name, to: d.to, style: 'two', junctionS: st.junctionS, joinedStart: true, joinedEnd: true });
   flareMouths(conn, [{ road: ROAD, at: 'start' }]);
@@ -676,8 +691,10 @@ function buildRingLinks() {
     }
     if (!best) continue; // (no clean route from here)
     const cp = [{ x: start.x, z: start.z, e: start.e }, ...best.pts];
-    cp.forEach((p, i) => { const f = (i + 1) / (cp.length + 1); p.e = start.e + (best.P.e - start.e) * f; p.half = startHalf + (CONNECTOR_HALF - startHalf) * Math.min(1, i / 40); p.canyon = 0; });
-    smoothElevation(cp, 8, false);
+    cp.forEach((p, i) => { const t = Math.min(1, i / 40); p.half = startHalf + (CONNECTOR_HALF - startHalf) * t * t * (3 - 2 * t); p.canyon = 0; });
+    // Height: carry on at the course's own slope (or level off the loop), easing to level at the ring.
+    const g0 = L.from.loop !== undefined ? 0 : startRoad.samples[startRoad.samples.length - 1].grade;
+    easeElevation(cp, start.e, g0, best.P.e, 0, Math.hypot(best.P.x - cp[cp.length - 1].x, best.P.z - cp[cp.length - 1].z));
     const link = makeRoad(cp, false);
     Object.assign(link, { id: L.id, name: L.name, style: 'two', joinedStart: true, joinedEnd: true, link: true });
     if (L.from.loop !== undefined) { link.junctionS = L.from.loop; flareMouths(link, [{ road: ROAD, at: 'start' }, { road: RING, at: 'end' }]); }

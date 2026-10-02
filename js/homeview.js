@@ -7,7 +7,7 @@ import { HOME_NET, ROAD, U } from './road.js';
 import { HOME, PARKING, PARK_HEADING, parkingAssignments } from './map.js';
 
 const TRAFFIC_COLORS = ['#c8ccd2', '#8c1c13', '#1d3557', '#e9c46a', '#2a9d8f', '#222222'];
-const TRAFFIC_MODELS = ['volvo242', 'mb190e', 'e30', 'supra', 's180sx', 'r32', 'civic'];
+const TRAFFIC_MODELS = ['p964t', 'mb190e', 'e30', 'supra', 's180sx', 'r32', 'civic'];
 
 export function createHomeView({ canvas, overlay, getCars, getActiveId, onTap, onSelect, buttonsEl }) {
   const retro = getRetro(canvas);
