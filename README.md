@@ -76,7 +76,7 @@ The two long courses pay **double** purses.
    - On a keyboard, use arrows/WASD, with space for the handbrake.
    - Slide or spin the tires for 2 seconds and you'll see light tire smoke.
    - 🔊 toggles sound (engine, tire squeal, impacts).
-8. Every drive wears the car. Throttle wears the engine and transmission, sliding wears tires, brakes wear on downhills, and hitting the trees or other cars damages the body. Bumping another car doesn't slow either of you down. A worn engine can blow. Spend your winnings on repairs and mods, or sell and move up.
+8. Every drive wears the car. **Each race takes exactly 3% off every part** (engine, transmission, suspension, brakes, tires, body), however long the course and however hard you drive. Free driving wears parts gently with use (throttle wears the engine and transmission, sliding wears tires, brakes wear on downhills; a full lap of the Ring Road costs a few percent). Hitting the trees still damages the body and suspension. Bumping another car doesn't slow either of you down. Only a part that's already in bad shape can fail mid-race (a badly worn engine can blow). Spend your winnings on repairs and mods, or sell and move up.
 
 Progress saves automatically in the browser (localStorage).
 

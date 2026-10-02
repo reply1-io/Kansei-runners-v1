@@ -37,7 +37,9 @@ function smokeTexture() {
   g.fillStyle = gr; g.fillRect(0, 0, 32, 32);
   return (smokeTex = new THREE.CanvasTexture(c));
 }
-const HB_RADIUS = 15; // rivals pull the handbrake where their line is tighter than this
+const HB_RADIUS = 15;
+const RACE_WEAR = 3;     // % off every part per race
+const CRUISE_WEAR = 0.05; // free driving wears parts at this fraction of the full rates // rivals pull the handbrake where their line is tighter than this
 
 // Locked chase camera: fixed high up behind the car with a wide 90° view, looking down the road over the
 // treetops so you can see the next corners (a narrower view loses bends off the sides of a tall phone screen).
@@ -188,7 +190,12 @@ export function startDrive({ canvas, hud, car, perf, rivalBase, mode, event, dif
   }
 
   // ---- state ----
+  // Wear. A race always costs every part exactly RACE_WEAR % (so racing never wrecks a healthy car;
+  // only parts that were already bad can fail mid-race). Free driving wears parts gently with use
+  // (CRUISE_WEAR x the rates below), plus real damage from hitting things.
   const wear = { engine: 0, trans: 0, susp: 0, brakes: 0, tires: 0, body: 0 };
+  const W = race ? 1 : CRUISE_WEAR;
+  const used = (k) => (race ? Math.min(wear[k], RACE_WEAR) : wear[k]);
   const input = { left: false, right: false, gas: false, brake: false, hb: false, axis: null };
   let time = race ? -3.2 : 0.01;
   let done = false, raf = 0, last = performance.now();
@@ -411,11 +418,11 @@ export function startDrive({ canvas, hud, car, perf, rivalBase, mode, event, dif
     const canPower = time > 0 && !engineBlown && noPowerT <= 0;
     if (input.gas && canPower) {
       vf += spec.accel * Math.max(0, 1 - (vf / spec.top) ** 2) * dt * (hb ? 0.4 : 1);
-      wear.engine += dt * 0.12 * (1 + 0.6 * car.upgrades.turbo);
-      wear.trans += dt * 0.06;
+      wear.engine += dt * 0.12 * W * (1 + 0.6 * car.upgrades.turbo);
+      wear.trans += dt * 0.06 * W;
     }
     if (input.brake && time > 0) {
-      if (vf > 0.5) { vf = Math.max(0, vf - spec.brake * surf.grip * dt); if (speed > 8) wear.brakes += dt * 0.4; }
+      if (vf > 0.5) { vf = Math.max(0, vf - spec.brake * surf.grip * dt); if (speed > 8) wear.brakes += dt * 0.4 * W; }
       else vf = Math.max(-5, vf - 3 * dt);
     }
     if (hb && vf > 0) vf = Math.max(0, vf - 2.2 * dt); // locked rears drag a little
@@ -428,9 +435,9 @@ export function startDrive({ canvas, hud, car, perf, rivalBase, mode, event, dif
     const cap = latCap * dt;
     P.drifting = (Math.abs(vl) > 1.3 && speed > 5) || (hb && speed > 4);
     if (Math.abs(vl) <= cap) vl = 0; else vl -= Math.sign(vl) * cap;
-    if (P.drifting) { vf -= vf * 0.1 * dt; wear.tires += (Math.abs(vl) + (hb ? 2 : 0)) * dt * 0.02; }
-    wear.tires += speed * dt * 0.0004;
-    if (!w0.asphalt && !atHome && speed > 3) wear.susp += dt * 0.6;
+    if (P.drifting) { vf -= vf * 0.1 * dt; wear.tires += (Math.abs(vl) + (hb ? 2 : 0)) * dt * 0.02 * W; }
+    wear.tires += speed * dt * 0.0004 * W;
+    if (!w0.asphalt && !atHome && speed > 3) wear.susp += dt * 0.6 * W;
     P.slip = clamp(Math.abs(vl) / 6 + (hb && speed > 4 ? 0.5 : 0), 0, 1);
 
     P.vx = fx * vf + rx * vl;
@@ -493,11 +500,11 @@ export function startDrive({ canvas, hud, car, perf, rivalBase, mode, event, dif
     } else P.lastL = P.lastR = null;
 
     // Failures from running bad parts hard.
-    const engNow = car.cond.engine - wear.engine;
+    const engNow = car.cond.engine - used('engine');
     if (!engineBlown && input.gas && time > 0 && engNow < 25 && Math.random() < dt * 0.025 * (25 - engNow) / 5) {
       engineBlown = true; blownT = 2.5; wear.engine = car.cond.engine; flash('💥 ENGINE BLEW!', 3);
     }
-    if (noPowerT <= 0 && input.gas && time > 0 && car.cond.trans - wear.trans < PROBLEM_THRESHOLD && Math.random() < dt * 0.12) {
+    if (noPowerT <= 0 && input.gas && time > 0 && car.cond.trans - used('trans') < PROBLEM_THRESHOLD && Math.random() < dt * 0.12) {
       noPowerT = 0.9; flash('Popped out of gear!', 1);
     }
   }
@@ -766,7 +773,7 @@ export function startDrive({ canvas, hud, car, perf, rivalBase, mode, event, dif
     if (race && time <= 0) msg.textContent = time < -2.2 ? '3' : time < -1.2 ? '2' : time < -0.2 ? '1' : 'GO!';
     else msg.textContent = messageT > 0 ? message : '';
     msg.classList.toggle('big', (race && time <= 0) || (messageT > 0 && message.length < 12));
-    const eng = car.cond.engine - wear.engine, tir = car.cond.tires - wear.tires;
+    const eng = car.cond.engine - used('engine'), tir = car.cond.tires - used('tires');
     $('[data-warn]').textContent = [eng < 30 && '🔧 ENGINE', tir < 30 && '🛞 TIRES'].filter(Boolean).join('  ');
   }
 
@@ -796,7 +803,10 @@ export function startDrive({ canvas, hud, car, perf, rivalBase, mode, event, dif
     done = true;
     cancelAnimationFrame(raf);
     cleanup();
-    onExit({ mode, dnf: race ? dnf : false, place: dnf ? null : place, time, engineBlown, wear, bonus, apexHits, apexTotal: apexMarks.length, contacts });
+    // A race costs RACE_WEAR % of everything (a blown engine is still blown).
+    const out = race ? Object.fromEntries(Object.keys(wear).map((k) => [k, RACE_WEAR])) : wear;
+    if (engineBlown) out.engine = car.cond.engine;
+    onExit({ mode, dnf: race ? dnf : false, place: dnf ? null : place, time, engineBlown, wear: out, bonus, apexHits, apexTotal: apexMarks.length, contacts });
   }
 
   function cleanup() {
