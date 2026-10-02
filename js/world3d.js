@@ -413,15 +413,27 @@ function buildWorld(net) {
   scene.fog = new THREE.Fog(sky, 150, 620);
   const hemi = new THREE.HemisphereLight('#e2ecff', '#56663a', 1.2);
   scene.add(hemi);
-  const sun = new THREE.DirectionalLight('#fff2da', 1.9);
-  sun.position.set(-90, 200, 70);
+  // A low afternoon sun (about 19 degrees up), so it sits in the frame on plenty of corners and the
+  // lens flares (see ps1.js) go off like pointing a full-frame cinema camera into it.
+  const sun = new THREE.DirectionalLight('#ffe6c2', 2.0);
+  const SUN_DIR = new THREE.Vector3(-0.78, 0.33, 0.53).normalize();
+  sun.position.copy(SUN_DIR).multiplyScalar(200);
   scene.add(sun);
+  const sunDisc = new THREE.Sprite(new THREE.SpriteMaterial({ map: sunTexture(), fog: false, depthWrite: false, toneMapped: false }));
+  sunDisc.scale.setScalar(120);
+  scene.add(sunDisc);
+  scene.userData.sun = { dir: SUN_DIR, on: true };
   // Painted sky panorama on a big cylinder that follows the camera (see world.follow).
   const skyTexture = skyTex();
   skyTexture.wrapS = THREE.RepeatWrapping; skyTexture.repeat.set(2, 1);
   const skyMat = new THREE.MeshBasicMaterial({ map: skyTexture, side: THREE.BackSide, fog: false, depthWrite: false, depthTest: false });
   const skyMesh = new THREE.Mesh(new THREE.CylinderGeometry(500, 500, 330, 24, 1, true), skyMat);
   skyMesh.renderOrder = -10;
+  // The top of the sky: a deep blue cap over the panorama, so looking up toward the sun never shows haze.
+  const capMat = new THREE.MeshBasicMaterial({ color: '#2f5fbf', fog: false, depthWrite: false, depthTest: false });
+  const cap = new THREE.Mesh(new THREE.CircleGeometry(500, 24), capMat);
+  cap.rotation.x = Math.PI / 2; cap.position.y = 165; cap.renderOrder = -10;
+  skyMesh.add(cap);
   scene.add(skyMesh);
 
   // Bounds of all the roads plus a margin (trees, rocks, water are placed inside these).
@@ -564,10 +576,11 @@ function buildWorld(net) {
     // Push-out from any solid rock a car (radius rad) at (x, z) overlaps, or null.
     rockHit: (x, z, rad) => rockReg.hit(x, z, rad),
     landmarks: { falls: bigFalls.map((f) => f.i), cabins: clearings.map((c) => ({ x: c.x, z: c.z })), ponds: water.ponds, streams: water.falls },
-    setNight: (on) => { setNight(lights, on); skyMat.color.set(on ? '#1b2440' : '#ffffff'); },
+    setNight: (on) => { setNight(lights, on); skyMat.color.set(on ? '#1b2440' : '#ffffff'); capMat.color.set(on ? '#060b1a' : '#2f5fbf'); sunDisc.visible = !on; scene.userData.sun.on = !on; },
     // Keep the sky panorama centered on the camera, and build the ground around it as it moves.
     follow: (cam) => {
       skyMesh.position.set(cam.position.x, cam.position.y + 40, cam.position.z);
+      sunDisc.position.copy(SUN_DIR).multiplyScalar(820).add(cam.position);
       mountains.position.set(cam.position.x, cam.position.y, cam.position.z);
       tiles.update(cam.position.x, cam.position.z);
     },
@@ -1003,6 +1016,17 @@ function placeBigFalls(rim, terrainAt, roads) {
     out.push({ i, pool: { x, z, r, level: level - 0.3, depth: 3 } });
   }
   return out;
+}
+
+// The sun: a small blown-out white core in a warm halo.
+function sunTexture() {
+  const c = document.createElement('canvas'); c.width = c.height = 64;
+  const g = c.getContext('2d'), gr = g.createRadialGradient(32, 32, 0, 32, 32, 32);
+  gr.addColorStop(0, '#ffffff'); gr.addColorStop(0.16, '#ffffff'); gr.addColorStop(0.24, 'rgba(255,244,214,0.85)');
+  gr.addColorStop(0.5, 'rgba(255,214,150,0.25)'); gr.addColorStop(1, 'rgba(255,200,130,0)');
+  g.fillStyle = gr; g.fillRect(0, 0, 64, 64);
+  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace;
+  return t;
 }
 
 // A soft white puff for waterfall spray.

@@ -26,7 +26,8 @@ function installPsxShaders() {
     vMapAffine = vec3( vMapUv * gl_Position.w, gl_Position.w );
   #endif
   `;
-  C.map_fragment = C.map_fragment.replace('texture2D( map, vMapUv )', 'texture2D( map, mix( vMapUv, vMapAffine.xy / vMapAffine.z, psxAffine * psxAffineMat ) )');
+  // (Sprites never write vMapAffine, so they keep plain UVs.)
+  C.map_fragment = C.map_fragment.replace('texture2D( map, vMapUv )', 'texture2D( map, vMapAffine.z > 0.0 ? mix( vMapUv, vMapAffine.xy / vMapAffine.z, psxAffine * psxAffineMat ) : vMapUv )');
   // Every material gets the snap uniform.
   // (A material can tone its own warp down with userData.affine, e.g. road markings.)
   THREE.Material.prototype.onBeforeCompile = function (shader) {
@@ -36,7 +37,29 @@ function installPsxShaders() {
   THREE.Material.prototype.customProgramCacheKey = function () { return `affine${this.userData.affine ?? 1}`; };
 }
 
-const POST_VERT = 'varying vec2 vUv; void main() { vUv = uv; gl_Position = vec4( position.xy, 0.0, 1.0 ); }';
+// The vertex stage also works out how much of the sun is actually in view (sampling the image round
+// where the sun should be: trees, hills and the wall all cut it), once per vertex rather than per pixel.
+const POST_VERT = `
+  uniform sampler2D tDiffuse;
+  uniform vec2 res;
+  uniform vec2 sunUV;
+  uniform float sunOn;
+  varying vec2 vUv;
+  varying float vSun;
+  void main() {
+    vUv = uv;
+    float v = 0.0;
+    if ( sunOn > 0.5 ) {
+      for ( int i = -2; i <= 2; i++ ) for ( int j = -2; j <= 2; j++ ) {
+        vec2 q = sunUV + vec2( float( i ), float( j ) ) * 1.2 / res;
+        if ( q.x < 0.0 || q.y < 0.0 || q.x > 1.0 || q.y > 1.0 ) continue;
+        vec3 s = texture2D( tDiffuse, q ).rgb;
+        v += smoothstep( 0.8, 0.96, min( s.r, min( s.g, s.b ) ) );
+      }
+    }
+    vSun = v / 25.0;
+    gl_Position = vec4( position.xy, 0.0, 1.0 );
+  }`;
 // Post: PS1 15-bit colour with dithering, then a Sony VX1000 / VHS camcorder look (VHS = 1):
 // slight fisheye bulge, red/blue fringing, colour bleeding sideways (VHS chroma is low-res), fixed
 // tape grain and a warm camcorder grade. Nothing in it moves.
@@ -46,7 +69,38 @@ const POST_FRAG = `
   uniform vec2 res;
   uniform float time;
   uniform float vhs;
+  uniform vec2 sunUV;
+  uniform float aspect;
   varying vec2 vUv;
+  varying float vSun;
+  // Shooting into the sun on a full-frame cinema camera: a hot core and bloom, a starburst off the
+  // aperture blades, a chain of coloured ghosts across the frame, and veiling glare that lifts the
+  // shadows and washes out the contrast. All of it fades as the sun goes behind something.
+  vec3 sunFlare( vec3 c, vec2 uv ) {
+    float vis = vSun;
+    if ( vis < 0.002 ) return c;
+    vec2 d = ( uv - sunUV ) * vec2( aspect, 1.0 );
+    float r = length( d ), a = atan( d.y, d.x );
+    vec3 warm = vec3( 1.0, 0.86, 0.62 );
+    vec3 f = warm * ( 0.9 * exp( -r * 34.0 ) + 0.32 * exp( -r * 7.0 ) + 0.1 * exp( -r * 2.2 ) );
+    // 14-point star from 7 blades, a little uneven like a real iris.
+    float star = pow( abs( cos( a * 7.0 + 0.4 ) ), 90.0 ) * ( 0.7 + 0.3 * sin( a * 3.0 ) ) + 0.5 * pow( abs( cos( a * 7.0 + 1.97 ) ), 160.0 );
+    f += vec3( 1.0, 0.93, 0.8 ) * star * exp( -r * 6.5 ) * 0.45;
+    // Ghosts on the line from the sun through the middle of the frame.
+    vec2 axis = vec2( 0.5 ) - sunUV;
+    for ( int k = 0; k < 5; k++ ) {
+      float t = k == 0 ? 0.42 : k == 1 ? 0.78 : k == 2 ? 1.18 : k == 3 ? 1.55 : 1.92;
+      float rad = k == 0 ? 0.03 : k == 1 ? 0.075 : k == 2 ? 0.045 : k == 3 ? 0.12 : 0.06;
+      vec3 tint = k == 0 ? vec3( 0.55, 1.0, 0.6 ) : k == 1 ? vec3( 0.95, 0.5, 0.9 ) : k == 2 ? vec3( 1.0, 0.75, 0.35 ) : k == 3 ? vec3( 0.4, 0.75, 1.0 ) : vec3( 0.7, 1.0, 0.8 );
+      vec2 gp = ( uv - ( sunUV + axis * t ) ) * vec2( aspect, 1.0 );
+      float gd = length( gp ) / rad;
+      f += tint * ( smoothstep( 1.0, 0.82, gd ) * ( 0.35 + 0.65 * gd * gd ) ) * 0.1;
+    }
+    // Veiling glare: stronger the nearer the sun is to the middle of the frame.
+    float near = 1.0 - smoothstep( 0.1, 0.85, length( ( sunUV - 0.5 ) * vec2( aspect, 1.0 ) ) );
+    c = mix( c, c * 0.82 + warm * 0.16, vis * ( 0.45 + 0.4 * near ) );
+    return c + f * vis;
+  }
   float bayer4( vec2 p ) {
     int x = int( mod( p.x, 4.0 ) ), y = int( mod( p.y, 4.0 ) );
     int i = x + y * 4;
@@ -74,6 +128,7 @@ const POST_FRAG = `
       // Camcorder grade: a touch warm, lifted blacks, soft highlights.
       c = c * vec3( 1.04, 1.0, 0.94 ) * 0.94 + 0.035;
     } else c = tex( uv );
+    c = sunFlare( c, vUv );
     // 15-bit color (32 levels per channel) with ordered dithering.
     vec2 px = floor( vUv * res );
     c = floor( c * 31.0 + 0.5 + bayer4( px ) * 0.9 ) / 31.0;
@@ -90,6 +145,7 @@ const TIME = { value: 0 };
 export const setVhs = (on) => { VHS.value = on ? 1 : 0; };
 
 let installed = false;
+const SUNV = new THREE.Vector3();
 let retro = null;
 
 // The main full-screen view (home + driving) shares one instance.
@@ -105,7 +161,7 @@ export function createRetro(canvas, { lines = 330, alpha = false, minPx = 2 } = 
   renderer.setPixelRatio(1);
   const rt = new THREE.WebGLRenderTarget(4, 4, { minFilter: THREE.NearestFilter, magFilter: THREE.NearestFilter, depthBuffer: true });
   const postMat = new THREE.ShaderMaterial({
-    uniforms: { tDiffuse: { value: rt.texture }, res: { value: new THREE.Vector2(4, 4) }, time: TIME, vhs: VHS },
+    uniforms: { tDiffuse: { value: rt.texture }, res: { value: new THREE.Vector2(4, 4) }, time: TIME, vhs: VHS, sunUV: { value: new THREE.Vector2() }, sunOn: { value: 0 }, aspect: { value: 1 } },
     vertexShader: POST_VERT, fragmentShader: POST_FRAG, depthTest: false, depthWrite: false, toneMapped: false,
   });
   const postScene = new THREE.Scene();
@@ -131,6 +187,17 @@ export function createRetro(canvas, { lines = 330, alpha = false, minPx = 2 } = 
     },
     render(scene, camera) {
       self.resize();
+      // Where the sun is on screen (scene.userData.sun.dir), for the lens flare.
+      const sun = scene.userData.sun, U = postMat.uniforms;
+      U.sunOn.value = 0; U.aspect.value = self.aspect;
+      if (sun && sun.on && camera.isPerspectiveCamera) {
+        camera.getWorldDirection(SUNV);
+        if (SUNV.dot(sun.dir) > 0.2) {
+          SUNV.copy(sun.dir).multiplyScalar(800).add(camera.position).project(camera);
+          U.sunUV.value.set(SUNV.x * 0.5 + 0.5, SUNV.y * 0.5 + 0.5);
+          U.sunOn.value = 1;
+        }
+      }
       SNAP.value.set(self.width / 2, self.height / 2);
       renderer.setRenderTarget(rt);
       renderer.render(scene, camera);
