@@ -9,7 +9,7 @@ import { makeCockpit } from './carmodel.js';
 import { PROBLEM_THRESHOLD, MODELS } from './data.js';
 import { clamp } from './state.js';
 import { carSound, unlockAudio, isMuted, setMuted, gearFor } from './audio.js';
-import { getRetro } from './ps1.js';
+import { getRetro, setAffine } from './ps1.js';
 
 const G = 9.81;
 const WHEELBASE = 2.5;
@@ -300,6 +300,10 @@ export function startDrive({ canvas, hud, car, perf, rivalBase, mode, event, dif
     camera.fov = camera.aspect < 0.8 ? c.fov : c.fovLandscape;
     camera.near = camMode === 'cockpit' ? 0.05 : 0.3;
     camera.updateProjectionMatrix();
+    // The cockpit is drawn at twice the resolution: from down at seat height the road ahead is far
+    // away and small, so the chunky PS1 pixels made it hard to read.
+    // (and with perspective-correct textures, so road lines up close stay straight).
+    if (camMode === 'cockpit') { retro.setDetail(640, 1); setAffine(0); } else { retro.setDetail(); setAffine(1); }
   };
   // Chase or cockpit: in the cockpit your own car's body is hidden and the interior shown instead.
   const camBtn = hud.querySelector('[data-cam]');
@@ -643,7 +647,7 @@ export function startDrive({ canvas, hud, car, perf, rivalBase, mode, event, dif
 
     if (camMode === 'cockpit') {
       // From the driver's seat: moves with the body (pitch and roll included); the wheel turns with you.
-      cockpit.wheel.rotation.x = -P.steer * 1.7;
+      cockpit.wheel.rotation.x = P.steer * 1.7; // right turns the top of the wheel to the right
       playerMesh.group.updateMatrixWorld(true);
       cockpit.eye.getWorldPosition(camera.position);
       camera.lookAt(cockpitLook.getWorldPosition(camTarget));
@@ -822,6 +826,7 @@ export function startDrive({ canvas, hud, car, perf, rivalBase, mode, event, dif
     exitBtn.removeEventListener('click', onExitBtn);
     muteBtn.removeEventListener('click', onMute);
     camBtn.removeEventListener('click', toggleCam);
+    retro.setDetail(); setAffine(1); // the home screen shares the renderer
     ctlButtons.forEach((b) => b.classList.remove('on'));
     sound.stop();
     for (const o of added) scene.remove(o);

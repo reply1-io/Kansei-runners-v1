@@ -17,7 +17,7 @@ You start at **your cabin, deep in the forest**, shown top-down. It has a carpor
 
 **On the map:**
 - **Select** (the yellow button next to each car) puts you in that car. The camera is locked high up behind the car with a wide 90° field of view, looking down the road over the treetops; it turns exactly with the car and never swings on its own. The car sits just above the pedals so most of the screen is the road ahead. Trees near the road are kept short so they do not hide the next bend. Drive down the lane onto the road and go anywhere, including the side roads, which lead to the race courses. Tap **🏠 Park** to go home.
-- **Cockpit camera:** tap **👁** (or press **C**) to drive from the driver's seat. You see the hood in your car's colour, the dash, the A-pillars, the mirror and a right-hand-drive steering wheel that turns with yours. Tap **🎥** to go back to the chase camera. The game remembers your choice.
+- **Cockpit camera:** tap **👁** (or press **C**) to drive from the driver's seat. It shows the dash, slim A-pillars and a right-hand-drive steering wheel that turns with yours. There's no hood, roof header or mirror in the way. It renders at twice the resolution of the chase view, with the PS1 texture warp turned off so road lines up close stay straight. Tap **🎥** to go back to the chase camera. The game remembers your choice.
 - **Tap a parked car** to open it in the Garage.
 - **Tap an empty spot** to open the Marketplace.
 - **Tap the cabin** to sleep until tomorrow, which brings new listings.

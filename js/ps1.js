@@ -7,11 +7,15 @@
 import * as THREE from '../lib/three.module.min.js';
 
 const SNAP = { value: new THREE.Vector2(160, 120) };
+// How much of the affine warp to use (1 = full PS1; 0 = perspective-correct, used from the cockpit,
+// where the road is close and big polygons made the lines zigzag).
+const AFFINE = { value: 1 };
+export const setAffine = (v) => { AFFINE.value = v; };
 
 // Patch three.js shader chunks once, before any material compiles.
 function installPsxShaders() {
   const C = THREE.ShaderChunk;
-  C.common += '\nuniform vec2 psxSnap;\n';
+  C.common += '\nuniform vec2 psxSnap;\nuniform float psxAffine;\n';
   C.uv_pars_vertex += '\n#ifdef USE_MAP\n\tvarying vec3 vMapAffine;\n#endif\n';
   C.uv_pars_fragment += '\n#ifdef USE_MAP\n\tvarying vec3 vMapAffine;\n#endif\n';
   C.project_vertex += `
@@ -22,9 +26,9 @@ function installPsxShaders() {
     vMapAffine = vec3( vMapUv * gl_Position.w, gl_Position.w );
   #endif
   `;
-  C.map_fragment = C.map_fragment.replace('texture2D( map, vMapUv )', 'texture2D( map, vMapAffine.xy / vMapAffine.z )');
+  C.map_fragment = C.map_fragment.replace('texture2D( map, vMapUv )', 'texture2D( map, mix( vMapUv, vMapAffine.xy / vMapAffine.z, psxAffine ) )');
   // Every material gets the snap uniform.
-  THREE.Material.prototype.onBeforeCompile = function (shader) { shader.uniforms.psxSnap = SNAP; };
+  THREE.Material.prototype.onBeforeCompile = function (shader) { shader.uniforms.psxSnap = SNAP; shader.uniforms.psxAffine = AFFINE; };
 }
 
 const POST_VERT = 'varying vec2 vUv; void main() { vUv = uv; gl_Position = vec4( position.xy, 0.0, 1.0 ); }';
@@ -102,7 +106,7 @@ export function createRetro(canvas, { lines = 330, alpha = false, minPx = 2 } = 
   const postScene = new THREE.Scene();
   postScene.add(new THREE.Mesh(new THREE.PlaneGeometry(2, 2), postMat));
   const postCam = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
-  let cssW = 0, cssH = 0;
+  let cssW = 0, cssH = 0, curLines = lines, curMinPx = minPx;
 
   const self = {
     renderer, canvas,
@@ -113,7 +117,7 @@ export function createRetro(canvas, { lines = 330, alpha = false, minPx = 2 } = 
       if (w === cssW && h === cssH) return false;
       cssW = w; cssH = h;
       renderer.setSize(w, h, false);
-      const px = Math.max(minPx, Math.min(4, Math.round(Math.max(w, h * 0.75) / lines)));
+      const px = Math.max(curMinPx, Math.min(4, Math.round(Math.max(w, h * 0.75) / curLines)));
       self.width = Math.ceil(w / px); self.height = Math.ceil(h / px);
       rt.setSize(self.width, self.height);
       postMat.uniforms.res.value.set(self.width, self.height);
@@ -128,6 +132,11 @@ export function createRetro(canvas, { lines = 330, alpha = false, minPx = 2 } = 
       renderer.setRenderTarget(null);
       TIME.value = (performance.now() / 1000) % 1000;
       renderer.render(postScene, postCam);
+    },
+    // Change the resolution (e.g. sharper from the cockpit, where the road is further away).
+    setDetail(l = lines, m = minPx) {
+      if (l === curLines && m === curMinPx) return;
+      curLines = l; curMinPx = m; cssW = cssH = 0; self.resize();
     },
     dispose() { rt.dispose(); postMat.dispose(); renderer.dispose(); renderer.forceContextLoss(); },
   };
