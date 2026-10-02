@@ -9,6 +9,7 @@ import {
   envCube, headlightTex, taillightTex, grilleTex, roundLampTex, kidneyTex, mercGrilleTex, ek9LampTex,
   blackGrilleTex, rectLampTex, tailBarTex, roundTailTex, ribbedTailTex, plateTex, wheelTex,
 } from './textures.js';
+import { build964 } from './p964.js';
 
 // Real factory dimensions (meters). L length, W width, H height, wb wheelbase, fo front overhang,
 // track, tire radius (from the stock tire size), sill: rocker height off the ground.
@@ -54,14 +55,8 @@ const CARS = {
               bumperF: [0.31, 0.4], bumperR: [0.37, 0.34], intake: [0.82, 0.14, 0.3], lampSize: [0.31, 0.16], lampZ: 0.56, lampY: 0.62, grille: [0.56, 0.07, 0.575],
               tailY: 0.74, tailZ: 0.7, plateY: 0.7, exhaustZ: 0.4, exhaustY: 0.18, mirrorBack: 0.31, paintMirrors: true, markerF: 0.36,
               front: 'honda', lights: 'ek9', tails: 'hatch', bumper: 'body', rim: '5spoke', plate: 'jp', spoiler: 'roof', extras: ['markers', 'antenna', 'rearwiper'] },
-  // Porsche 911 Turbo (964): 4250 x 1775 x 1290, wb 2272, track 1442/1506, 205/50ZR17 + 255/40ZR17
-  // The 911 shape: low nose between raised front wings carrying upright round headlights, steep
-  // windscreen, roof sweeping down in one curve to the engine lid, wide rear hips (the body narrows
-  // towards the front), the flat "tea tray" whale tail, a full-width red light bar, twin pipes each side.
-  p964t:    { L: 4.25, W: 1.775, H: 1.29, wb: 2.272, fo: 0.9, track: 1.47, tireR: 0.318, tireW: 0.235, sill: 0.17, arch: 0.37,
-              ws0: 0.8, ws1: 1.32, rf1: 1.84, rw0: 2.62, sg: 2.02, bpillar: 1.72, nose: 0.6, cowl: 0.9, beltR: 0.95, tail: 0.92, tumble: 0.28, taper: 0.17, doors: 2, beltIn: 0.13,
-              frontNarrow: 0.1, fenders: 0.12, bumperF: [0.36, 0.28], bumperR: [0.4, 0.26], intake: [1.05, 0.07, 0.28], tailY: 0.79, plateY: 0.45, mirrorBack: 0.32, paintMirrors: true,
-              front: 'none', lights: 'frog', tails: 'bar', bumper: 'body', rim: 'speedline', plate: 'jp', spoiler: 'whale', exhaustsBoth: true, extras: ['markers'] },
+  // Porsche 911 Turbo (964): built by its own sculpted body in p964.js.
+  p964t:    { custom: '964', L: 4.25, W: 1.775, H: 1.29 },
 };
 
 // Piecewise-linear lookup through sorted [x, y] points.
@@ -139,6 +134,30 @@ export function makeCarMesh(color, modelId, opts = {}) {
     m.lookAt(c);
     return m;
   };
+
+  if (b.custom === '964') {
+    // Wheels per axle: [x, track, tire width].
+    const rim = 'speedline';
+    const wheels = (list) => {
+      const disc = once('disc', () => new THREE.MeshLambertMaterial({ color: '#5a5e64' }));
+      const wheelMat = opts.wheels ? new THREE.MeshBasicMaterial({ map: wheelTex(rim), color: opts.wheels, transparent: true, alphaTest: 0.4 }) : decal(`wheel-${rim}`, wheelTex(rim));
+      for (const [ax, track, tw] of list) for (const s of [-1, 1]) {
+        const R = 0.318, zc = s * (track / 2);
+        const tire = once(`tire-${R}-${tw}`, () => { const t = new THREE.CylinderGeometry(R, R, tw, 18); t.rotateX(Math.PI / 2); return t; });
+        const faceGeo = once(`wheelface-${R}-18`, () => new THREE.CircleGeometry(R * 0.99, 20));
+        add(tire, black, ax, R, zc);
+        const f = add(faceGeo, wheelMat, ax, R, zc + s * (tw / 2 + 0.002)); f.rotation.y = s > 0 ? 0 : Math.PI;
+        const d = add(faceGeo, disc, ax, R, zc + s * 0.05); d.scale.setScalar(0.6); d.rotation.y = f.rotation.y;
+      }
+    };
+    const r = build964(g, { paint, black, chrome, amber, add, face, wheels, env });
+    const sh = new THREE.Mesh(once('shadowgeo', () => new THREE.PlaneGeometry(1, 1)), once('shadow', () => new THREE.MeshBasicMaterial({ color: '#000', transparent: true, opacity: 0.4, depthWrite: false })));
+    sh.scale.set(b.L + 0.4, b.W + 0.5, 1); sh.rotation.x = -Math.PI / 2; sh.position.y = 0.05; g.add(sh);
+    const beam = new THREE.SpotLight('#fff1cf', 0, 70, 0.55, 0.5, 1.2);
+    beam.position.set(r.xF - 0.2, 0.8, 0); beam.target.position.set(14, -1.5, 0); g.add(beam, beam.target);
+    g.rotation.order = 'YZX';
+    return { group: g, tail: r.tail, beam, length: b.L, dims: r.dims };
+  }
 
   // Body extents; bumpers that stand proud of the body (bumperOut) reach the full length.
   const bo = b.bumperOut || 0, xF = b.L / 2 - bo, xR = -b.L / 2 + bo, W = b.W;
