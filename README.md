@@ -17,6 +17,7 @@ You start at **your cabin, deep in the forest**, shown top-down. It has a carpor
 
 **On the map:**
 - **Select** (the yellow button next to each car) puts you in that car. The camera is locked high up behind the car with a wide 90° field of view, looking down the road over the treetops; it turns exactly with the car and never swings on its own. The car sits just above the pedals so most of the screen is the road ahead. Trees near the road are kept short so they do not hide the next bend. Drive down the lane onto the road and go anywhere, including the side roads, which lead to the race courses. Tap **🏠 Park** to go home.
+- **Cockpit camera:** tap **👁** (or press **C**) to drive from the driver's seat. You see the hood in your car's colour, the dash, the A-pillars, the mirror and a right-hand-drive steering wheel that turns with yours. Tap **🎥** to go back to the chase camera. The game remembers your choice.
 - **Tap a parked car** to open it in the Garage.
 - **Tap an empty spot** to open the Marketplace.
 - **Tap the cabin** to sleep until tomorrow, which brings new listings.
@@ -50,6 +51,7 @@ The two long courses pay **double** purses.
 **The loop:**
 1. **Marketplace:** 6–10 used cars under $5k each day, all real cars: **1980 Volvo 242, Mercedes-Benz 190E 2.3, 1987 BMW 325i (E30), Toyota Supra Turbo (Mk3), Nissan 180SX, Nissan Skyline GTS-t (R32) and 1999 Honda Civic Si hatch (FWD)**. Each has its real factory specs, and a model built from its real dimensions (length, width, height, wheelbase, overhangs, track, tire size and pillar positions). The pricier ones only show up in your budget as project cars. Each listing shows a price, factory specs (hp, handling, weight) and condition. Striped `??` bars are hidden problems, so tap **Inspect ($80)** before you buy.
 2. **Parts Shop:** buy parts for anything marked ⚠️, plus performance mods. They go in your trunk.
+   - **Drift Tires** ($700, one set): a slide is easier to start and hold. Power oversteer comes on readily, rotation carries on longer, less speed is scrubbed while sideways, and past about 40° of angle the slide is caught instead of spinning (helpful with all-or-nothing touch steering). They cost 8% outright grip, so once you own a set you can swap between drift and street tires for free in the Garage.
 3. **Garage:** tap **Install** / **Install all**. Each car also has a **paint shop**: respray the body or refinish the wheels, $100 per change.
 4. **Touge app:** pick a course and a difficulty: **Easy, Medium, Hard or Impossible**. Every race is free to enter and every difficulty is always open. Winning pays **$750 / $1,500 / $3,000 / $5,000** (Easy to Impossible; double on Kuroiwa Canyon and Yamabiko) and 2nd pays a fifth of that, on top of apex bonuses. Your best time for each shows on its button.
 5. **Hot Lap:** each course also has a free Hot Lap with no rivals. The tiers ($250 / $500 / $1,000 / $2,000) are:

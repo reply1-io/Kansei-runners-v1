@@ -5,6 +5,7 @@
 import * as THREE from '../lib/three.module.min.js';
 import { HOME_NET, COURSES, lineVariant, apexesOf } from './road.js';
 import { getWorld, makeCarMesh, inHome } from './world3d.js';
+import { makeCockpit } from './carmodel.js';
 import { PROBLEM_THRESHOLD, MODELS } from './data.js';
 import { clamp } from './state.js';
 import { carSound, unlockAudio, isMuted, setMuted, gearFor } from './audio.js';
@@ -42,6 +43,10 @@ const HB_RADIUS = 15; // rivals pull the handbrake where their line is tighter t
 // treetops so you can see the next corners (a narrower view loses bends off the sides of a tall phone screen).
 // It never swings or lags; it turns exactly with the car. The car sits low in the frame, above the pedals.
 const CAM = { height: 20, back: 9.5, ahead: 12.7, fov: 90, fovLandscape: 70 };
+// Interior camera: from the driver's seat, a little wider than a real windscreen so corners stay in view.
+const COCKPIT = { fov: 82, fovLandscape: 62 };
+// Which camera you last used (a per-device preference).
+const camPref = { get: () => { try { return localStorage.getItem('kr-cam') || 'chase'; } catch { return 'chase'; } }, set: (v) => { try { localStorage.setItem('kr-cam', v); } catch { /* private mode */ } } };
 
 let retro = null, world = null, camera = null;
 
@@ -61,6 +66,7 @@ export function carSpec(perf) {
     brake: 9.0 * perf.brake,     // m/s^2
     lat: 9.5 * perf.grip,        // m/s^2 lateral grip on asphalt
     drive: perf.drive,
+    driftTires: !!perf.driftTires,
   };
 }
 
@@ -143,6 +149,12 @@ export function startDrive({ canvas, hud, car, perf, rivalBase, mode, event, dif
   const playerMesh = makeCarMesh(car.color, car.modelId, { wheels: car.wheelColor });
   playerMesh.beam.intensity = night ? 400 : 0;
   addMesh(playerMesh.group);
+  const cockpit = makeCockpit(car.color, playerMesh.dims);
+  playerMesh.group.add(cockpit.group);
+  const cockpitLook = new THREE.Object3D();
+  cockpitLook.position.copy(cockpit.eye.position).add(new THREE.Vector3(12, -0.75, 0));
+  cockpit.group.add(cockpitLook);
+  let camMode = camPref.get();
   for (const pc of parked) {
     const mm = makeCarMesh(pc.car.color, pc.car.modelId);
     mm.group.position.set(pc.x, 0, pc.z);
@@ -193,11 +205,12 @@ export function startDrive({ canvas, hud, car, perf, rivalBase, mode, event, dif
   let driftScore = 0, chain = 0, combo = 1, driftGrace = 0, driftAngle = 0;
   const DRIFT_GRACE = 1.2;
   function bankChain() { if (chain > 0) { driftScore += Math.round(chain); flash(`+${Math.round(chain)}`, 1); } chain = 0; combo = 1; }
-  function loseChain() { if (chain > 0) flash('Chain lost!', 1.2); chain = 0; combo = 1; driftGrace = 0; }
+  const chainLost = { spin: 0, wall: 0 };
+  function loseChain(why = 'wall') { if (chain > 0) { flash('Chain lost!', 1.2); chainLost[why]++; } chain = 0; combo = 1; driftGrace = 0; }
   function scoreDrift(dt, vf, vl, speed, onTarmac) {
     driftAngle = vf > 0.5 ? Math.atan2(Math.abs(vl), vf) * 180 / Math.PI : vf < -0.5 ? 180 : 0;
     if (time <= 0) return;
-    if (driftAngle > 110 && speed > 4) return loseChain(); // spun
+    if (driftAngle > 110 && speed > 4) return loseChain('spin'); // spun
     if (onTarmac && speed > 7 && driftAngle >= 12) {
       chain += dt * Math.min(driftAngle, 70) * speed * combo;
       combo = Math.min(5, combo + dt * 0.25);
@@ -246,7 +259,10 @@ export function startDrive({ canvas, hud, car, perf, rivalBase, mode, event, dif
 
   // ---- input ----
   const keyMap = { arrowleft: 'left', a: 'left', arrowright: 'right', d: 'right', arrowup: 'gas', w: 'gas', arrowdown: 'brake', s: 'brake', ' ': 'hb', shift: 'hb' };
-  const onKey = (e) => { const k = keyMap[e.key.toLowerCase()]; if (!k) return; input[k] = e.type === 'keydown'; e.preventDefault(); };
+  const onKey = (e) => {
+    if (e.key.toLowerCase() === 'c' && e.type === 'keydown' && !e.repeat) { toggleCam(); return; }
+    const k = keyMap[e.key.toLowerCase()]; if (!k) return; input[k] = e.type === 'keydown'; e.preventDefault();
+  };
   window.addEventListener('keydown', onKey);
   window.addEventListener('keyup', onKey);
   const pointers = new Map();
@@ -304,14 +320,26 @@ export function startDrive({ canvas, hud, car, perf, rivalBase, mode, event, dif
   hud.classList.toggle('cruise', !race);
 
   const resize = () => {
-    const dpr = Math.min(window.devicePixelRatio || 1, 1.75);
-    void dpr;
     retro.resize();
     camera.aspect = retro.aspect;
-    camera.fov = camera.aspect < 0.8 ? CAM.fov : CAM.fovLandscape;
+    const c = camMode === 'cockpit' ? COCKPIT : CAM;
+    camera.fov = camera.aspect < 0.8 ? c.fov : c.fovLandscape;
+    camera.near = camMode === 'cockpit' ? 0.05 : 0.3;
     camera.updateProjectionMatrix();
   };
-  resize();
+  // Chase or cockpit: in the cockpit your own car's body is hidden and the interior shown instead.
+  const camBtn = hud.querySelector('[data-cam]');
+  function setCam(mode) {
+    camMode = mode;
+    for (const o of playerMesh.group.children) if (o !== cockpit.group && !o.isLight && o !== playerMesh.beam.target) o.visible = mode !== 'cockpit';
+    cockpit.group.visible = mode === 'cockpit';
+    camBtn.textContent = mode === 'cockpit' ? '🎥' : '👁';
+    camBtn.setAttribute('aria-label', mode === 'cockpit' ? 'Switch to chase camera' : 'Switch to cockpit camera');
+    resize();
+  }
+  function toggleCam() { setCam(camMode === 'cockpit' ? 'chase' : 'cockpit'); camPref.set(camMode); }
+  camBtn.addEventListener('click', toggleCam);
+  setCam(camMode);
   window.addEventListener('resize', resize);
 
   // Which road is the car on, and how far can it go sideways before the trees / canyon wall?
@@ -393,7 +421,9 @@ export function startDrive({ canvas, hud, car, perf, rivalBase, mode, event, dif
     const maxAngle = 0.6 / (1 + speed / 16);
     let yaw = (vf / WHEELBASE) * Math.tan(P.steer * maxAngle);
     let k = 1.25;
-    if (input.gas && spec.drive === 'RWD') k = 1.6;
+    // Drift tires: the rear lets go much more readily on power (and AWD gets some slide too).
+    if (input.gas && spec.drive === 'RWD') k = spec.driftTires ? 2.1 : 1.6;
+    if (input.gas && spec.drive === 'AWD' && spec.driftTires) k = 1.6;
     if (input.gas && spec.drive === 'FWD') k = 1.05;
     const yawCap = (spec.lat * surf.grip * k) / Math.max(Math.abs(vf), 4);
     yaw = clamp(yaw, -yawCap, yawCap);
@@ -404,7 +434,17 @@ export function startDrive({ canvas, hud, car, perf, rivalBase, mode, event, dif
       P.yr += (yaw * 1.3 + spin - P.yr) * Math.min(1, dt * 7);
     } else {
       // Grip returns: the car's rotation settles back to what the steering asks for.
-      P.yr += (yaw - P.yr) * Math.min(1, dt * (Math.abs(P.yr) > Math.abs(yaw) + 0.3 ? 3.5 : 25));
+      // (On drift tires the rotation carries on longer, so a slide is easier to hold.)
+      P.yr += (yaw - P.yr) * Math.min(1, dt * (Math.abs(P.yr) > Math.abs(yaw) + 0.3 ? (spec.driftTires ? 2.2 : 3.5) : 25));
+    }
+    // Drift tires also catch a slide that's getting away from you (touch steering is all or nothing):
+    // past ~40° of angle, rotation further sideways is damped, so the car holds a big angle instead of
+    // spinning.
+    if (spec.driftTires && speed > 6) {
+      let a = P.h - Math.atan2(P.vz, P.vx);
+      while (a > Math.PI) a -= 2 * Math.PI;
+      while (a < -Math.PI) a += 2 * Math.PI;
+      if (Math.abs(a) > 0.7 && Math.abs(a) < 2 && Math.sign(P.yr) === Math.sign(a)) P.yr *= 1 - Math.min(1, dt * 6 * (Math.abs(a) - 0.6));
     }
     P.h += P.yr * dt;
 
@@ -430,10 +470,13 @@ export function startDrive({ canvas, hud, car, perf, rivalBase, mode, event, dif
     if (time <= 0) vf = 0;
 
     // Lateral grip: what the tires can't cancel becomes a slide.
-    const cap = latCap * dt;
+    // Drift tires grip less once they're sliding, so the slide keeps going instead of snapping back,
+    // and the car scrubs less speed while it's sideways.
+    const slideGrip = spec.driftTires && Math.abs(vl) > 0.8 ? 0.9 : 1;
+    const cap = latCap * slideGrip * dt;
     P.drifting = (Math.abs(vl) > 1.3 && speed > 5) || (hb && speed > 4);
     if (Math.abs(vl) <= cap) vl = 0; else vl -= Math.sign(vl) * cap;
-    if (P.drifting) { vf -= vf * 0.1 * dt; wear.tires += (Math.abs(vl) + (hb ? 2 : 0)) * dt * 0.02; }
+    if (P.drifting) { vf -= vf * (spec.driftTires ? 0.05 : 0.1) * dt; wear.tires += (Math.abs(vl) + (hb ? 2 : 0)) * dt * 0.02; }
     wear.tires += speed * dt * 0.0004;
     if (!w0.asphalt && !atHome && speed > 3) wear.susp += dt * 0.6;
     P.slip = clamp(Math.abs(vl) / 6 + (hb && speed > 4 ? 0.5 : 0), 0, 1);
@@ -630,6 +673,7 @@ export function startDrive({ canvas, hud, car, perf, rivalBase, mode, event, dif
     group.rotation.set(roll, -h, pitch);
   }
 
+  const camTarget = new THREE.Vector3();
   function render() {
     for (const m of apexMarks) if (m.state === 'open') m.gem.rotation.y = time * 3;
     place3D(playerMesh.group, P.x, P.e, P.z, P.h, P.pitch, P.roll);
@@ -640,10 +684,18 @@ export function startDrive({ canvas, hud, car, perf, rivalBase, mode, event, dif
     }
     if (world.fire) world.fire.light.intensity = 26 + Math.sin(time * 13) * 6 + Math.sin(time * 7.7) * 4;
 
-    // Locked camera: rigidly behind the car.
-    const cx = Math.cos(P.h), cz = Math.sin(P.h);
-    camera.position.set(P.x - cx * CAM.back, P.e + CAM.height, P.z - cz * CAM.back);
-    camera.lookAt(P.x + cx * CAM.ahead, P.e, P.z + cz * CAM.ahead);
+    if (camMode === 'cockpit') {
+      // From the driver's seat: moves with the body (pitch and roll included); the wheel turns with you.
+      cockpit.wheel.rotation.x = -P.steer * 1.7;
+      playerMesh.group.updateMatrixWorld(true);
+      cockpit.eye.getWorldPosition(camera.position);
+      camera.lookAt(cockpitLook.getWorldPosition(camTarget));
+    } else {
+      // Locked camera: rigidly behind the car.
+      const cx = Math.cos(P.h), cz = Math.sin(P.h);
+      camera.position.set(P.x - cx * CAM.back, P.e + CAM.height, P.z - cz * CAM.back);
+      camera.lookAt(P.x + cx * CAM.ahead, P.e, P.z + cz * CAM.ahead);
+    }
     world.follow(camera);
     world.update(performance.now() / 1000);
     retro.render(scene, camera);
@@ -815,13 +867,14 @@ export function startDrive({ canvas, hud, car, perf, rivalBase, mode, event, dif
     hud.removeEventListener('pointerdown', down);
     exitBtn.removeEventListener('click', onExitBtn);
     muteBtn.removeEventListener('click', onMute);
+    camBtn.removeEventListener('click', toggleCam);
     ctlButtons.forEach((b) => b.classList.remove('on'));
     sound.stop();
     for (const o of added) scene.remove(o);
   }
 
   // Test/debug hook.
-  window.__kr = { drift: () => ({ driftScore, chain, combo, driftAngle }), onRoad: () => { const w = where(P.x, P.z); return { id: w.rd.id, s: w.n.s, lat: w.lat, valid: w.valid }; }, smokeCount: () => smoke.filter((p) => p.m.visible).length, spinT: () => spinT, money: () => ({ bonus, apexHits, contacts }), apexMarks, player: P, rivals, input, spec, wear, race, route, road, net, bestLine: road.bestLine && getLine(road, net.id, 1), sampleAtS, progress };
+  window.__kr = { time: () => time, drift: () => ({ driftScore, chain, combo, driftAngle, chainLost }), onRoad: () => { const w = where(P.x, P.z); return { id: w.rd.id, s: w.n.s, lat: w.lat, valid: w.valid }; }, smokeCount: () => smoke.filter((p) => p.m.visible).length, spinT: () => spinT, money: () => ({ bonus, apexHits, contacts }), apexMarks, player: P, rivals, input, spec, wear, race, route, road, net, bestLine: road.bestLine && getLine(road, net.id, 1), sampleAtS, progress };
   raf = requestAnimationFrame(loop);
 }
 

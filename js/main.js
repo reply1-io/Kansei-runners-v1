@@ -4,7 +4,7 @@ import { COMPONENTS, UPGRADES, RACES, DIFFICULTIES, INSPECTION_COST, PROBLEM_THR
 import {
   state, load, save, resetGame, refreshListings, addLog, carName, modelOf, carValue,
   repairCost, upgradeCost, repair, performance, factorySpecs, canRun, applyWear, activeCar,
-  spend, earn, nextDay, money, clamp, uid,
+  spend, earn, nextDay, money, clamp, uid, hasDriftTires,
 } from './state.js';
 import { startDrive, fmtTime } from './drive.js';
 import { PARKING, parkingAssignments } from './map.js';
@@ -195,7 +195,7 @@ function renderParts() {
     </div>`;
   }).join('');
   const ups = UPGRADES.map((u) => {
-    const lvl = car.upgrades[u.id];
+    const lvl = car.upgrades[u.id] || 0;
     const cost = upgradeCost(car, u.id);
     const pending = hasPending(car, 'mod', u.id);
     const label = pending ? 'In trunk' : cost === null ? 'MAX' : money(cost);
@@ -225,6 +225,15 @@ function installList(car) {
   </div>`;
 }
 
+// Once a car has a set of drift tires, swap between them and its street tires (free).
+function tireSwap(car) {
+  if (!(car.upgrades.drift > 0)) return '';
+  const on = hasDriftTires(car);
+  return `<div class="list-item"><div class="grow"><div class="title">🌀 Tires: ${on ? 'Drift' : 'Street'}</div>
+      <div class="sub">${on ? 'Slides easily and holds a drift. A little less grip for racing.' : 'Full grip. Drift tires are in the trunk.'}</div></div>
+    <button class="btn" data-action="tires" data-arg="${car.id}">Fit ${on ? 'street' : 'drift'} tires</button></div>`;
+}
+
 // Paint shop inside each garage card: body colour and wheel finish, PAINT_COST each.
 function paintPanel(car) {
   const body = [...new Set([...(modelOf(car).colors || []), ...PAINT_COLORS])];
@@ -247,6 +256,7 @@ function renderGarage() {
         ${clsBadge(perf)}</div>
       ${dead ? `<div class="small" style="color:var(--bad);margin-top:8px">🚫 ${dead}</div>` : ''}
       ${installList(car)}
+      ${tireSwap(car)}
       ${paintPanel(car)}
       ${statGrid(perf)}
       ${bars(car)}
@@ -506,7 +516,7 @@ const ACTIONS = {
     const cost = upgradeCost(car, upId);
     if (cost === null || cost > state.money) return toast('Not enough cash.');
     spend(cost);
-    const level = car.upgrades[upId] + 1;
+    const level = (car.upgrades[upId] || 0) + 1;
     state.inventory.push({ id: uid(), carId: car.id, kind: 'mod', target: upId, level, price: cost });
     const u = UPGRADES.find((x) => x.id === upId);
     addLog(`Bought ${u.name} L${level} (${money(cost)})`);
@@ -517,6 +527,14 @@ const ACTIONS = {
   install: (itemId) => {
     const msg = installItem(itemId);
     if (msg) toast(msg);
+    save(); render.keepScroll = true; render();
+  },
+
+  tires: (carId) => {
+    const car = state.cars.find((c) => c.id === carId);
+    if (!car) return;
+    car.driftOff = hasDriftTires(car);
+    toast(hasDriftTires(car) ? 'Drift tires on' : 'Street tires on');
     save(); render.keepScroll = true; render();
   },
 
@@ -617,7 +635,8 @@ function installItem(itemId) {
     addLog(`Installed ${COMPONENTS.find((c) => c.id === it.target).part} on ${carName(car)}`);
     return fixed ? `Fixed: ${fixed}` : `${name} is like new`;
   }
-  car.upgrades[it.target] = Math.max(car.upgrades[it.target], it.level);
+  car.upgrades[it.target] = Math.max(car.upgrades[it.target] || 0, it.level);
+  if (it.target === 'drift') car.driftOff = false;
   const u = UPGRADES.find((x) => x.id === it.target);
   addLog(`Installed ${u.name} L${it.level} on ${carName(car)}`);
   return `${u.name} installed!`;

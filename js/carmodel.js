@@ -396,5 +396,52 @@ export function makeCarMesh(color, modelId, opts = {}) {
   g.add(beam, beam.target);
 
   g.rotation.order = 'YZX';
-  return { group: g, tail, beam, length: b.L };
+  return { group: g, tail, beam, length: b.L, dims: { L: b.L, W, H: b.H, cowl: b.cowl, nose: b.nose, xF, wsBase, roofF } };
+}
+
+// The view from the driver's seat (right-hand drive): the hood in the car's paint, dashboard and gauge
+// binnacle, a steering wheel that turns with yours, A-pillars, roof header, mirror and door tops.
+// Built in the car's own frame (x forward, y up, z to the right) to sit inside its group; `eye` is
+// where the camera goes and `wheel` turns with the steering.
+export function makeCockpit(color, dims) {
+  const { W, H, cowl, nose, xF, wsBase, roofF } = dims;
+  const g = new THREE.Group();
+  const lam = (c) => new THREE.MeshLambertMaterial({ color: c });
+  const paint = new THREE.MeshPhongMaterial({ color, shininess: 60, specular: '#3a3a3a', side: THREE.DoubleSide });
+  const dash = lam('#1c1d21'), trim = lam('#2a2b30'), pillar = lam('#202125');
+  const add = (geo, mat, x, y, z) => { const m = new THREE.Mesh(geo, mat); m.position.set(x, y, z); g.add(m); return m; };
+  const eye = new THREE.Object3D(); eye.position.set(roofF - 0.42, H - 0.2, 0.36); g.add(eye);
+  // Hood: a sloping panel from the windscreen base down to the nose.
+  const hood = new THREE.BufferGeometry(), hw = W / 2 - 0.08;
+  hood.setAttribute('position', new THREE.Float32BufferAttribute([wsBase, cowl, -hw, wsBase, cowl, hw, xF - 0.05, nose + 0.02, hw - 0.1, xF - 0.05, nose + 0.02, -hw + 0.1], 3));
+  hood.setIndex([0, 2, 1, 0, 3, 2]); hood.computeVertexNormals();
+  g.add(new THREE.Mesh(hood, paint));
+  // Dashboard right under the windscreen, with the binnacle in front of the driver.
+  const dx = (wsBase + eye.position.x) / 2 + 0.12;
+  add(new THREE.BoxGeometry(wsBase - dx + 0.25, 0.28, W - 0.12), dash, (wsBase + dx) / 2, cowl - 0.2, 0);
+  add(new THREE.BoxGeometry(0.22, 0.08, 0.42), trim, dx + 0.02, cowl - 0.04, 0.36);
+  // Steering wheel: a ring and three spokes, facing the driver.
+  const wheel = new THREE.Group();
+  const ring = new THREE.Mesh(new THREE.TorusGeometry(0.18, 0.024, 6, 16), lam('#121214')); ring.rotation.y = Math.PI / 2; wheel.add(ring);
+  for (const a of [Math.PI / 2, Math.PI * 7 / 6, Math.PI * 11 / 6]) {
+    const sp = new THREE.Mesh(new THREE.BoxGeometry(0.02, 0.17, 0.03), trim);
+    sp.position.set(0, Math.sin(a) * 0.09, Math.cos(a) * 0.09); sp.rotation.x = -a + Math.PI / 2; wheel.add(sp);
+  }
+  wheel.add(new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.05, 0.05), lam('#b01818')));
+  wheel.position.set(eye.position.x + 0.45, H - 0.6, 0.36);
+  wheel.rotation.z = 0.35; // raked toward the driver
+  g.add(wheel);
+  // A-pillars, roof header and the rear-view mirror.
+  const bar = (p1, p2, w, mat) => {
+    const a = new THREE.Vector3(...p1), c = new THREE.Vector3(...p2);
+    const m = new THREE.Mesh(new THREE.BoxGeometry(w, w, a.distanceTo(c)), mat);
+    m.position.copy(a).add(c).multiplyScalar(0.5); m.lookAt(c); g.add(m);
+  };
+  for (const sd of [-1, 1]) bar([wsBase, cowl, sd * (W / 2 - 0.1)], [roofF, H - 0.02, sd * (W / 2 - 0.16)], 0.09, pillar);
+  add(new THREE.BoxGeometry(0.12, 0.04, W - 0.1), pillar, roofF + 0.02, H + 0.01, 0);
+  add(new THREE.BoxGeometry(0.03, 0.05, 0.2), lam('#3a3c42'), roofF - 0.02, H - 0.07, 0.02);
+  // Door tops along each side.
+  for (const sd of [-1, 1]) add(new THREE.BoxGeometry(wsBase - eye.position.x + 0.6, 0.08, 0.1), trim, (wsBase + eye.position.x - 0.6) / 2, cowl - 0.1, sd * (W / 2 - 0.06));
+  g.visible = false;
+  return { group: g, eye, wheel };
 }

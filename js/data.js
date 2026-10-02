@@ -52,6 +52,9 @@ export const UPGRADES = [
   { id: 'coilovers',name:'Coilovers',        desc: '+5% grip, sharper turn-in', max: 2, cost: [1200, 2600] },
   { id: 'bbk',     name: 'Big Brake Kit',    desc: '+20% braking per level',    max: 2, cost: [900, 2000] },
   { id: 'weight',  name: 'Weight Reduction', desc: '-5% weight per level',      max: 3, cost: [500, 1300, 3000] },
+  // Drift tires: hard compound that lets go progressively and holds a slide. Swap them on or off in
+  // the Garage once you own a set (on, they cost a little outright grip).
+  { id: 'drift',   name: 'Drift Tires',      desc: 'Easier to slide and hold a drift; -8% grip when fitted. Swap on/off in the Garage', max: 1, cost: [700] },
 ];
 
 export const SELLERS = [

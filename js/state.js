@@ -103,7 +103,7 @@ export function avgCondition(car) {
 
 function upgradeValue(car) {
   let v = 0;
-  for (const u of UPGRADES) for (let i = 0; i < car.upgrades[u.id]; i++) v += u.cost[i];
+  for (const u of UPGRADES) for (let i = 0; i < (car.upgrades[u.id] || 0); i++) v += u.cost[i];
   return v;
 }
 
@@ -125,7 +125,7 @@ export function repairCost(car, compId) {
 
 export function upgradeCost(car, upId) {
   const u = UPGRADES.find((x) => x.id === upId);
-  const lvl = car.upgrades[upId];
+  const lvl = car.upgrades[upId] || 0; // (older saves predate some mods)
   if (lvl >= u.max) return null;
   return Math.round(u.cost[lvl] * (0.6 + 0.4 * modelOf(car).parts) / 10) * 10;
 }
@@ -134,6 +134,11 @@ export function upgradeCost(car, upId) {
 export function factorySpecs(model) {
   const driveGrip = { AWD: 1.08, FWD: 1.0, RWD: 0.97 }[model.drive];
   return { hp: model.hp, weight: model.weight, handling: Math.round(driveGrip * 100), drive: model.drive };
+}
+
+// Drift tires count once bought and installed, unless swapped back off in the Garage.
+export function hasDriftTires(car) {
+  return (car.upgrades.drift || 0) > 0 && !car.driftOff;
 }
 
 export function canRun(car) {
@@ -155,6 +160,7 @@ export function performance(car) {
   const grip = driveGrip
     * (0.72 + 0.28 * c.tires / 100) * (1 + 0.08 * u.tires)
     * (0.85 + 0.15 * c.susp / 100) * (1 + 0.05 * u.coilovers);
+  const driftTires = hasDriftTires(car);
   const brake = (0.55 + 0.45 * c.brakes / 100) * (1 + 0.2 * u.bbk);
   const pw = hp / weight;
   const launch = m.drive === 'AWD' ? 1.1 : m.drive === 'FWD' ? 0.95 : 1;
@@ -165,7 +171,8 @@ export function performance(car) {
     drive: m.drive,
     topSpeed: 350 + 2400 * pw,              // px/s
     accel: 1800 * pw * transFactor * launch, // px/s^2
-    grip,
+    grip: grip * (driftTires ? 0.92 : 1),
+    driftTires,
     brake,
     turn: 2.5 * (1 + 0.06 * u.coilovers) * (0.9 + 0.1 * c.susp / 100),
   };
