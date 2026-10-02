@@ -402,7 +402,14 @@ function buildWorld(net) {
     const t = baseTerrain(x, z);
     for (const c of carves) {
       const d = Math.hypot(x - c.x, z - c.z);
-      if (d < c.r + 8) t.h = Math.min(t.h, d < c.r ? c.level - c.depth * (1 - (d / c.r) ** 2) : c.level + (d - c.r) * 0.35);
+      const bank = c.bank || 8;
+      if (d < c.r + bank) {
+        // The bed, then a bank rising from the water that blends into the land around it (no cliff
+        // where the land stands higher than the bank reaches).
+        const base = d < c.r ? c.level - c.depth * (1 - (d / c.r) ** 2) : c.level + (d - c.r) * (c.slope || 0.35);
+        const f = d < c.r ? 0 : smooth(c.r + bank * 0.35, c.r + bank, d);
+        t.h = Math.min(t.h, base + (t.h - base) * f);
+      }
     }
     return t;
   };
@@ -441,7 +448,24 @@ function buildWorld(net) {
   let minX = Infinity, maxX = -Infinity, minZ = Infinity, maxZ = -Infinity;
   for (const p of ALLS) { minX = Math.min(minX, p.x); maxX = Math.max(maxX, p.x); minZ = Math.min(minZ, p.z); maxZ = Math.max(maxZ, p.z); }
   minX -= 130; maxX += 130; minZ -= 130; maxZ += 130;
-  const water = findWaterSites(net, baseTerrain, { minX, maxX, minZ, maxZ });
+  // Lakes under the bridges: as big as the bridge allows (its banks rise to the deck at each end),
+  // kept clear of every other road.
+  const lakes = [];
+  for (const r of ROADS) for (const b of (r.bridges = bridgeSpans(r))) {
+    const mid = r.sampleAtS((b.s0 + b.s1) / 2), BANK = 30;
+    let deck = Infinity;
+    for (let v = b.s0; v <= b.s1; v += 4) deck = Math.min(deck, r.sampleAtS(v).e);
+    let rad = (b.s1 - b.s0) / 2 - BANK + 4;
+    for (const o of ROADS) for (let i = 0; i < o.samples.length; i += 4) {
+      const q = o.samples[i];
+      if (o === r && q.s > b.s0 - 60 && q.s < b.s1 + 60) continue;
+      rad = Math.min(rad, Math.hypot(q.x - mid.x, q.z - mid.z) - BANK - q.half - 12);
+    }
+    b.level = deck - 14;
+    b.lake = { x: mid.x, z: mid.z, r: Math.max(14, rad), level: b.level, depth: 6, bank: BANK, slope: 0.45, lake: true };
+    lakes.push(b.lake);
+  }
+  const water = findWaterSites(net, baseTerrain, { minX, maxX, minZ, maxZ }, lakes);
   const farDist = baseTerrain.farDist;
   // The rock wall round the outside of the ring, its big waterfalls (their plunge pools join the
   // ponds) and the cabins along the ring.
@@ -477,7 +501,9 @@ function buildWorld(net) {
       dy = 0.015; sdy = -0.02;
     }
     const closed = r.loop, length = r.length;
-    scene.add(new THREE.Mesh(ribbon(S, (p) => -p.half - 1.1, (p) => p.half + 1.1, -0.12 + sdy, -0.12 + sdy, { every: 2, closed, length, withUV: true, uAcross: 3, vPer: 3, adjust: adjust && adjust.shoulder }), shoulderMat));
+    // (No dirt shoulder out on a bridge.)
+    for (const run of closed ? [S] : runsOf(S, (p) => !p.bridge)) scene.add(new THREE.Mesh(ribbon(run, (p) => -p.half - 1.1, (p) => p.half + 1.1, -0.12 + sdy, -0.12 + sdy, { every: 2, closed, length, withUV: true, uAcross: 3, vPer: 3, adjust: adjust && adjust.shoulder }), shoulderMat));
+    for (const b of r.bridges) buildBridge(scene, r, b);
     // The surface changes with the road: two lanes, a narrow mountain road, or a single lane.
     const style = (p) => (p.half < 2.8 ? 'lane' : r.style || 'two');
     if (closed) scene.add(new THREE.Mesh(ribbon(S, (p) => -p.half, (p) => p.half, 0.03, 0.03, { withUV: true, closed, length, vPer: 10 }), roadMat(style(S[0]))));
@@ -512,7 +538,7 @@ function buildWorld(net) {
 
   // Dirt cut-throughs on the inside of every apex: packed dirt you can clip to cut the corner.
   // Widest (APEX_CUT m) at the apex, tapering to nothing 14 m either side.
-  const apexCuts = ROADS.filter((road) => !road.to).flatMap((road) => apexesOf(road).map((a) => {
+  const apexCuts = ROADS.filter((road) => !road.to).flatMap((road) => apexesOf(road).filter((a) => !road.samples.slice(Math.max(0, a.i - 20), a.i + 20).some((p) => p.bridge)).map((a) => {
     const pos = [], uv = [], idx = [], COLS = 7;
     let n = 0;
     for (let ds = -14; ds <= 14; ds += 1) {
@@ -539,6 +565,7 @@ function buildWorld(net) {
   for (const r of ROADS) {
     // Each road out to a course passes under a wooden arch with the course's name just before it.
     if (r.to) scene.add(gatewayArch(r.sampleAtS(r.length - 20), r.sampleAtS(r.length - 20).half + 1.2, COURSES[r.to].name));
+    if (COURSES[r.id] && COURSES[r.id].archS) { const q = r.sampleAtS(COURSES[r.id].archS); scene.add(gatewayArch(q, q.half + 1.2, COURSES[r.id].name)); }
     // The far end of each course is closed off.
     if (r.closedEnd) { const e = r.samples[r.samples.length - 1]; scene.add(barrier(e, e.half + 1)); }
   }
@@ -750,14 +777,106 @@ function buildHome(scene) {
   return { flame, light };
 }
 
+// ---------- bridges ----------
+// Runs of consecutive samples that pass a test.
+function runsOf(S, test) {
+  const out = [];
+  let cur = null;
+  for (const p of S) { if (test(p)) (cur || (cur = [])).push(p); else if (cur) { if (cur.length > 1) out.push(cur); cur = null; } }
+  if (cur && cur.length > 1) out.push(cur);
+  return out;
+}
+// The bridged stretches of a road ({ s0, s1, i0, i1, style }); `level` and `lake` are filled in later.
+function bridgeSpans(road) {
+  const out = [];
+  let a = null;
+  for (const p of road.samples) {
+    if (p.bridge && !a) a = { s0: p.s, i0: p.i, style: p.bridge };
+    else if (!p.bridge && a) { a.s1 = p.s; a.i1 = p.i; out.push(a); a = null; }
+  }
+  return out;
+}
+// A bridge over its lake: a deck slab under the road, abutments at both ends, and by style:
+//  red    - a red steel arch under the deck with struts up to it, and red rails
+//  stone  - stone parapets and broad stone piers
+//  timber - a timber trestle and wooden rails
+function buildBridge(scene, road, b) {
+  const S = road.samples.slice(Math.max(0, b.i0 - 1), b.i1 + 2), D = 1.4;
+  const lam = (c, extra) => new THREE.MeshLambertMaterial({ color: c, side: THREE.DoubleSide, ...extra });
+  const style = b.style, concrete = lam('#a9a59c');
+  const railCol = style === 'red' ? '#c0392b' : style === 'timber' ? '#6b4a2c' : '#b9b2a6';
+  const deckMat = style === 'timber' ? lam('#5e4128') : concrete;
+  const w = (p) => p.half + 0.8;
+  scene.add(new THREE.Mesh(ribbon(S, (p) => -w(p), w, -D, -D), deckMat));
+  for (const sd of [-1, 1]) scene.add(new THREE.Mesh(ribbon(S, (p) => sd * w(p), (p) => sd * w(p), 0.05, -D), deckMat));
+  const add = (geo, mat, x, y, z, rotY = 0) => { const m = new THREE.Mesh(geo, mat); m.position.set(x, y, z); m.rotation.y = rotY; scene.add(m); return m; };
+  const yaw = (p) => -Math.atan2(p.tz, p.tx);
+  // Parapets / rails.
+  if (style === 'stone') {
+    const stone = new THREE.MeshLambertMaterial({ map: rockTex(), color: '#d8d2c6', side: THREE.DoubleSide });
+    for (const sd of [-1, 1]) {
+      scene.add(new THREE.Mesh(ribbon(S, (p) => sd * w(p), (p) => sd * w(p), 0.05, 0.95, { withUV: true, vPer: 3 }), stone));
+      scene.add(new THREE.Mesh(ribbon(S, (p) => sd * (p.half + 0.35), (p) => sd * (p.half + 0.35), 0, 0.95, { withUV: true, vPer: 3 }), stone));
+      scene.add(new THREE.Mesh(ribbon(S, (p) => sd * (p.half + 0.35), (p) => sd * w(p), 0.95, 0.95), stone));
+    }
+  } else {
+    const railMat = lam(railCol), postGeo = new THREE.BoxGeometry(0.14, 1.05, 0.14);
+    for (const sd of [-1, 1]) {
+      for (const y of [1.0, 0.55]) scene.add(new THREE.Mesh(ribbon(S, (p) => sd * (p.half + 0.55), (p) => sd * (p.half + 0.55), y, y + 0.12), railMat));
+      for (let v = b.s0; v <= b.s1; v += 2.5) { const p = road.sampleAtS(v), o = sd * (p.half + 0.55); add(postGeo, railMat, p.x + p.nx * o, p.e + 0.52, p.z + p.nz * o); }
+    }
+  }
+  // Abutments at both ends, down into the banks.
+  for (const v of [b.s0, b.s1]) {
+    const p = road.sampleAtS(v);
+    add(new THREE.BoxGeometry(5, p.e - b.level + 1, (p.half + 1.1) * 2), concrete, p.x, (p.e + b.level - 1) / 2 - 0.05, p.z, yaw(p));
+  }
+  const L = b.s1 - b.s0;
+  if (style === 'red') {
+    // The arch: springs from low on each bank and rises to just under the middle of the deck.
+    const red = lam('#b8322c');
+    // The arch springs from the water's edge either side and rises to just under the deck mid-span.
+    const mid = (b.s0 + b.s1) / 2, a0 = mid - b.lake.r - 2, a1 = mid + b.lake.r + 2;
+    const arch = (v) => { const u = (v - a0) / (a1 - a0), p = road.sampleAtS(v); return b.level - 0.8 + (p.e - D - 1.4 - b.level + 0.8) * Math.sin(Math.PI * u); };
+    const ribS = [];
+    for (let v = a0; v <= a1; v += 2) { const p = road.sampleAtS(v); ribS.push({ ...p, s: v, e: arch(v) }); }
+    for (const sd of [-1, 1]) {
+      scene.add(new THREE.Mesh(ribbon(ribS, (p) => sd * (p.half - 0.6), (p) => sd * (p.half - 0.6), 0, 1.1), red));
+      scene.add(new THREE.Mesh(ribbon(ribS, (p) => sd * (p.half - 1.3), (p) => sd * (p.half - 1.3), 0, 1.1), red));
+      scene.add(new THREE.Mesh(ribbon(ribS, (p) => sd * (p.half - 1.3), (p) => sd * (p.half - 0.6), 1.1, 1.1), red));
+      for (let v = a0 + 7; v < a1 - 4; v += 7) {
+        const p = road.sampleAtS(v), y0 = arch(v) + 1.1, y1 = p.e - D, o = sd * (p.half - 0.95);
+        if (y1 - y0 > 0.3) add(new THREE.BoxGeometry(0.35, y1 - y0, 0.35), red, p.x + p.nx * o, (y0 + y1) / 2, p.z + p.nz * o);
+      }
+    }
+  } else {
+    // Piers (stone) or trestle bents (timber), down into the lake bed.
+    const step = style === 'timber' ? 10 : 26;
+    const n = Math.max(1, Math.round(L / step) - 1);
+    for (let k = 1; k <= n; k++) {
+      const v = b.s0 + (L * k) / (n + 1), p = road.sampleAtS(v), h = p.e - D - (b.level - 4);
+      if (style === 'timber') {
+        const tim = lam('#5e4128');
+        for (const sd of [-1, 1]) add(new THREE.BoxGeometry(0.4, h, 0.4), tim, p.x + p.nx * sd * (p.half - 0.3), b.level - 4 + h / 2, p.z + p.nz * sd * (p.half - 0.3));
+        const brace = add(new THREE.BoxGeometry(0.25, 0.25, Math.hypot(p.half * 2, h * 0.5)), tim, p.x, b.level + h * 0.45, p.z, yaw(p));
+        brace.rotateX(Math.atan2(h * 0.5, p.half * 2));
+      } else {
+        const stone = new THREE.MeshLambertMaterial({ map: rockTex(), color: '#cfc8bb' });
+        add(new THREE.BoxGeometry(3.2, h, p.half * 2 - 0.5), stone, p.x, b.level - 4 + h / 2, p.z, yaw(p));
+        add(new THREE.BoxGeometry(4.2, 1.2, p.half * 2 + 0.4), stone, p.x, b.level - 4 + h - 0.6, p.z, yaw(p)); // cap
+      }
+    }
+  }
+}
+
 // ---------- natural features: ponds, waterfalls, rocks, distant mountains ----------
 
 // Ponds: big (14-26 m across the water) and set back from the road in open glades, each sitting in a
 // bowl carved into the ground. Most have a waterfall pouring into them off the nearest rise, and a
 // few waterfalls stand alone over their own deep plunge pool, so the water reads as one system.
-function findWaterSites(net, terrainAt, { minX, maxX, minZ, maxZ }) {
+function findWaterSites(net, terrainAt, { minX, maxX, minZ, maxZ }, lakes = []) {
   const rnd = seeded(31);
-  const ponds = [], falls = [];
+  const ponds = [...lakes], falls = [];
   // About three ponds and two waterfalls per 2.5 km of road.
   const L = net.roads.reduce((sum, r) => sum + r.length, 0);
   const scale = Math.max(1, Math.round(L / 2500)), NP = 3 * scale, NF = 2 * scale;
@@ -810,6 +929,11 @@ function findWaterSites(net, terrainAt, { minX, maxX, minZ, maxZ }) {
       }
     }
   }
+  // A waterfall off the hillside into each bridge lake, where the land rises high enough behind its banks.
+  for (const lk of lakes) {
+    const lip = lipFor(lk.x, lk.z, lk.r + lk.bank - 6, lk.level, 13);
+    if (lip) falls.push({ x: lip.top.x, z: lip.top.z, top: lip.top, bot: { x: lk.x + Math.cos(lip.a) * (lk.r - 1.5), z: lk.z + Math.sin(lip.a) * (lk.r - 1.5), h: lk.level }, into: lk });
+  }
   return { ponds, falls };
 }
 
@@ -826,8 +950,8 @@ function nearWater(water, x, z, pad) {
 }
 
 function buildWater(scene, water, groundAt) {
-  const pondMat = new THREE.MeshPhongMaterial({ color: '#2f6178', specular: '#bcd8ee', shininess: 90, transparent: true, opacity: 0.9 });
-  const disc = (x, z, r, y) => { const g = new THREE.CircleGeometry(r, 28); g.rotateX(-Math.PI / 2); const m = new THREE.Mesh(g, pondMat); m.position.set(x, y, z); scene.add(m); };
+  const pondMat = new THREE.MeshPhongMaterial({ color: '#2f6178', specular: '#7f9ab0', shininess: 220, transparent: true, opacity: 0.9 });
+  const disc = (x, z, r, y) => { const g = new THREE.CircleGeometry(r, Math.max(28, Math.round(r * 0.8))); g.rotateX(-Math.PI / 2); const m = new THREE.Mesh(g, pondMat); m.position.set(x, y, z); scene.add(m); };
   for (const p of water.ponds) disc(p.x, p.z, p.r + 3, p.level);
   const fallTex = waterfallTex();
   fallTex.wrapS = fallTex.wrapT = THREE.RepeatWrapping;

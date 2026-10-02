@@ -124,7 +124,7 @@ function walk(segments, x, z, h, e = 0, marks = null) {
     for (let i = 0; i < n; i++) {
       h += dh / 2; x += Math.cos(h) * ds; z += Math.sin(h) * ds; h += dh / 2;
       e += seg.grade * ds;
-      pts.push({ x, z, e, name: seg.name, half: seg.half, canyon: seg.canyon ? 1 : 0 });
+      pts.push({ x, z, e, name: seg.name, half: seg.half, canyon: seg.canyon ? 1 : 0, ...(seg.bridge ? { bridge: seg.bridge } : {}) });
     }
   }
   return { pts, x, z, h, e };
@@ -219,7 +219,7 @@ export function makeRoad(pts, loop) {
       return {
         x: A.x + (B.x - A.x) * t, z: A.z + (B.z - A.z) * t, e: A.e + (B.e - A.e) * t,
         tx: A.tx, tz: A.tz, nx: A.nx, nz: A.nz, grade: A.grade, k: A.k, i: lo, t,
-        half: A.half + (B.half - A.half) * t, canyon: A.canyon,
+        half: A.half + (B.half - A.half) * t, canyon: A.canyon, bridge: A.bridge,
       };
     },
     // Nearest point, searching near `hint` so stacked switchback legs don't get confused.
@@ -708,7 +708,91 @@ function buildRingLinks() {
 }
 const LINKS = buildRingLinks();
 
-export const ALL_ROADS = [ROAD, ...CONNECTORS, ...ORDER.map((k) => COURSE_ROADS[k]), RING, ...LINKS];
+// ---------- the newer courses ----------
+// Each one branches off a road already on the map (a T-junction, `from`: that road's id, the distance
+// along it and which side) and runs out to a T-junction on the ring (`to`: distance along the ring),
+// so the whole map stays one network. The ring itself is laid out before these, round the older
+// roads; every one of these sits inside it. Segments as in walk(), plus `bridge` (a style name):
+// that stretch is a bridge over a lake (see world3d.js).
+//  - Kagami Lakes: fast lakeside sweepers across the south, over two big lakes on long bridges.
+//  - Tengu Ridge: a stack of switchbacks up the mountain, a flowing run along the ridge top, then a
+//    long fast descent to the ring. The most elevation on the map.
+//  - Hayate Forest: a rollercoaster through the trees in the east: flowing esses over crests and
+//    into dips, and a bridge over the creek.
+const NEW_DEFS = [
+  { id: 'kagami', name: 'Kagami Lakes', from: { road: 'canyon', s: 2700, side: 1 }, to: { s: 2880 }, half: 4.2,
+    segs: [
+      { r: 90, turn: -55, grade: -0.01 }, { r: 160, turn: 45, grade: -0.03 }, { r: 120, turn: -62, grade: -0.02 }, { len: 40, grade: 0 },
+      { len: 210, grade: 0, bridge: 'red' },
+      { len: 30, grade: 0.02 }, { r: 200, turn: 32, grade: 0.03 }, { r: 90, turn: -62, grade: 0.04 }, { r: 140, turn: 45, grade: 0.02 },
+      { r: 70, turn: -52, grade: -0.02 }, { r: 110, turn: 64, grade: -0.03 }, { len: 30, grade: -0.01 },
+      { r: 420, turn: -26, grade: 0, bridge: 'stone' },
+      { len: 30, grade: -0.01 }, { r: 100, turn: 48, grade: -0.03 }, { r: 160, turn: -28, grade: -0.02 },
+    ] },
+  { id: 'tengu', name: 'Tengu Ridge', from: { road: 'canyon', s: 3450, side: -1 }, to: { s: 14700 }, half: 3.6,
+    segs: [
+      { r: 120, turn: -17, grade: 0.03 }, { len: 190, grade: 0.07 }, { r: 60, turn: 90, grade: 0.07 }, { len: 130, grade: 0.1 },
+      { r: 11, turn: -180, grade: 0.06, name: 'Hairpin' }, { len: 150, grade: 0.11 },
+      { r: 10.5, turn: 180, grade: 0.06, name: 'Hairpin' }, { len: 150, grade: 0.11 },
+      { r: 11.5, turn: -180, grade: 0.06, name: 'Hairpin' }, { len: 150, grade: 0.11 },
+      { r: 10.5, turn: 180, grade: 0.06, name: 'Hairpin' }, { len: 150, grade: 0.11 },
+      { r: 11, turn: -180, grade: 0.06, name: 'Hairpin' }, { len: 90, grade: 0.09 },
+      // Over the top: a flowing run along the ridge.
+      { r: 45, turn: 90, grade: 0.05 }, { r: 110, turn: 40, grade: 0.02 }, { r: 80, turn: -60, grade: 0 }, { r: 140, turn: 35, grade: 0 },
+      { r: 70, turn: -45, grade: -0.02 },
+      // And the long way down.
+      { r: 100, turn: 55, grade: -0.08 }, { r: 60, turn: -75, grade: -0.09 }, { r: 130, turn: 40, grade: -0.1 },
+      { r: 15, turn: -160, grade: -0.06, name: 'Hairpin' }, { len: 120, grade: -0.1 }, { r: 15, turn: 160, grade: -0.06, name: 'Hairpin' },
+      { r: 90, turn: -40, grade: -0.09 }, { r: 70, turn: 60, grade: -0.09 }, { r: 120, turn: -30, grade: -0.08 },
+    ] },
+  { id: 'hayate', name: 'Hayate Forest', from: { road: 'canyon', s: 7230, side: -1 }, to: { s: 17550 }, half: 3.9,
+    segs: [
+      { r: 70, turn: 30, grade: 0.03 }, { r: 90, turn: -45, grade: 0.07 }, { r: 80, turn: 60, grade: -0.06 }, { r: 70, turn: -55, grade: 0.07 },
+      { r: 100, turn: 40, grade: -0.07 }, { r: 60, turn: -50, grade: 0.06 }, { len: 20, grade: 0 },
+      { len: 130, grade: 0, bridge: 'timber' },
+      { len: 20, grade: 0 }, { r: 90, turn: 55, grade: 0.07 }, { r: 70, turn: -65, grade: -0.07 }, { r: 110, turn: 45, grade: 0.06 },
+      { r: 50, turn: -70, grade: -0.05 }, { r: 120, turn: 50, grade: 0.07 }, { r: 80, turn: -40, grade: -0.07 }, { r: 90, turn: 50, grade: 0.05 },
+    ] },
+];
+const NEW_ORDER = NEW_DEFS.map((d) => d.id);
+function buildNewCourse(def, byId) {
+  const host = byId[def.from.road], j = host.sampleAtS(def.from.s);
+  const h0 = Math.atan2(j.tz, j.tx) + def.from.side * (Math.PI / 2);
+  const w = walk(def.segs.map((sg) => ({ ...sg, half: sg.half ?? def.half })), j.x, j.z, h0, j.e);
+  // The last stretch: a smooth curve meeting the ring square on.
+  const P = RING.sampleAtS(def.to.s), side = Math.sign((w.x - P.x) * P.nx + (w.z - P.z) * P.nz) || 1;
+  const tail = hermite({ x: w.x, z: w.z }, w.h, { x: P.x, z: P.z }, Math.atan2(-P.nz * side, -P.nx * side));
+  tail.forEach((p) => { p.half = def.half; p.canyon = 0; });
+  const last = w.pts[w.pts.length - 1], prev = w.pts[w.pts.length - 2];
+  easeElevation(tail, last.e, last.e - prev.e, P.e, 0, Math.hypot(P.x - tail[tail.length - 1].x, P.z - tail[tail.length - 1].z));
+  const pts = [{ x: j.x, z: j.z, e: j.e, half: def.half, canyon: 0 }, ...w.pts, ...tail];
+  // Round off the grade changes, keeping both ends exactly level with the roads they join.
+  const e0 = pts.map((p) => p.e), N = pts.length;
+  for (let i = 12; i < N - 12; i++) { let sum = 0; for (let k = -12; k <= 12; k++) sum += e0[i + k]; pts[i].e = sum / 25; }
+  // Leave the host road level (it's flat across), easing into the course's own grade over 40 m.
+  for (let i = 0; i < Math.min(40, N); i++) { const t = i / 40; pts[i].e = j.e + (pts[i].e - j.e) * t * t * (3 - 2 * t); }
+  smoothWidths(pts, def.half);
+  const road = makeRoad(pts, false);
+  Object.assign(road, { id: def.id, name: def.name, style: 'two', joinedStart: true, joinedEnd: true, newCourse: true });
+  flareMouths(road, [{ road: host, at: 'start' }, { road: RING, at: 'end' }]);
+  road.bestLine = optimalOffsets(road);
+  return road;
+}
+const NEW_ROADS = (() => {
+  const byId = Object.fromEntries([ROAD, ...CONNECTORS, ...Object.values(COURSE_ROADS), RING].map((r) => [r.id, r]));
+  return NEW_DEFS.map((def) => {
+    const road = buildNewCourse(def, byId);
+    const startS = 60, finishS = road.length - 45;
+    COURSES[def.id] = {
+      id: def.id, name: def.name, home: false, worldId: 'world', road, lines: [startS, finishS], startS, finishS, gateway: null, archS: 38,
+      hairpins: def.segs.filter((x) => x.name === 'Hairpin').length,
+    };
+    return road;
+  });
+})();
+ORDER.push(...NEW_ORDER);
+
+export const ALL_ROADS = [ROAD, ...CONNECTORS, ...ORDER.filter((k) => COURSE_ROADS[k]).map((k) => COURSE_ROADS[k]), RING, ...LINKS, ...NEW_ROADS];
 for (const r of ALL_ROADS) {
   let x0 = Infinity, x1 = -Infinity, z0 = Infinity, z1 = -Infinity;
   for (const p of r.samples) { x0 = Math.min(x0, p.x); x1 = Math.max(x1, p.x); z0 = Math.min(z0, p.z); z1 = Math.max(z1, p.z); }

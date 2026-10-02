@@ -325,8 +325,8 @@ export function startDrive({ canvas, hud, car, perf, rivalBase, mode, event, dif
   // `m` is always the main road (the course you're racing, or the home loop); `rd`/`n` is the road
   // you're actually on, which can be any road on the map.
   const home = (x, z) => net.home && inHome(x, z);
-  // Trees 4.5 m past the edge; a canyon wall can stand closer.
-  const limitOf = (n) => n.p.half + 4.5 - 2.9 * n.p.canyon;
+  // Trees 4.5 m past the edge; a canyon wall can stand closer; a bridge rail right at the edge.
+  const limitOf = (n) => (n.p.bridge ? n.p.half + 0.3 : n.p.half + 4.5 - 2.9 * n.p.canyon);
   const hints = new Map();
   function where(x, z) {
     const m = road.nearest(x, z, P.hint);
@@ -465,7 +465,7 @@ export function startDrive({ canvas, hud, car, perf, rivalBase, mode, event, dif
       }
       if (into > 3 && hitCool <= 0) {
         wear.body += into * 0.5; wear.susp += into * 0.15;
-        flash(w1.pastEnd ? 'ROAD CLOSED' : w1.n.p.canyon > 0.5 ? 'Into the rock!' : 'Into the trees!', 0.8);
+        flash(w1.pastEnd ? 'ROAD CLOSED' : w1.n.p.bridge ? 'Into the rail!' : w1.n.p.canyon > 0.5 ? 'Into the rock!' : 'Into the trees!', 0.8);
         sound.hit(into); hitCool = 0.5;
       }
     }

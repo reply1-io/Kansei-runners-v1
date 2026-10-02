@@ -81,8 +81,8 @@ export const PAINT_COLORS = ['#f2f2ee', '#141414', '#b3231e', '#e8a317', '#1f4fa
 export const WHEEL_COLORS = [['Silver', '#d8dbe0'], ['Gunmetal', '#5a6068'], ['Black', '#2a2a2a'], ['Gold', '#d4a640'], ['Bronze', '#9c6b3c'], ['White', '#ffffff']];
 export const COLORS = ['#e8e8e8', '#d63031', '#0984e3', '#2d3436', '#fdcb6e', '#00b894', '#6c5ce7', '#e17055', '#b2bec3', '#fab1a0'];
 
-// Race courses (geometry in js/road.js): two short touge courses (~2 minutes) and two long ones (4-5
-// minutes, paying double: `purseScale`), each at four difficulties.
+// Race courses (geometry in js/road.js): short touge courses (~2 minutes) and long ones (4-5 minutes,
+// paying double: `purseScale`), each at four difficulties.
 // Rivals ALWAYS drive a car with exactly your car's numbers (power-to-weight, grip, brakes), so it's
 // always fair. Difficulty only changes how well they drive:
 //   line:    how close to the ideal racing line they drive (0 = keeps to one lane, 1 = perfect line
@@ -110,6 +110,18 @@ export const RACES = [
     desc: 'A narrow back road that climbs and drops over the mountains: tight esses, hairpins and blind crests for five minutes straight.',
     hotlap: [[258, 250], [240, 500], [228, 1000], [217, 2000]],
     levels: { easy: { commit: 1.16, brake: 1.35 }, medium: { commit: 1.33, brake: 1.6 }, hard: { commit: 1.47, brake: 1.85 }, impossible: { commit: 1.72, brake: 2.2 } } },
+  { id: 'kagami', course: 'kagami', name: 'Kagami Lakes', style: 'Fast lakeside sweepers',
+    desc: 'Long, quick sweepers through the southern lakes, over a red arch bridge and a stone viaduct with the water far below. The rails on the bridges are unforgiving.',
+    hotlap: [[64, 250], [60, 500], [57, 1000], [54, 2000]],
+    levels: { easy: { commit: 1.1, brake: 1.3 }, medium: { commit: 1.31, brake: 1.62 }, hard: { commit: 1.58, brake: 2.0 }, impossible: { commit: 2.02, brake: 2.57 } } },
+  { id: 'tengu', course: 'tengu', name: 'Tengu Ridge', style: 'Switchback climb, ridge run, long plunge', purseScale: 2,
+    desc: 'Five stacked switchbacks straight up the mountainside, a flowing run along the ridge 240 m up, then a long, fast plunge down to the ring with two more hairpins. The biggest climb on the map.',
+    hotlap: [[131, 250], [122, 500], [116, 1000], [111, 2000]],
+    levels: { easy: { commit: 1.16, brake: 1.35 }, medium: { commit: 1.33, brake: 1.6 }, hard: { commit: 1.47, brake: 1.85 }, impossible: { commit: 1.66, brake: 2.1 } } },
+  { id: 'hayate', course: 'hayate', name: 'Hayate Forest', style: 'Rollercoaster sprint',
+    desc: 'A short, fast sprint through the eastern forest: flowing esses over blind crests and down into dips, and a timber bridge over the creek. Keep it tidy over the tops.',
+    hotlap: [[55, 250], [51, 500], [48, 1000], [46, 2000]],
+    levels: { easy: { commit: 1.16, brake: 1.35 }, medium: { commit: 1.33, brake: 1.6 }, hard: { commit: 1.47, brake: 1.85 }, impossible: { commit: 1.66, brake: 2.1 } } },
 ];
 
 // Hot lap: no rivals, just you against the clock. Each race's `hotlap` lists [time in seconds, reward]:

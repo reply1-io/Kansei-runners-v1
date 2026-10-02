@@ -9,7 +9,7 @@ It's styled after **Gran Turismo 2** on the original PlayStation:
 - **Menus:** GT-style chrome buttons, steel-blue panels and italic type.
 - **Garage:** a spinning turntable showing your car.
 
-**Look:** PlayStation-era graphics (Gran Turismo 2 style) seen through a Sony VX1000 / VHS camcorder: slight fisheye, colour fringing and bleed, still tape grain, scanlines, vignette and a ▶ PLAY / tape-counter display. Dense pine forest over rolling hills, with boulders, ponds and waterfalls in open glades, and a ring of snow-capped mountains on the horizon. (`setVhs(false)` in `js/ps1.js` turns the camcorder effect off.)
+**Look:** PlayStation-era graphics (Gran Turismo 2 style) seen through a Sony VX1000 / VHS camcorder: slight fisheye, colour fringing and bleed, still tape grain, scanlines, vignette and a ▶ PLAY / tape-counter display. Dense pine forest over rolling hills, with solid boulders, big ponds in open glades (most with a waterfall pouring into them off the hillside), and a ring of snow-capped mountains on the horizon. The sun sits low in the sky, and pointing the camera at it looks like shooting into the sun on a full-frame cinema camera such as the Sony FX3: a blown-out core and bloom, a 14-point starburst, a chain of coloured ghosts across the frame and veiling glare that washes out the shadows. Trees, hills and the wall cut it off as they pass in front. (`setVhs(false)` in `js/ps1.js` turns the camcorder effect off.)
 
 ## How to play
 
@@ -20,8 +20,9 @@ You start at **your cabin, deep in the forest**, shown top-down. It has a carpor
 - **Cockpit camera:** tap **👁** (or press **C**) to drive from the driver's seat. It shows the dash, slim A-pillars and a right-hand-drive steering wheel that turns with yours. There's no hood, roof header or mirror in the way. It renders at twice the resolution of the chase view, with the PS1 texture warp turned off so road lines up close stay straight. Tap **🎥** to go back to the chase camera. The game remembers your choice.
 - **Tap a parked car** to open it in the Garage.
 - **Tap an empty spot** to open the Marketplace.
-- **Tap the cabin** to sleep until tomorrow, which brings new listings.
 - **📱 Phone** pulls out your phone. **▾ Put away** puts it back.
+
+**The cabin yard** is lived in: smoke from the chimney and the fire pit, a dog doing its rounds of the yard (it stops to sniff), birds wheeling overhead and butterflies over the flower beds. There are camp chairs and stumps round the fire, a picnic table, string lights from the porch out over the fire pit, rocking chairs on the porch, a red shed with a ladder and a project car under a tarp, tire stacks and a tool chest by the carport, laundry on the line and a mailbox by the lane.
 
 **The home road** is a 2.7 km touge loop around the mountain in front of the cabin, for free driving. It has 7 hairpins, a ridge over the summit and no guardrails (run wide and you're in the dirt, then the trees), with four side roads. **Everything is one connected map:** each side road is a real road out to a race course, passing under a wooden arch with the course's name and running straight onto the course's start line. Free drive any course from end to end. The minimap shows the roads around you.
 
@@ -37,20 +38,26 @@ You start at **your cabin, deep in the forest**, shown top-down. It has a carpor
 | Old Logging Road | Yamabiko Mountain Road |
 | Ring Road West | the Ring Road |
 
+The three newest courses branch off Kuroiwa Canyon and run out to the Ring Road at the far end, each with a wooden arch over the road near its start: **Kagami Lakes** heads south, **Tengu Ridge** north and **Hayate Forest** east.
+
 **Race courses** (from the phone's Touge app). Each one is different:
 - **Kansei Pass** (about 1:45): ultra-winding downhill. It's 1.7 km of hairpins, sharp esses and square 90s with almost no straight road, and the corners are tight enough that passing is hard.
 - **Switchback Ladder** (about 2 minutes): straight, hairpin, repeat, 2.8 km down the face. A stack of three hairpins, a run of flowing S-bends across the face, a **one-lane** stretch along the cliff, a second stack of four hairpins (one leg has a fast kink in it), then S-bends to the finish. Braking points win it.
 - **Kuroiwa Canyon** (4 to 5 minutes): 8.9 km of **wide** road (two 5.6 m lanes) with long flowing sweepers, S-bends and only **two hairpins**. It climbs into the mountain, runs 2 km through a natural rock canyon with walls nearly 40 m high, then drops out the other side.
 - **Yamabiko Mountain Road** (about 5 minutes): 4.3 km of **narrow** road (two 3.3 m lanes, dashed centre line) with tight esses, square 90s and nine hairpins. It climbs, drops, climbs again and drops to the finish, about 145 m from top to bottom.
 
-The two long courses pay **double** purses.
+- **Kagami Lakes** (about 1 minute): 2.4 km of fast lakeside sweepers across the south of the map, over two big lakes: first on a **red steel arch bridge**, then on a curving **stone viaduct**, both 14 m above the water. The bridges have rails right at the road's edge, so there's no run-off.
+- **Tengu Ridge** (about 2 minutes): the biggest climb on the map. It's 3.4 km: a stack of **five switchbacks** straight up the mountainside, a flowing run along the ridge about 240 m up, then a long, fast plunge back down to the ring with two more hairpins.
+- **Hayate Forest** (about 50 seconds): a 1.8 km **rollercoaster sprint** through the eastern forest. Flowing esses climb over blind crests and drop into dips, with a **timber trestle bridge** over the creek.
+
+The long courses (Kuroiwa Canyon, Yamabiko and Tengu Ridge) pay **double** purses.
 
 
 **The loop:**
-1. **Marketplace:** 6–10 used cars under $5k each day, all real cars: **1980 Volvo 242, Mercedes-Benz 190E 2.3, 1987 BMW 325i (E30), Toyota Supra Turbo (Mk3), Nissan 180SX, Nissan Skyline GTS-t (R32) and 1999 Honda Civic Si hatch (FWD)**. Each has its real factory specs, and a model built from its real dimensions (length, width, height, wheelbase, overhangs, track, tire size and pillar positions). The pricier ones only show up in your budget as project cars. Each listing shows a price, factory specs (hp, handling, weight) and condition. Striped `??` bars are hidden problems, so tap **Inspect ($80)** before you buy.
+1. **Marketplace:** **every model is listed every day**, each in random condition, plus one to three extra cars. They're all real cars: **Mercedes-Benz 190E 2.3, 1987 BMW 325i (E30), Toyota Supra Turbo (Mk3), Nissan 180SX, Nissan Skyline GTS-t (R32), Honda Civic Type R (EK9, FWD) and Porsche 911 Turbo (964)**. Each has its real factory specs, and a model built from its real dimensions (length, width, height, wheelbase, overhangs, track, tire size and pillar positions). The EK9 has its real headlights, a cluster of clear lenses with chrome reflectors and amber indicators wrapping round the corner. The 964 Turbo has its wide hips, round frog-eye lamps, whale-tail spoiler, twin exhausts and Cup-style wheels. The listings change after every race. Each listing shows a price, factory specs (hp, handling, weight) and condition. Striped `??` bars are hidden problems, so tap **Inspect ($80)** before you buy.
 2. **Parts Shop:** buy parts for anything marked ⚠️, plus performance mods. They go in your trunk.
 3. **Garage:** tap **Install** / **Install all**. Each car also has a **paint shop**: respray the body or refinish the wheels, $100 per change.
-4. **Touge app:** pick a course and a difficulty: **Easy, Medium, Hard or Impossible**. Every race is free to enter and every difficulty is always open. Winning pays **$750 / $1,500 / $3,000 / $5,000** (Easy to Impossible; double on Kuroiwa Canyon and Yamabiko) and 2nd pays a fifth of that, on top of apex bonuses. Your best time for each shows on its button.
+4. **Touge app:** pick a course and a difficulty: **Easy, Medium, Hard or Impossible**. Every race is free to enter and every difficulty is always open. Winning pays **$750 / $1,500 / $3,000 / $5,000** (Easy to Impossible; double on Kuroiwa Canyon, Yamabiko and Tengu Ridge) and 2nd pays a fifth of that, on top of apex bonuses. Your best time for each shows on its button.
 5. **Hot Lap:** each course also has a free Hot Lap with no rivals. The tiers ($250 / $500 / $1,000 / $2,000) are:
 
 | Course | $250 | $500 | $1,000 | $2,000 |
@@ -59,6 +66,9 @@ The two long courses pay **double** purses.
 | Switchback Ladder | 1:52 | 1:44 | 1:39 | 1:35 |
 | Kuroiwa Canyon | 4:07 | 3:50 | 3:39 | 3:29 |
 | Yamabiko | 4:18 | 4:00 | 3:48 | 3:37 |
+| Kagami Lakes | 1:04 | 1:00 | 0:57 | 0:54 |
+| Tengu Ridge | 2:11 | 2:02 | 1:56 | 1:51 |
+| Hayate Forest | 0:55 | 0:51 | 0:48 | 0:46 |
  You get the best tier you beat, plus **$500 every time you beat your own hot-lap record**. Apex markers still pay.
 6. **Rivals are always fair.** They drive a car with **exactly your car's numbers** (power-to-weight, grip, brakes). Difficulty only changes how well they drive:
    - **Easy** rivals mostly keep to their lane, brake early and make mistakes, so the other lane is open to pass.
@@ -76,7 +86,7 @@ The two long courses pay **double** purses.
    - On a keyboard, use arrows/WASD, with space for the handbrake.
    - Slide or spin the tires for 2 seconds and you'll see light tire smoke.
    - 🔊 toggles sound (engine, tire squeal, impacts).
-8. Every drive wears the car. **Each race takes exactly 3% off every part** (engine, transmission, suspension, brakes, tires, body), however long the course and however hard you drive. Free driving wears parts gently with use (throttle wears the engine and transmission, sliding wears tires, brakes wear on downhills; a full lap of the Ring Road costs a few percent). Hitting the trees still damages the body and suspension. Bumping another car doesn't slow either of you down. Only a part that's already in bad shape can fail mid-race (a badly worn engine can blow). Spend your winnings on repairs and mods, or sell and move up.
+8. Every drive wears the car. **Each race takes exactly 3% off every part** (engine, transmission, suspension, brakes, tires, body), however long the course and however hard you drive. Free driving wears parts gently with use (throttle wears the engine and transmission, sliding wears tires, brakes wear on downhills; a full lap of the Ring Road costs a few percent). Hitting the trees, a boulder or a bridge rail still damages the body and suspension (boulders are solid: you bounce off them). Bumping another car doesn't slow either of you down. Only a part that's already in bad shape can fail mid-race (a badly worn engine can blow). Spend your winnings on repairs and mods, or sell and move up.
 
 Progress saves automatically in the browser (localStorage).
 
@@ -105,10 +115,11 @@ python3 -m http.server 8000
 | `js/road.js` | The map: the home loop, the roads out to the courses, the race courses (`COURSES`) placed around it, the Ring Road (`RING`) and its links, road width and canyon sections per point, and racing lines | Reshape roads, move or add a course (inside the ring) |
 | `js/state.js` | Game state, save/load, car generation, pricing, performance math | New stats or economy rules |
 | `js/drive.js` | Driving and racing: physics, rival AI, chase camera, HUD and tachometer, controls, wear | Race and driving mechanics |
-| `js/ps1.js` | The PlayStation-style renderer: low-res buffer, dithering, vertex snapping, affine textures | Tweak the retro look (`lines`, dithering) |
+| `js/ps1.js` | The PlayStation-style renderer: low-res buffer, dithering, vertex snapping, affine textures, and the lens flare off the sun | Tweak the retro look (`lines`, dithering) |
 | `js/textures.js` | Pixel-art textures drawn in code (road, grass, rock, trees, sky, cabin, car details) | New textures |
 | `js/carmodel.js` | Low-poly models of the real cars (`CARS`: real dimensions, profile, grille, lights, taillights, bumpers, wheels), glossy paint | New car models |
-| `js/world3d.js` | The one 3D world for the whole map: roads, canyon walls, arches, the rock wall round the ring with its waterfalls and cabins, sky, cabin, lighting, skid marks, and the ground, sprite forest and boulders, which are streamed in 320 m tiles as the camera gets near | Scenery and props |
+| `js/world3d.js` | The one 3D world for the whole map: roads, bridges and their lakes, canyon walls, arches, the rock wall round the ring with its waterfalls and cabins, ponds and waterfalls, sky and sun, cabin, lighting, skid marks, and the ground, sprite forest and boulders, which are streamed in 320 m tiles as the camera gets near | Scenery and props |
+| `js/homelife.js` | Life round the cabin: smoke, the dog, birds, butterflies, string lights and yard props | More at the cabin |
 | `js/homeview.js` | The 3D home screen: cabin from above, parked cars, traffic, Select buttons, taps | Home screen behavior |
 | `js/turntable.js` | The garage turntable | |
 | `js/map.js` | Home layout (`HOME`) and parking spots (`PARKING`) | Move things at the cabin, more parking |
@@ -116,4 +127,4 @@ python3 -m http.server 8000
 | `js/audio.js` | Turbo flutter on lift-off (factory turbos: Supra, 180SX, R32; or any car with a turbo kit). Synthesized engine (exhaust-pulse loops rendered in code at 4 rpm points and crossfaded by rpm; 4- or 6-cylinder per car), intake, tire and impact sounds, plus the gearbox model | Sounds |
 | `lib/three.module.min.js` | [three.js](https://threejs.org) r160 (MIT), vendored | |
 
-To add a car, add a line to `MODELS` in `js/data.js` (real hp, weight, drive layout, a clean-car price and paint colors), and give it a shape in `CARS` in `js/carmodel.js` (real length, width, height, wheelbase, front overhang, track and tire size; the side profile as distances behind the front axle; and which grille, lights, taillights, bumpers and wheels it uses). It then shows up in the Marketplace whenever one is cheap enough to list under $5k.
+To add a car, add a line to `MODELS` in `js/data.js` (real hp, weight, drive layout, a clean-car price and paint colors), and give it a shape in `CARS` in `js/carmodel.js` (real length, width, height, wheelbase, front overhang, track and tire size; the side profile as distances behind the front axle; and which grille, lights, taillights, bumpers and wheels it uses). It then shows up in the Marketplace every day.

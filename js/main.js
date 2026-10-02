@@ -316,7 +316,7 @@ function renderMsgs() {
     ['Kenji', 'Check Marketplace. Cheap cars are cheap for a reason — pay for an inspection if the seller is being shady.'],
     ['Kenji', 'Buy parts for anything marked ⚠️ in the Parts Shop, then install them in the Garage before you run it hard. A bad engine WILL let go.'],
     ['Kenji', 'Tap Select next to a car to get in and take it up the mountain. Learn the hairpins before you race anyone.'],
-    ['Kenji', 'Four roads to race: Kansei Pass (all corners), the Switchback Ladder (straights and hairpins), Kuroiwa Canyon (wide and fast, through the rock) and Yamabiko (five minutes of narrow mountain road). Everyone runs the same numbers as you, so start on Easy and learn the lines.'],
+    ['Kenji', 'Seven roads to race: Kansei Pass (all corners), the Switchback Ladder (straights and hairpins), Kuroiwa Canyon (wide and fast, through the rock), Yamabiko (five minutes of narrow mountain road), Kagami Lakes (fast, over the big bridges), Tengu Ridge (switchbacks up, a long plunge down) and Hayate Forest (a rollercoaster sprint). Everyone runs the same numbers as you, so start on Easy and learn the lines.'],
     ['Kenji', 'Every side road off the loop runs out to one of them. Follow it under the arch and you\'re on the course. Best way to learn a course for free.'],
   ];
   if (car && Object.keys(car.problems).length) msgs.push(['Kenji', `That ${modelOf(car).name}... you gonna fix it or just pray?`]);
