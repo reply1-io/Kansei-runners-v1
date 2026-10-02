@@ -8,7 +8,7 @@ import { seeded } from './draw.js';
 
 export const U = 0.088;           // meters per map unit (a 50-unit car on the map = 4.4 m)
 export const ROAD_HALF = 4.2;     // two 4.2 m lanes
-export const BRANCH_HALF = 3.2;   // side roads are narrower
+const CONNECTOR_HALF = 3.4;       // the roads out to the race courses
 const STEP = 1;                   // sample spacing (m)
 
 // Where the driveway lane meets the home loop, in map units (see HOME in map.js). The loop leaves
@@ -100,16 +100,16 @@ const LOOP = [
 ];
 // The last stretch back through the valley to the cabin is a smooth curve fitted to close the loop.
 
-// Side roads: where they leave the loop (a named mark, plus meters after it), which side, and shape.
-// Each one leads off to a race course (`to`): drive to its end and you carry on onto that course.
+// Roads out to the race courses: where they leave the loop (a named mark, plus meters after it),
+// which side, their first bends, and where that course's start line sits from there (`place`: the
+// start is `d` m away at `a` degrees off the road's heading, the course heads `b` degrees off it,
+// optionally mirrored). A smooth curve joins the bends to the start line.
 const BRANCH_DEFS = [
-  { id: 'lookout', name: 'Summit Lookout', to: 'pass', at: 'summit', offset: 30, side: -1, segs: [{ r: 40, turn: -25, grade: 0.03 }, { r: 60, turn: 40, grade: 0.02 }, { r: 50, turn: -20, grade: 0.01 }, { r: 120, turn: -15, grade: -0.02 }, { len: 60, grade: -0.03 }] },
-  { id: 'logging', name: 'Old Logging Road', to: 'yamabiko', at: 'logging', offset: 12, side: -1, segs: [{ r: 60, turn: 30, grade: -0.01 }, { r: 45, turn: -45, grade: 0.02 }, { r: 80, turn: 20, grade: 0.01 }, { r: 90, turn: -20, grade: 0.03 }, { len: 50, grade: 0.03 }] },
-  { id: 'town', name: 'Road to Town', to: 'canyon', at: 'valley', offset: 10, side: -1, segs: [{ r: 50, turn: -30, grade: -0.02 }, { r: 70, turn: 35, grade: -0.02 }, { r: 60, turn: -15, grade: -0.01 }, { r: 140, turn: 12, grade: 0 }, { len: 70, grade: 0 }] },
-  { id: 'cliff', name: 'Cliff Road', to: 'ladder', at: 'north', offset: 20, side: -1, segs: [{ r: 45, turn: -30, grade: 0.02 }, { r: 70, turn: 30, grade: 0.03 }, { r: 90, turn: -15, grade: 0.02 }, { len: 70, grade: 0.01 }] },
+  { id: 'lookout', name: 'Summit Lookout', to: 'pass', at: 'summit', offset: 30, side: -1, segs: [{ r: 40, turn: -25, grade: 0.03 }, { r: 60, turn: 40, grade: 0.02 }, { r: 50, turn: -20, grade: 0.01 }, { r: 120, turn: -15, grade: -0.02 }, { len: 60, grade: -0.03 }], place: { a: 0, d: 120, b: 70 } },
+  { id: 'logging', name: 'Old Logging Road', to: 'yamabiko', at: 'logging', offset: 12, side: -1, segs: [{ r: 60, turn: 30, grade: -0.01 }, { r: 45, turn: -45, grade: 0.02 }, { r: 80, turn: 20, grade: 0.01 }, { r: 90, turn: -20, grade: 0.03 }, { len: 50, grade: 0.03 }], place: { a: -50, d: 120, b: -30 } },
+  { id: 'town', name: 'Road to Town', to: 'canyon', at: 'valley', offset: 10, side: -1, segs: [{ r: 50, turn: -30, grade: -0.02 }, { r: 70, turn: 35, grade: -0.02 }, { r: 60, turn: -15, grade: -0.01 }, { r: 140, turn: 12, grade: 0 }, { len: 70, grade: 0 }], place: { a: 20, d: 170, b: -60, mirror: true } },
+  { id: 'cliff', name: 'Cliff Road', to: 'ladder', at: 'north', offset: 20, side: -1, segs: [{ r: 45, turn: -30, grade: 0.02 }, { r: 70, turn: 30, grade: 0.03 }, { r: 90, turn: -15, grade: 0.02 }, { len: 70, grade: 0.01 }], place: { a: -40, d: 120, b: 20, mirror: true } },
 ];
-// Gateways trigger this far before the end of a side road (where the course's arch stands).
-export const GATEWAY_BACK = 25;
 
 // Segments: { r, turn } is an arc (turn in degrees, + = clockwise on the top-down map),
 // { len } is a straight. grade = climb per meter in the direction of travel.
@@ -232,7 +232,8 @@ export function makeRoad(pts, loop) {
       const p = pts[best];
       const lat = (x - p.x) * p.nx + (z - p.z) * p.nz;
       const along = (x - p.x) * p.tx + (z - p.z) * p.tz;
-      const pastEnd = !loop && ((best === N - 1 && along > -1.5) || (best === 0 && along < 1.5));
+      // Off the end of an open road, unless another road carries on from that end.
+      const pastEnd = !loop && ((best === N - 1 && along > -1.5 && !road.joinedEnd) || (best === 0 && along < 1.5 && !road.joinedStart));
       return { i: best, p, lat, s: wrapS(p.s + along), dist: Math.sqrt(bd), pastEnd };
     },
   };
@@ -318,34 +319,18 @@ function buildHomeLoop() {
 
 export const ROAD = buildHomeLoop();
 
-function buildBranches(road) {
-  return BRANCH_DEFS.map((d) => {
-    const s0 = (d.at === 'end' ? road.length : road.marks[d.at]) + d.offset;
-    const j = road.sampleAtS(s0);
-    const h = Math.atan2(j.tz, j.tx) + d.side * (Math.PI / 2) * 0.85;
-    const w = walk(d.segs, j.x, j.z, h, j.e);
-    const bp = [{ x: j.x, z: j.z, e: j.e }, ...w.pts];
-    for (const p of bp) p.half = BRANCH_HALF;
-    const br = makeRoad(bp, false);
-    return { ...d, ...br, junctionS: s0, half: BRANCH_HALF };
-  });
-}
-
-export const BRANCHES = buildBranches(ROAD);
+// The first bends of each road out to a course (its own walk from the junction on the loop).
+const BRANCH_STARTS = BRANCH_DEFS.map((d) => {
+  const s0 = ROAD.marks[d.at] + d.offset;
+  const j = ROAD.sampleAtS(s0);
+  const h = Math.atan2(j.tz, j.tx) + d.side * (Math.PI / 2) * 0.85;
+  const w = walk(d.segs, j.x, j.z, h, j.e);
+  return { def: d, junctionS: s0, pts: [{ x: j.x, z: j.z, e: j.e }, ...w.pts], end: { x: w.x, z: w.z, h: w.h, e: w.e } };
+});
 
 // Back-compat helpers for the home loop (used by the 2D map).
 export const sampleAtS = (s) => ROAD.sampleAtS(s);
 export const nearestOnRoad = (x, z, hint, w) => ROAD.nearest(x, z, hint, w);
-
-// Nearest point on a side road (they're short, so a full scan is cheap).
-export function nearestOnBranch(br, x, z) {
-  return br.nearest(x, z, -1);
-}
-
-export const HOME_NET = {
-  id: 'home', home: true, road: ROAD, branches: BRANCHES,
-  lines: [ROAD.startLineS],
-};
 
 // ---------- race courses ----------
 // Generated courses are built from blocks with a fixed seed so the layout is the same for everyone,
@@ -487,7 +472,8 @@ function crowded(pts, minGap, nearGap = minGap) {
   return false;
 }
 
-function buildCourse({ id, name, segments, generate, seed, targetLen, minGap, nearGap, half = ROAD_HALF, roadStyle }) {
+// A course's shape in its own frame: starts at the origin heading +x at elevation 120.
+function localCourse({ segments, generate, seed, targetLen, minGap, nearGap, half = ROAD_HALF }) {
   let segs = segments, pts;
   if (!segs) {
     for (let attempt = 0; attempt < 800; attempt++) {
@@ -499,23 +485,90 @@ function buildCourse({ id, name, segments, generate, seed, targetLen, minGap, ne
   pts = [{ x: 0, z: 0, e: 120 }, ...pts];
   smoothElevation(pts, 10, false);
   smoothWidths(pts, half);
-  const road = makeRoad(pts, false);
-  road.bestLine = optimalOffsets(road);
-  const startS = 30, finishS = road.length - 30;
-  return {
-    id, name, home: false, road, branches: [], roadStyle,
-    lines: [startS, finishS],
-    startS, finishS,
-    hairpins: segs.filter((x) => x.name === 'Hairpin').length,
-  };
+  return { pts, segs };
 }
 
-export const COURSES = {
-  pass: buildCourse({ id: 'pass', name: 'Kansei Pass', generate: windingSegments, seed: 7, targetLen: 1650, minGap: 20 }),
-  ladder: buildCourse({ id: 'ladder', name: 'Switchback Ladder', segments: ladderSegments(), minGap: 18 }),
-  canyon: buildCourse({ id: 'canyon', name: 'Kuroiwa Canyon', generate: flowingSegments, seed: 23, targetLen: 8800, minGap: 70, nearGap: 26, half: 5.6 }),
-  yamabiko: buildCourse({ id: 'yamabiko', name: 'Yamabiko Mountain Road', generate: (rnd, L) => windingSegments(rnd, L, { half: 3.3, climbs: true }), seed: 41, targetLen: 4300, minGap: 22, nearGap: 18, half: 3.3, roadStyle: 'narrow' }),
+// Move a course into the world: start at (x, z, e) heading h, optionally mirrored left-right.
+function placePts(pts, { x, z, h, e, mirror = false }) {
+  const c = Math.cos(h), sn = Math.sin(h), m = mirror ? -1 : 1;
+  return pts.map((p) => ({ ...p, x: x + p.x * c - p.z * m * sn, z: z + p.x * sn + p.z * m * c, e: p.e - 120 + e }));
+}
+
+const COURSE_DEFS = {
+  pass: { id: 'pass', name: 'Kansei Pass', generate: windingSegments, seed: 7, targetLen: 1650, minGap: 20 },
+  ladder: { id: 'ladder', name: 'Switchback Ladder', segments: ladderSegments(), minGap: 18 },
+  canyon: { id: 'canyon', name: 'Kuroiwa Canyon', generate: flowingSegments, seed: 23, targetLen: 8800, minGap: 70, nearGap: 26, half: 5.6 },
+  yamabiko: { id: 'yamabiko', name: 'Yamabiko Mountain Road', generate: (rnd, L) => windingSegments(rnd, L, { half: 3.3, climbs: true }), seed: 41, targetLen: 4300, minGap: 22, nearGap: 18, half: 3.3, roadStyle: 'narrow' },
 };
+const LOCAL = Object.fromEntries(Object.entries(COURSE_DEFS).map(([k, d]) => [k, localCourse(d)]));
+
+// The road from the end of a side road's first bends to a course's start line: a smooth curve that
+// arrives lined up with the course, climbing or dropping evenly.
+function connectorPts(E, S) {
+  const pts = hermite({ x: E.x, z: E.z }, E.h, { x: S.x, z: S.z }, S.h);
+  pts.forEach((p, i) => { p.e = E.e + (S.e - E.e) * ((i + 1) / (pts.length + 1)); p.half = CONNECTOR_HALF; });
+  return pts;
+}
+
+// Test hook for laying the courses out (scratch scripts).
+export const __layout = { LOCAL, placePts, connectorPts, makeRoad, BRANCH_STARTS };
+
+// ---------- the whole map ----------
+// Everything is one connected world: the home loop, a road out from it to each course, and the
+// courses themselves. Every road knows its id, name, surface style and whether its far end is closed.
+const D2R = Math.PI / 180;
+ROAD.id = 'home'; ROAD.name = 'Home loop'; ROAD.style = 'two';
+const CONNECTORS = [], COURSE_ROADS = {};
+export const COURSES = {};
+for (const st of BRANCH_STARTS) {
+  const d = st.def, def = COURSE_DEFS[d.to], E = st.end, P = d.place;
+  const S = { x: E.x + Math.cos(E.h + P.a * D2R) * P.d, z: E.z + Math.sin(E.h + P.a * D2R) * P.d, h: E.h + P.b * D2R, e: E.e };
+  // The connector: first bends, then the curve onto the course's first point.
+  const cp = [...st.pts, ...connectorPts(E, S)];
+  // Widen (or narrow) over the last 40 m to meet the course's width.
+  const endHalf = LOCAL[d.to].pts[0].half;
+  cp.forEach((p, i) => { const t = Math.max(0, 1 - (cp.length - 1 - i) / 40); p.half = CONNECTOR_HALF + (endHalf - CONNECTOR_HALF) * t; });
+  smoothElevation(cp, 8, false);
+  smoothWidths(cp, CONNECTOR_HALF);
+  const conn = makeRoad(cp, false);
+  Object.assign(conn, { id: d.id, name: d.name, to: d.to, style: 'narrow', junctionS: st.junctionS, joinedStart: true, joinedEnd: true });
+  CONNECTORS.push(conn);
+  // The course, moved into place.
+  const local = LOCAL[d.to];
+  const road = makeRoad(placePts(local.pts, { ...S, mirror: !!P.mirror }), false);
+  road.bestLine = optimalOffsets(road);
+  Object.assign(road, { id: d.to, name: def.name, style: def.roadStyle || 'two', closedEnd: true, joinedStart: true });
+  COURSE_ROADS[d.to] = road;
+  const startS = 30, finishS = road.length - 30;
+  COURSES[d.to] = {
+    id: d.to, name: def.name, home: false, worldId: 'world', road, roadStyle: def.roadStyle,
+    lines: [startS, finishS], startS, finishS, gateway: d.id,
+    hairpins: local.segs.filter((x) => x.name === 'Hairpin').length,
+  };
+}
+// Keep the courses in the order of the Touge app.
+const ORDER = ['pass', 'ladder', 'canyon', 'yamabiko'];
+for (const k of ORDER) { const c = COURSES[k]; delete COURSES[k]; COURSES[k] = c; }
+
+export const ALL_ROADS = [ROAD, ...CONNECTORS, ...ORDER.map((k) => COURSE_ROADS[k])];
+for (const r of ALL_ROADS) {
+  let x0 = Infinity, x1 = -Infinity, z0 = Infinity, z1 = -Infinity;
+  for (const p of r.samples) { x0 = Math.min(x0, p.x); x1 = Math.max(x1, p.x); z0 = Math.min(z0, p.z); z1 = Math.max(z1, p.z); }
+  r.bbox = { x0, x1, z0, z1 };
+}
+// While driving, the road you're racing on (or the home loop) is the main road; all the others are
+// `branches` you can drive onto.
+for (const c of Object.values(COURSES)) c.branches = ALL_ROADS.filter((r) => r !== c.road);
+export const HOME_NET = {
+  id: 'home', worldId: 'world', home: true, road: ROAD, branches: ALL_ROADS.filter((r) => r !== ROAD),
+  lines: [ROAD.startLineS],
+};
+// What the 3D world is built from: every road, and the painted start/finish lines.
+export const WORLD = {
+  id: 'world', home: true, roads: ALL_ROADS,
+  lines: [{ road: ROAD, s: ROAD.startLineS }, ...ORDER.flatMap((k) => COURSES[k].lines.map((s) => ({ road: COURSES[k].road, s })))],
+};
+
 ROAD.bestLine = optimalOffsets(ROAD);
 
 // Apexes: the tightest point of each real corner (radius under ~45 m), at least 30 m apart.

@@ -317,7 +317,7 @@ function renderMsgs() {
     ['Kenji', 'Buy parts for anything marked ⚠️ in the Parts Shop, then install them in the Garage before you run it hard. A bad engine WILL let go.'],
     ['Kenji', 'Tap Select next to a car to get in and take it up the mountain. Learn the hairpins before you race anyone.'],
     ['Kenji', 'Four roads to race: Kansei Pass (all corners), the Switchback Ladder (straights and hairpins), Kuroiwa Canyon (wide and fast, through the rock) and Yamabiko (five minutes of narrow mountain road). Everyone runs the same numbers as you, so start on Easy and learn the lines.'],
-    ['Kenji', 'Every side road off the loop leads to one of them. Drive through the arch and you\'re on it. Best way to learn a course for free.'],
+    ['Kenji', 'Every side road off the loop runs out to one of them. Follow it under the arch and you\'re on the course. Best way to learn a course for free.'],
   ];
   if (car && Object.keys(car.problems).length) msgs.push(['Kenji', `That ${modelOf(car).name}... you gonna fix it or just pray?`]);
   if (state.stats.wins >= 3) msgs.push(['Ryo', 'People are talking about you. Try Hard on the Pass. Prove it.']);
@@ -633,7 +633,7 @@ async function startHotLap(race) {
   runDrive('race', car, ev, { label: 'Hot Lap', rivals: [], line: 1, mistakeEvery: 1e9, commit: 1, brake: 1 });
 }
 
-function runDrive(mode, car, ev, difficulty, start) {
+function runDrive(mode, car, ev, difficulty) {
   enterFullscreen();
   const all = parkedInMeters();
   const mine = all.find((p) => p.car.id === car.id);
@@ -649,29 +649,14 @@ function runDrive(mode, car, ev, difficulty, start) {
       // Rivals get your car's numbers as if it were healthy (a sick engine is still your problem).
       rivalBase: performance({ ...car, cond: { ...car.cond, engine: 100, trans: 100 } }),
       parked: all.filter((p) => p !== mine),
-      spot: mine, start,
-      onExit: (res) => (mode === 'race' ? finishRace(car, ev, res) : res.transfer ? changeRoad(car, res) : finishCruise(car, res)),
+      spot: mine,
+      onExit: (res) => (mode === 'race' ? finishRace(car, ev, res) : finishCruise(car, res)),
     });
   } catch (err) {
     console.error(err);
     backToCabin();
     modal('<h2>Can\'t start driving</h2><p>This browser couldn\'t start 3D graphics (WebGL). Try another browser.</p>');
   }
-}
-
-// Free driving off the end of a side road onto a course (or off a course back home): a quick fade
-// while the next road loads, then carry on at the same speed.
-function changeRoad(car, res) {
-  applyWear(car, res.wear);
-  save();
-  const t = res.transfer, fade = document.getElementById('fade');
-  fade.querySelector('b').textContent = t.home ? 'Home loop' : COURSES[t.course].name;
-  fade.querySelector('small').textContent = t.home ? (t.viaEnd ? 'The long way round' : 'Back to the mountain') : 'Free drive';
-  fade.classList.add('on');
-  setTimeout(() => {
-    runDrive('cruise', car, t.home ? undefined : { course: t.course, v: Math.min(t.v || 0, 15) }, undefined, t.home ? t.start : undefined);
-    setTimeout(() => fade.classList.remove('on'), 250);
-  }, 450);
 }
 
 function backToCabin() {

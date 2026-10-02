@@ -22,7 +22,7 @@ You start at **your cabin, deep in the forest**, shown top-down. It has a carpor
 - **Tap the cabin** to sleep until tomorrow, which brings new listings.
 - **📱 Phone** pulls out your phone. **▾ Put away** puts it back.
 
-**The home road** is a 2.7 km touge loop around the mountain in front of the cabin, for free driving. It has 7 hairpins, a ridge over the summit and no guardrails (run wide and you're in the dirt, then the trees), with four side roads. Each side road leads to a race course under a wooden arch with the course's name: drive through the arch and the screen fades and you carry on onto that course at the same speed, free driving. Drive off either end of a course (or back past its start) and you're back on the side road heading home.
+**The home road** is a 2.7 km touge loop around the mountain in front of the cabin, for free driving. It has 7 hairpins, a ridge over the summit and no guardrails (run wide and you're in the dirt, then the trees), with four side roads. **Everything is one connected map:** each side road is a real road out to a race course, passing under a wooden arch with the course's name and running straight onto the course's start line. Free drive any course from end to end; the far end of each course is closed off, so turn around and drive back. The minimap shows the roads around you.
 
 | Side road | Leads to |
 |---|---|
@@ -95,13 +95,13 @@ python3 -m http.server 8000
 | File | What's in it | Add… |
 |---|---|---|
 | `js/data.js` | Content and balance numbers | **Cars** → `MODELS` (real specs and paint colors), **repair parts** → `COMPONENTS`, **mods** → `UPGRADES`, **races** → `RACES` and `DIFFICULTIES` |
-| `js/road.js` | Road networks: the home loop and side roads (gateways to the courses), the race courses (`COURSES`), road width and canyon sections per point, and racing lines | Reshape roads or add a course |
+| `js/road.js` | The map: the home loop, the roads out to the courses, the race courses (`COURSES`) placed around it, road width and canyon sections per point, and racing lines | Reshape roads, move or add a course |
 | `js/state.js` | Game state, save/load, car generation, pricing, performance math | New stats or economy rules |
 | `js/drive.js` | Driving and racing: physics, rival AI, chase camera, HUD and tachometer, controls, wear | Race and driving mechanics |
 | `js/ps1.js` | The PlayStation-style renderer: low-res buffer, dithering, vertex snapping, affine textures | Tweak the retro look (`lines`, dithering) |
 | `js/textures.js` | Pixel-art textures drawn in code (road, grass, rock, trees, sky, cabin, car details) | New textures |
 | `js/carmodel.js` | Low-poly models of the real cars (`CARS`: real dimensions, profile, grille, lights, taillights, bumpers, wheels), glossy paint | New car models |
-| `js/world3d.js` | One 3D world per road network: terrain, roads, canyon walls, gateway arches, sprite forest, sky, cabin, lighting, skid marks | Scenery and props |
+| `js/world3d.js` | The one 3D world for the whole map: roads, canyon walls, arches, sky, cabin, lighting, skid marks, and the ground, sprite forest and boulders, which are streamed in 320 m tiles as the camera gets near | Scenery and props |
 | `js/homeview.js` | The 3D home screen: cabin from above, parked cars, traffic, Select buttons, taps | Home screen behavior |
 | `js/turntable.js` | The garage turntable | |
 | `js/map.js` | Home layout (`HOME`) and parking spots (`PARKING`) | Move things at the cabin, more parking |

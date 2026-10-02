@@ -238,10 +238,6 @@ button { font: inherit; color: inherit; cursor: pointer; }
 .minimap { position: absolute; top: calc(66px + var(--safe-top)); right: 10px; width: 104px; height: 120px; background: rgba(5,11,34,0.65); border: 1px solid var(--line); border-radius: var(--radius); }
 .hud-togo { white-space: pre-line; position: absolute; top: calc(192px + var(--safe-top)); right: 10px; width: 104px; text-align: center; font-size: 12px; font-weight: 800; font-style: italic; color: #fff; text-shadow: 1px 1px 0 #000; }
 .hud-msg { position: absolute; top: 28%; left: 0; right: 0; text-align: center; font-family: var(--display); font-style: italic; font-weight: 900; font-size: 26px; color: #fff; text-shadow: 3px 3px 0 #000, -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000; }
-#fade { position: absolute; inset: 0; background: #000; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; color: #fff; opacity: 0; transition: opacity 0.4s; pointer-events: none; z-index: 5; font-style: italic; }
-#fade.on { opacity: 1; }
-#fade b { font-size: 30px; letter-spacing: 1px; text-transform: uppercase; }
-#fade small { font-size: 14px; color: #bbb; }
 .hud-msg.big { font-size: 64px; color: var(--accent); }
 .hud-warn { position: absolute; top: calc(110px + var(--safe-top)); left: 12px; color: var(--bad); font-weight: 800; font-style: italic; font-size: 13px; text-shadow: 1px 1px 0 #000; }
 .tach { position: absolute; right: 4px; bottom: calc(var(--ctl-h) + 30px + var(--safe-bottom)); width: 150px; height: 112px; }
